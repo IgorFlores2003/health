@@ -1,6 +1,8 @@
 package com.ritmo.health;
 
 import android.content.ComponentName;
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -15,6 +17,10 @@ import java.util.Locale;
  * Troca o ícone do app habilitando um dos activity-alias do AndroidManifest
  * (.IconRed, .IconBlue...). O Android não permite gerar ícones em tempo de
  * execução, então só as cores empacotadas estão disponíveis.
+ *
+ * Desabilitar o alias pelo qual o app foi aberto fecha a tarefa na hora, mesmo
+ * com DONT_KILL_APP. Por isso a troca só fica agendada e é aplicada quando o
+ * app vai para segundo plano (onStop).
  */
 @CapacitorPlugin(name = "AppIcon")
 public class AppIconPlugin extends Plugin {
@@ -22,6 +28,8 @@ public class AppIconPlugin extends Plugin {
     private static final List<String> NAMES = Arrays.asList(
         "red", "orange", "amber", "green", "teal", "blue", "indigo", "purple", "pink", "graphite"
     );
+    private static final String PREFS = "ritmo-app-icon";
+    private static final String PENDING = "pending";
 
     @PluginMethod
     public void set(PluginCall call) {
@@ -30,6 +38,23 @@ public class AppIconPlugin extends Plugin {
             call.reject("Ícone desconhecido: " + name);
             return;
         }
+        // Salvo em disco: se o processo morrer antes do onStop, a troca não se perde.
+        prefs().edit().putString(PENDING, name).apply();
+        JSObject result = new JSObject();
+        result.put("name", name);
+        call.resolve(result);
+    }
+
+    @Override
+    protected void handleOnStop() {
+        super.handleOnStop();
+        String name = prefs().getString(PENDING, null);
+        if (name == null) return;
+        prefs().edit().remove(PENDING).apply();
+        apply(name);
+    }
+
+    private void apply(String name) {
         PackageManager pm = getContext().getPackageManager();
         String pkg = getContext().getPackageName();
         // Habilita o novo antes de desabilitar os outros: sempre há um ícone na tela inicial.
@@ -46,9 +71,10 @@ public class AppIconPlugin extends Plugin {
                 PackageManager.DONT_KILL_APP
             );
         }
-        JSObject result = new JSObject();
-        result.put("name", name);
-        call.resolve(result);
+    }
+
+    private SharedPreferences prefs() {
+        return getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     private static String capitalize(String s) {
