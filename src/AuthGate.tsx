@@ -5,6 +5,7 @@ import AccountAccess from "./AccountAccess";
 import App from "./App";
 import { supabase } from "./supabase";
 import { hasConfirmedEmail } from "./access";
+import { applyAccent } from "./theme";
 
 export default function AuthGate() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -96,8 +97,13 @@ export default function AuthGate() {
     !checking &&
     verified?.id === session?.user.id &&
     hasConfirmedEmail(verified);
-  if (allowed && verified && !recovery)
-    return <App key={verified.id} account={verified} />;
+  const inApp = Boolean(allowed && verified && !recovery);
+  // Fora da conta (login, cadastro, recuperação) vale sempre a cor padrão;
+  // a cor escolhida pela pessoa só é aplicada dentro do app.
+  useEffect(() => {
+    if (!inApp && !checking) applyAccent(undefined);
+  }, [inApp, checking]);
+  if (inApp) return <App key={verified!.id} account={verified!} />;
   return (
     <div className="flex min-h-dvh bg-white">
       <aside className="hidden w-[40%] max-w-xl flex-col justify-between bg-brand-600 p-12 text-white lg:flex">

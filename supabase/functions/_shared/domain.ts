@@ -8,7 +8,13 @@ export type Profile = {
   /** Caminho no bucket de Storage; a imagem nunca fica no snapshot. */
   photo?: string;
 };
-export type Weight = { id: string; date: string; value: number };
+export type Weight = {
+  id: string;
+  date: string;
+  value: number;
+  /** Caminhos no bucket de Storage (foto da balança). */
+  photos?: string[];
+};
 export type Exercise = {
   id: string;
   date: string;
@@ -16,6 +22,8 @@ export type Exercise = {
   minutes: number;
   intensity: "Leve" | "Moderada" | "Intensa";
   distanceKm?: number;
+  /** Ganho de elevação do treino, em metros. */
+  elevationM?: number;
   activeCalories?: number;
   /** Caminhos no bucket de Storage (fotos do treino/corrida). */
   photos?: string[];
@@ -25,6 +33,10 @@ export type Pressure = {
   date: string;
   systolic: number;
   diastolic: number;
+  /** Batimentos por minuto medidos pelo aparelho. */
+  pulse?: number;
+  /** Caminhos no bucket de Storage (foto do aparelho de pressão). */
+  photos?: string[];
 };
 export type Food = {
   id: string;
@@ -45,6 +57,8 @@ export type State = {
   pressures: Pressure[];
   goal: number;
   intake: number;
+  /** Cor do app escolhida em Perfil (#rrggbb). */
+  accent?: string;
 };
 export const initial: State = {
   foods: [],
@@ -103,13 +117,44 @@ export function projection(
     return null;
   return Math.ceil(((weight - goal) * 7700) / deficit);
 }
+/** Limite aceito ao validar dados já salvos (registros antigos podiam ter 6). */
 export const MAX_EXERCISE_PHOTOS = 6;
+/** Limite de fotos por registro na hora de escolher. */
+export const MAX_PHOTOS = 5;
+/** "01:05" → 65 minutos; null se o texto não for hh:mm válido. */
+export function parseDuration(text: string) {
+  const m = /^(\d{1,2}):([0-5]\d)$/.exec(text.trim());
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+/** 65 → "01:05" (formato do campo de duração). */
+export function formatDuration(minutes: number) {
+  const m = Math.round(minutes);
+  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+/** 34 → "34 min", 65 → "1h05" (para listas). */
+export function durationLabel(minutes: number) {
+  const m = Math.round(minutes);
+  return m < 60
+    ? `${m} min`
+    : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+}
+export const EXERCISE_TYPES = [
+  "Caminhada",
+  "Musculação",
+  "Corrida",
+  "Ciclismo",
+  "Natação",
+  "Yoga",
+  "Pilates",
+  "Dança",
+  "Outro",
+];
 /** `<user uuid>/<profile|exercises>/<arquivo>.<jpg|png|webp>` */
 export function isPhotoPath(v: unknown): v is string {
   return (
     typeof v === "string" &&
     v.length <= 200 &&
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(profile|exercises)\/[0-9a-z_-]+(\/[0-9a-z_-]+)?\.(jpg|png|webp)$/.test(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/(profile|exercises|pressures|weights)\/[0-9a-z_-]+(\/[0-9a-z_-]+)?\.(jpg|png|webp)$/.test(
       v,
     )
   );
@@ -160,9 +205,19 @@ export function validState(v: unknown): v is State {
     ["male", "female"].includes(p.formulaSex) &&
     [1.2, 1.375, 1.55, 1.725].includes(p.activity) &&
     n(s.goal, 0, 400) &&
+    (s.accent === undefined ||
+      (typeof s.accent === "string" && /^#[0-9a-f]{6}$/i.test(s.accent))) &&
     n(s.intake, 0, 10000) &&
     Array.isArray(s.weights) &&
-    s.weights.every((x) => base(x) && n(x.value, 20, 400)) &&
+    s.weights.every(
+      (x) =>
+        base(x) &&
+        n(x.value, 20, 400) &&
+        (x.photos === undefined ||
+          (Array.isArray(x.photos) &&
+            x.photos.length <= MAX_EXERCISE_PHOTOS &&
+            x.photos.every(isPhotoPath))),
+    ) &&
     Array.isArray(s.exercises) &&
     s.exercises.every(
       (x) =>
@@ -173,6 +228,7 @@ export function validState(v: unknown): v is State {
         n(x.minutes, 0, 600) &&
         (x.minutes > 0 || x.activeCalories !== undefined) &&
         (x.distanceKm === undefined || n(x.distanceKm, 0.01, 1000)) &&
+        (x.elevationM === undefined || n(x.elevationM, 0, 10000)) &&
         (x.activeCalories === undefined || n(x.activeCalories, 0, 10000)) &&
         ["Leve", "Moderada", "Intensa"].includes(x.intensity) &&
         (x.photos === undefined ||
@@ -186,7 +242,12 @@ export function validState(v: unknown): v is State {
         base(x) &&
         n(x.systolic, 50, 300) &&
         n(x.diastolic, 30, 200) &&
-        x.systolic > x.diastolic,
+        x.systolic > x.diastolic &&
+        (x.pulse === undefined || n(x.pulse, 20, 250)) &&
+        (x.photos === undefined ||
+          (Array.isArray(x.photos) &&
+            x.photos.length <= MAX_EXERCISE_PHOTOS &&
+            x.photos.every(isPhotoPath))),
     )
   );
 }

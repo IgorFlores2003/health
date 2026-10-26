@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { initial, validState } from "../src/domain.ts";
 import {
+  dailyBudget,
   foodCalories,
   exerciseEnergy,
   dailyEnergy,
@@ -145,4 +146,56 @@ test("editing a day reopens only that day", () => {
     reopenDay({ ...state, completedDays: [date, "2026-10-25"] }, date),
     ["2026-10-25"],
   );
+});
+test("daily budget: maintenance + exercise - food", () => {
+  const base = {
+    ...initial,
+    profileReviewed: true,
+    profile: { ...initial.profile, height: 180, age: 30, formulaSex: "male" },
+    weights: [{ id: "w", date: "2026-10-25", value: 80 }],
+  };
+  const date = "2026-10-26";
+  // basal 1780 × 1,2 = 2136
+  let b = dailyBudget(base, date);
+  assert.equal(b.ready && b.available, 2136);
+  b = dailyBudget(
+    {
+      ...base,
+      foods: [
+        {
+          id: "f",
+          date,
+          name: "Arroz",
+          grams: 150,
+          kcalPer100g: 130,
+          source: "label",
+        },
+      ],
+      exercises: [
+        {
+          id: "e",
+          date,
+          type: "Corrida",
+          minutes: 30,
+          intensity: "Moderada",
+          activeCalories: 300,
+        },
+      ],
+    },
+    date,
+  );
+  assert.equal(b.ready && b.available, 2436);
+  assert.equal(b.ready && b.consumed, 195);
+  assert.equal(b.ready && b.remaining, 2241);
+  // Meta de consumo definida substitui a manutenção.
+  b = dailyBudget({ ...base, intake: 1800 }, date);
+  assert.equal(b.ready && b.source, "goal");
+  assert.equal(b.ready && b.available, 1800);
+  assert.equal(b.ready && b.belowBasal, false);
+  b = dailyBudget({ ...base, intake: 1500 }, date);
+  assert.equal(b.ready && b.belowBasal, true);
+  // Sem perfil salvo não há como calcular.
+  b = dailyBudget({ ...base, profileReviewed: false }, date);
+  assert.equal(b.ready, false);
+  assert.equal(!b.ready && b.reason, "profile");
 });

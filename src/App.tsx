@@ -1,4 +1,5 @@
 import DailyDiary, { balanceLabels } from "./DailyDiary";
+import CalorieBudget from "./CalorieBudget";
 import ExerciseFields from "./ExerciseFields";
 import { dailyEnergy, reopenDay } from "./energy";
 import type { User } from "@supabase/supabase-js";
@@ -21,25 +22,27 @@ import {
   RiChat3Fill,
   RiChat3Line,
   RiCheckLine,
+  RiCloudLine,
+  RiCloudOffLine,
   RiCloseLine,
   RiDeleteBin6Line,
-  RiDownload2Line,
   RiFileList3Fill,
   RiFileList3Line,
   RiFireLine,
-  RiFocus3Fill,
-  RiFocus3Line,
   RiFootprintLine,
   RiHeartPulseLine,
   RiHome5Fill,
   RiHome5Line,
   RiLineChartLine,
   RiLogoutBoxRLine,
+  RiFocus3Line,
+  RiPencilLine,
   RiPulseLine,
+  RiSideBarFill,
+  RiSideBarLine,
   RiRestaurant2Fill,
   RiRestaurant2Line,
   RiScales3Line,
-  RiUpload2Line,
   RiUser3Fill,
   RiUser3Line,
 } from "react-icons/ri";
@@ -58,14 +61,26 @@ import {
   basal,
   byDate,
   currentWeight,
+  durationLabel,
   initial,
-  MAX_EXERCISE_PHOTOS,
+  MAX_PHOTOS,
+  parseDuration,
   projection,
   today,
   validState,
   type State,
 } from "./domain";
 import { supabase } from "./supabase";
+import { confirmDialog } from "./confirm";
+import { useCloudSync, type SyncStatus } from "./sync";
+import Onboarding from "./Onboarding";
+import PressureFields from "./PressureFields";
+import ReportCard from "./ReportCard";
+import WeightFields from "./WeightFields";
+import AccentPicker from "./AccentPicker";
+import { applyAccent, DEFAULT_ACCENT, nearestPreset } from "./theme";
+import { setAppIcon } from "./appIcon";
+import RichText from "./RichText";
 function readLocal(localKey: string): State {
   try {
     const s = JSON.parse(localStorage.getItem(localKey) || "null");
@@ -107,13 +122,6 @@ const tabs: {
     short: "Registros",
     icon: RiFileList3Line,
     active: RiFileList3Fill,
-  },
-  {
-    id: "goals",
-    label: "Meta",
-    short: "Meta",
-    icon: RiFocus3Line,
-    active: RiFocus3Fill,
   },
   {
     id: "insights",
@@ -174,20 +182,210 @@ function CardHeader({
     </div>
   );
 }
+/** Foto do usuário com o menu da conta (perfil e sair). */
+function AccountMenu({
+  photo,
+  name,
+  email,
+  onProfile,
+  onSignOut,
+  compact,
+  up,
+  className = "",
+}: {
+  photo?: string;
+  name: string;
+  email: string;
+  onProfile: () => void;
+  onSignOut: () => void;
+  compact?: boolean;
+  /** Abre o menu para cima (rodapé da barra lateral). */
+  up?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) =>
+      !ref.current?.contains(e.target as Node) && setOpen(false);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("pointerdown", close);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const item =
+    "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium hover:bg-surface";
+  return (
+    <div ref={ref} className={"relative " + className}>
+      <button
+        className={
+          compact
+            ? "flex rounded-full"
+            : "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface"
+        }
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Menu da conta"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <Avatar path={photo} name={name} size={compact ? 32 : 36} />
+        {!compact && (
+          <span className="min-w-0">
+            <strong className="block truncate text-sm font-semibold">
+              {name || "Seu perfil"}
+            </strong>
+            <small className="block truncate text-xs text-ink-500">
+              {email || "Salvo neste aparelho"}
+            </small>
+          </span>
+        )}
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className={
+            "absolute z-30 w-56 rounded-xl border border-line bg-white p-1.5 shadow-lg " +
+            (up ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")
+          }
+        >
+          {compact && email && (
+            <p className="truncate px-3 pt-2 pb-1 text-xs text-ink-500">
+              {email}
+            </p>
+          )}
+          <button
+            role="menuitem"
+            className={item}
+            onClick={() => {
+              setOpen(false);
+              onProfile();
+            }}
+          >
+            <RiUser3Line className="size-5 text-ink-500" /> Ver perfil
+          </button>
+          <button
+            role="menuitem"
+            className={item + " text-brand-700 hover:bg-brand-50"}
+            onClick={() => {
+              setOpen(false);
+              onSignOut();
+            }}
+          >
+            <RiLogoutBoxRLine className="size-5" /> Sair da conta
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+const syncText: Record<SyncStatus, string> = {
+  loading: "Carregando da conta…",
+  saving: "Salvando na conta…",
+  saved: "Salvo na conta",
+  offline: "Sem conexão: salvo no aparelho, envia quando voltar",
+  off: "Salvo só neste aparelho",
+};
+function SyncBadge({ status, label }: { status: SyncStatus; label?: boolean }) {
+  const ok = status === "saved" || status === "saving" || status === "loading";
+  const Icon = ok ? RiCloudLine : RiCloudOffLine;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5"
+      title={syncText[status]}
+      aria-live="polite"
+    >
+      <Icon
+        className={`size-[18px] ${status === "saved" ? "text-ink-400" : ok ? "animate-pulse text-brand-600" : "text-brand-700"}`}
+      />
+      {label ? (
+        syncText[status]
+      ) : (
+        <span className="sr-only">{syncText[status]}</span>
+      )}
+    </span>
+  );
+}
 const note = "text-[13px] leading-relaxed text-ink-500";
 const axisTick = { fontSize: 12, fill: "#a1a1aa" };
 export default function App({ account }: { account: User }) {
   const localKey = userStorageKey(account.id);
   const user = account.email || "";
   const [state, setState] = useState<State>(() => readLocal(localKey));
-  const [tab, setTab] = useState("overview");
+  // Volta para a mesma tela ao recarregar ou reabrir o app.
+  const [tab, setTab] = useState(() => {
+    try {
+      const saved = localStorage.getItem("ritmo-tab");
+      return tabs.some((t) => t.id === saved) ? saved! : "overview";
+    } catch {
+      return "overview";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("ritmo-tab", tab);
+    } catch {
+      /* preferência só deste aparelho */
+    }
+  }, [tab]);
   const [modal, setModal] = useState("");
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("ritmo-sidebar") === "collapsed";
+    } catch {
+      return false;
+    }
+  });
+  const toggleSidebar = () =>
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem("ritmo-sidebar", c ? "open" : "collapsed");
+      } catch {
+        /* preferência só deste aparelho */
+      }
+      return !c;
+    });
+  const [editing, setEditing] = useState<string | null>(null);
+  const openRecord = (kind: string, id?: string) => {
+    setEditing(id ?? null);
+    setModal(kind);
+  };
+  const editItem = editing
+    ? (state.weights.find((x) => x.id === editing) ??
+      state.exercises.find((x) => x.id === editing) ??
+      state.pressures.find((x) => x.id === editing))
+    : undefined;
   const [notice, setNotice] = useState("");
   const [period, setPeriod] = useState("30");
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState("");
   const [question, setQuestion] = useState("");
   const [diaryDate, setDiaryDate] = useState(today);
+  const sync = useCloudSync(account.id, state, setState);
+  useEffect(() => {
+    applyAccent(state.accent);
+    try {
+      localStorage.setItem("ritmo-accent", state.accent ?? DEFAULT_ACCENT);
+    } catch {
+      /* só evita o "piscar" da cor padrão ao abrir */
+    }
+    void setAppIcon(nearestPreset(state.accent ?? DEFAULT_ACCENT));
+  }, [state.accent]);
+  // Ao sair da conta, a tela de login volta para a cor padrão.
+  useEffect(
+    () => () => {
+      applyAccent(undefined);
+      try {
+        localStorage.removeItem("ritmo-accent");
+      } catch {
+        /* nada a limpar */
+      }
+    },
+    [],
+  );
   const aiRequest = useRef(0);
   useEffect(() => {
     aiRequest.current += 1;
@@ -284,8 +482,15 @@ export default function App({ account }: { account: User }) {
     const files = f
       .getAll("photos")
       .filter((x): x is File => x instanceof File && x.size > 0);
-    if (files.length > MAX_EXERCISE_PHOTOS) {
-      setNotice(`Escolha até ${MAX_EXERCISE_PHOTOS} fotos por exercício.`);
+    const saved = editItem && "photos" in editItem ? editItem.photos || [] : [];
+    // Fotos salvas que continuam no registro (as removidas no formulário saem).
+    const keptField = f.get("keptPhotos");
+    const kept =
+      typeof keptField === "string"
+        ? (JSON.parse(keptField) as string[]).filter((p) => saved.includes(p))
+        : saved;
+    if (kept.length + files.length > MAX_PHOTOS) {
+      setNotice(`Use até ${MAX_PHOTOS} fotos por registro.`);
       return;
     }
     const date = String(f.get("date"));
@@ -293,53 +498,72 @@ export default function App({ account }: { account: User }) {
       setNotice("Escolha uma data até hoje.");
       return;
     }
-    const id = crypto.randomUUID();
+    // Editar = substituir o registro de mesmo id.
+    const id = editItem?.id ?? crypto.randomUUID();
     let next: State;
     if (modal === "weight") {
       const value = Number(f.get("value"));
       next = {
         ...state,
         weights: [
-          ...state.weights.filter((x) => x.date !== date),
-          { id, date, value },
+          ...state.weights.filter((x) => x.date !== date && x.id !== id),
+          { id, date, value, ...(kept.length ? { photos: kept } : {}) },
         ],
       };
     } else if (modal === "pressure") {
       next = {
         ...state,
         pressures: [
-          ...state.pressures,
+          ...state.pressures.filter((x) => x.id !== id),
           {
             id,
             date,
             systolic: Number(f.get("systolic")),
             diastolic: Number(f.get("diastolic")),
+            ...(f.get("pulse") ? { pulse: Number(f.get("pulse")) } : {}),
+            ...(kept.length ? { photos: kept } : {}),
           },
         ],
       };
     } else {
+      const duration = String(f.get("duration") || "");
+      const minutes = duration ? parseDuration(duration) : 0;
+      const manualKcal =
+        f.get("activeCalories") !== null && f.get("activeCalories") !== "";
+      if (minutes === null || minutes > 600 || (!manualKcal && minutes < 1)) {
+        setNotice("Informe a duração em horas e minutos, entre 00:01 e 10:00.");
+        return;
+      }
       next = {
         ...state,
         exercises: [
-          ...state.exercises,
+          ...state.exercises.filter((x) => x.id !== id),
           {
             id,
             date,
             type: String(f.get("type")),
-            minutes: Number(f.get("minutes")),
+            minutes,
             intensity: String(f.get("intensity")) as "Moderada",
             ...(f.get("distanceKm")
               ? { distanceKm: Number(f.get("distanceKm")) }
+              : {}),
+            ...(f.get("elevationM")
+              ? { elevationM: Number(f.get("elevationM")) }
               : {}),
             ...(f.get("activeCalories") !== null &&
             f.get("activeCalories") !== ""
               ? { activeCalories: Number(f.get("activeCalories")) }
               : {}),
+            ...(kept.length ? { photos: kept } : {}),
           },
         ],
       };
     }
-    if (modal === "exercise") next.completedDays = reopenDay(state, date);
+    if (modal === "exercise") {
+      next.completedDays = reopenDay(state, date);
+      if (editItem && editItem.date !== date)
+        next.completedDays = reopenDay(next, editItem.date);
+    }
     if (!validState(next)) {
       setNotice(
         "Confira os valores, a duração ou as calorias do exercício. Na pressão, a sistólica deve ser maior que a diastólica.",
@@ -347,11 +571,17 @@ export default function App({ account }: { account: User }) {
       return;
     }
     let photos: string[] = [];
-    if (modal === "exercise" && files.length) {
+    const folder =
+      modal === "pressure"
+        ? "pressures"
+        : modal === "weight"
+          ? "weights"
+          : "exercises";
+    if (files.length) {
       setBusy(true);
       try {
         for (const file of files)
-          photos.push(await uploadPhoto(account.id, `exercises/${id}`, file));
+          photos.push(await uploadPhoto(account.id, `${folder}/${id}`, file));
       } catch (err) {
         void removePhotos(photos);
         setNotice(
@@ -362,21 +592,39 @@ export default function App({ account }: { account: User }) {
         setBusy(false);
       }
     }
+    photos = [...kept, ...photos];
     setState(
       photos.length
-        ? {
-            ...next,
-            exercises: next.exercises.map((x) =>
-              x.id === id ? { ...x, photos } : x,
-            ),
-          }
+        ? modal === "weight"
+          ? {
+              ...next,
+              weights: next.weights.map((x) =>
+                x.id === id ? { ...x, photos } : x,
+              ),
+            }
+          : modal === "pressure"
+            ? {
+                ...next,
+                pressures: next.pressures.map((x) =>
+                  x.id === id ? { ...x, photos } : x,
+                ),
+              }
+            : {
+                ...next,
+                exercises: next.exercises.map((x) =>
+                  x.id === id ? { ...x, photos } : x,
+                ),
+              }
         : next,
     );
+    void removePhotos(saved.filter((p) => !kept.includes(p)));
     setModal("");
     setNotice(
-      photos.length
-        ? "Registro e fotos salvos. Salve uma cópia na conta para guardar os caminhos."
-        : "Registro salvo no aparelho.",
+      editItem
+        ? "Registro atualizado."
+        : photos.length
+          ? "Registro e fotos salvos."
+          : "Registro salvo.",
     );
   }
   function saveProfile(e: FormEvent<HTMLFormElement>) {
@@ -412,57 +660,10 @@ export default function App({ account }: { account: User }) {
       setState((s) => ({ ...s, profile: { ...s.profile, photo } }));
       void removePhotos(previous ? [previous] : undefined);
       setNotice(
-        file
-          ? "Foto de perfil atualizada. Salve uma cópia na conta para guardar."
-          : "Foto de perfil removida.",
+        file ? "Foto de perfil atualizada." : "Foto de perfil removida.",
       );
     } catch (e) {
       setNotice(e instanceof Error ? e.message : "Falha ao enviar a foto.");
-    } finally {
-      setBusy(false);
-    }
-  }
-  function exportData() {
-    const blob = new Blob([JSON.stringify(state, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `ritmo-${today()}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-  async function cloud(action: "save" | "load") {
-    if (!supabase) return;
-    setBusy(true);
-    try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user || auth.user.id !== account.id)
-        throw Error("Entre na sua conta novamente.");
-      if (action === "save") {
-        const { error } = await supabase.from("health_snapshots").upsert({
-          user_id: auth.user.id,
-          payload: state,
-          updated_at: new Date().toISOString(),
-        });
-        if (error) throw error;
-        setNotice("Cópia salva na sua conta.");
-      } else {
-        const { data, error } = await supabase
-          .from("health_snapshots")
-          .select("payload")
-          .eq("user_id", auth.user.id)
-          .maybeSingle();
-        if (error) throw error;
-        if (!data) throw Error("Sua conta ainda não tem uma cópia salva.");
-        if (!validState(data.payload))
-          throw Error("A cópia possui formato inválido.");
-        setState(data.payload);
-        setNotice("Dados da conta carregados no aparelho.");
-      }
-    } catch (e) {
-      setNotice(e instanceof Error ? e.message : "Falha ao acessar a nuvem.");
     } finally {
       setBusy(false);
     }
@@ -518,53 +719,102 @@ export default function App({ account }: { account: User }) {
     }
   }
   const firstName = state.profile.name.split(" ")[0];
+  async function signOut() {
+    if (
+      !(await confirmDialog({
+        title: "Sair da conta?",
+        message:
+          "Seus registros continuam salvos na conta. Para ver de novo, é só entrar.",
+        confirmLabel: "Sair",
+      }))
+    )
+      return;
+    const result = await supabase?.auth.signOut({ scope: "local" });
+    if (result?.error) setNotice("Não foi possível sair. Tente novamente.");
+  }
+  function goToGoal() {
+    setTab("settings");
+    setTimeout(
+      () =>
+        document
+          .getElementById("meta")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      50,
+    );
+  }
+  // Antes de pedir o perfil, espera a cópia da conta: ela pode já ter um.
+  if (sync.status === "loading")
+    return (
+      <div className="grid min-h-dvh place-items-center bg-white text-sm text-ink-500">
+        Carregando seus dados…
+      </div>
+    );
+  if (!state.profileReviewed)
+    return <Onboarding state={state} onDone={setState} />;
   return (
     <div className="min-h-dvh bg-white">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line bg-white px-4 py-6 md:flex">
-        <a
-          className="mb-8 flex items-center gap-2 px-2 text-xl font-bold tracking-tight"
-          href="#"
-          onClick={() => setTab("overview")}
+      <aside
+        className={`fixed inset-y-0 left-0 z-20 hidden flex-col border-r border-line bg-white py-6 transition-[width] md:flex ${collapsed ? "w-[72px] px-3" : "w-60 px-4"}`}
+      >
+        <div
+          className={`mb-8 flex items-center ${collapsed ? "flex-col gap-3" : "justify-between"}`}
         >
-          <RiPulseLine className="size-6 text-brand-600" />
-          ritmo
-        </a>
+          <a
+            className="flex items-center gap-2 px-2 text-xl font-bold tracking-tight"
+            href="#"
+            onClick={() => setTab("overview")}
+            aria-label="ritmo, início"
+          >
+            <RiPulseLine className="size-6 text-brand-600" />
+            {!collapsed && "ritmo"}
+          </a>
+          <button
+            className="icon-btn"
+            onClick={toggleSidebar}
+            aria-label={collapsed ? "Expandir menu" : "Recolher menu"}
+            title={collapsed ? "Expandir menu" : "Recolher menu"}
+          >
+            {collapsed ? (
+              <RiSideBarLine className="size-5" />
+            ) : (
+              <RiSideBarFill className="size-5" />
+            )}
+          </button>
+        </div>
         <nav className="grid gap-1">
           {tabs.map(({ id, label, icon: Icon, active: ActiveIcon }) => (
             <button
               key={id}
               className={
-                "flex min-h-11 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors " +
+                `flex min-h-11 items-center gap-3 rounded-lg text-left text-sm font-medium transition-colors ${collapsed ? "justify-center px-0" : "px-3"} ` +
                 (tab === id
                   ? "bg-brand-50 text-brand-700"
                   : "text-ink-700 hover:bg-surface")
               }
               onClick={() => setTab(id)}
               aria-current={tab === id ? "page" : undefined}
+              aria-label={collapsed ? label : undefined}
+              title={collapsed ? label : undefined}
             >
               {tab === id ? (
                 <ActiveIcon className="size-5" />
               ) : (
                 <Icon className="size-5 text-ink-400" />
               )}
-              {label}
+              {!collapsed && label}
             </button>
           ))}
         </nav>
-        <button
-          className="mt-auto flex items-center gap-3 rounded-lg border-t border-line px-2 pt-4 text-left"
-          onClick={() => setTab("settings")}
-        >
-          <Avatar path={state.profile.photo} name={state.profile.name} />
-          <span className="min-w-0">
-            <strong className="block truncate text-sm font-semibold">
-              {state.profile.name || "Seu perfil"}
-            </strong>
-            <small className="block truncate text-xs text-ink-500">
-              {user || "Salvo neste aparelho"}
-            </small>
-          </span>
-        </button>
+        <AccountMenu
+          compact={collapsed}
+          up
+          className={`mt-auto border-t border-line pt-4 ${collapsed ? "flex justify-center" : ""}`}
+          photo={state.profile.photo}
+          name={state.profile.name}
+          email={user}
+          onProfile={() => setTab("settings")}
+          onSignOut={signOut}
+        />
       </aside>
       <nav
         aria-label="Navegação principal"
@@ -590,23 +840,37 @@ export default function App({ account }: { account: User }) {
           </button>
         ))}
       </nav>
-      <main className="pb-[calc(64px+env(safe-area-inset-bottom))] md:ml-60 md:pb-0">
+      <main
+        className={`pb-[calc(64px+env(safe-area-inset-bottom))] transition-[margin] md:pb-0 ${collapsed ? "md:ml-[72px]" : "md:ml-60"}`}
+      >
         <header className="sticky top-0 z-10 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 md:px-8">
+          <div className="flex h-14 items-center justify-between gap-3 px-4 md:px-8">
             <span className="flex items-center gap-2 text-[15px] font-semibold">
               <RiPulseLine className="size-5 text-brand-600 md:hidden" />
               {tabs.find((t) => t.id === tab)?.label}
             </span>
-            <span className="hidden text-sm text-ink-500 min-[360px]:inline">
-              {new Date().toLocaleDateString("pt-BR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
+            <span className="flex items-center gap-3 text-sm text-ink-500">
+              <span className="hidden min-[360px]:inline">
+                {new Date().toLocaleDateString("pt-BR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </span>
+              <SyncBadge status={sync.status} />
+              <AccountMenu
+                compact
+                className="md:hidden"
+                photo={state.profile.photo}
+                name={state.profile.name}
+                email={user}
+                onProfile={() => setTab("settings")}
+                onSignOut={signOut}
+              />
             </span>
           </div>
         </header>
-        <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
+        <div className="px-4 py-6 md:px-8 md:py-8">
           {tab === "overview" && (
             <>
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -618,33 +882,35 @@ export default function App({ account }: { account: User }) {
                 </div>
                 <button
                   className="btn-primary w-full sm:w-auto"
-                  onClick={() => setModal("weight")}
+                  onClick={() => openRecord("weight")}
                 >
                   <RiAddLine className="size-5" /> Registrar peso
                 </button>
               </div>
-              <section className="card mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                    <RiRestaurant2Line className="size-5" />
-                  </span>
-                  <div>
-                    <p className="text-sm text-ink-500">Diário de hoje</p>
-                    <h2 className="font-semibold">
-                      {balanceLabels[dailyEnergy(state, today()).status]}
-                    </h2>
-                  </div>
-                </div>
-                <button
-                  className="btn-secondary w-full sm:w-auto"
-                  onClick={() => {
-                    setDiaryDate(today());
-                    setTab("nutrition");
-                  }}
+              <div className="mb-4">
+                <CalorieBudget
+                  compact
+                  state={state}
+                  date={today()}
+                  onProfile={() => setTab("settings")}
+                  onWeight={() => openRecord("weight")}
                 >
-                  Abrir diário <RiArrowRightLine className="size-4" />
-                </button>
-              </section>
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-sm text-ink-500">
+                      {balanceLabels[dailyEnergy(state, today()).status]}
+                    </p>
+                    <button
+                      className="btn-secondary w-full sm:w-auto"
+                      onClick={() => {
+                        setDiaryDate(today());
+                        setTab("nutrition");
+                      }}
+                    >
+                      Abrir diário <RiArrowRightLine className="size-4" />
+                    </button>
+                  </div>
+                </CalorieBudget>
+              </div>
               <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                 <Stat
                   icon={<RiScales3Line />}
@@ -714,12 +980,12 @@ export default function App({ account }: { account: User }) {
                             >
                               <stop
                                 offset="0%"
-                                stopColor="#d91c1c"
+                                stopColor="var(--color-brand-600)"
                                 stopOpacity={0.14}
                               />
                               <stop
                                 offset="100%"
-                                stopColor="#d91c1c"
+                                stopColor="var(--color-brand-600)"
                                 stopOpacity={0}
                               />
                             </linearGradient>
@@ -743,12 +1009,12 @@ export default function App({ account }: { account: User }) {
                           <Area
                             type="monotone"
                             dataKey="peso"
-                            stroke="#d91c1c"
+                            stroke="var(--color-brand-600)"
                             strokeWidth={2}
                             fill="url(#weightFill)"
                             dot={{
                               r: 3,
-                              fill: "#d91c1c",
+                              fill: "var(--color-brand-600)",
                               stroke: "white",
                               strokeWidth: 2,
                             }}
@@ -761,7 +1027,7 @@ export default function App({ account }: { account: User }) {
                       icon={<RiLineChartLine />}
                       title="Nenhum peso registrado"
                       text="Registre seu peso para ver o gráfico."
-                      action={() => setModal("weight")}
+                      action={() => openRecord("weight")}
                     />
                   )}
                 </Panel>
@@ -802,7 +1068,7 @@ export default function App({ account }: { account: User }) {
                   </dl>
                   <button
                     className="btn-secondary mt-5 w-full"
-                    onClick={() => setTab("goals")}
+                    onClick={() => goToGoal()}
                   >
                     {state.goal ? "Ver meta" : "Definir meta"}
                     <RiArrowRightLine className="size-4" />
@@ -815,7 +1081,7 @@ export default function App({ account }: { account: User }) {
                   >
                     <button
                       className="btn-ghost"
-                      onClick={() => setModal("exercise")}
+                      onClick={() => openRecord("exercise")}
                     >
                       <RiAddLine className="size-4" /> Adicionar
                     </button>
@@ -840,12 +1106,12 @@ export default function App({ account }: { account: User }) {
                           tick={axisTick}
                         />
                         <Tooltip
-                          cursor={{ fill: "#fff1f1" }}
+                          cursor={{ fill: "var(--color-brand-50)" }}
                           formatter={(v) => [`${v} min`, "Exercício"]}
                         />
                         <Bar
                           dataKey="minutos"
-                          fill="#d91c1c"
+                          fill="var(--color-brand-600)"
                           radius={[4, 4, 0, 0]}
                           maxBarSize={28}
                         />
@@ -860,12 +1126,12 @@ export default function App({ account }: { account: User }) {
                   <QuickAction
                     icon={<RiHeartPulseLine />}
                     title="Registrar pressão"
-                    onClick={() => setModal("pressure")}
+                    onClick={() => openRecord("pressure")}
                   />
                   <QuickAction
                     icon={<RiFootprintLine />}
                     title="Adicionar exercício"
-                    onClick={() => setModal("exercise")}
+                    onClick={() => openRecord("exercise")}
                   />
                   <QuickAction
                     icon={<RiChat3Line />}
@@ -882,8 +1148,9 @@ export default function App({ account }: { account: User }) {
               setState={setState}
               date={diaryDate}
               setDate={setDiaryDate}
-              onExercise={() => setModal("exercise")}
+              onExercise={(id) => openRecord("exercise", id)}
               onProfile={() => setTab("settings")}
+              onWeight={() => openRecord("weight")}
               onAnalyze={() => {
                 setQuestion(
                   "Com base nos alimentos e exercícios registrados neste dia, estou em déficit calórico? Explique o saldo e as limitações dos dados.",
@@ -898,27 +1165,27 @@ export default function App({ account }: { account: User }) {
                 title="Registros"
                 text="Peso, exercícios e pressão arterial."
               />
+              <div className="mb-5">
+                <ReportCard state={state} onError={setNotice} />
+              </div>
               <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <button
                   className="btn-primary"
-                  onClick={() => setModal("weight")}
+                  onClick={() => openRecord("weight")}
                 >
                   <RiAddLine className="size-5" /> Peso
                 </button>
                 <button
                   className="btn-secondary"
-                  onClick={() => setModal("exercise")}
+                  onClick={() => openRecord("exercise")}
                 >
                   <RiAddLine className="size-5" /> Exercício
                 </button>
                 <button
                   className="btn-secondary"
-                  onClick={() => setModal("pressure")}
+                  onClick={() => openRecord("pressure")}
                 >
                   <RiAddLine className="size-5" /> Pressão
-                </button>
-                <button className="btn-secondary" onClick={exportData}>
-                  <RiDownload2Line className="size-5" /> Exportar
                 </button>
               </div>
               <div className="grid gap-4 lg:grid-cols-3">
@@ -963,36 +1230,66 @@ export default function App({ account }: { account: User }) {
                                       {dateLabel(item.date)}{" "}
                                       {item.date.slice(0, 4)}
                                       {ex
-                                        ? ` · ${ex.minutes} min · ${ex.intensity}${ex.distanceKm ? ` · ${ex.distanceKm} km` : ""}${ex.activeCalories !== undefined ? ` · ${ex.activeCalories} kcal ativas` : ""}`
-                                        : ""}
+                                        ? ` · ${durationLabel(ex.minutes)} · ${ex.intensity}${ex.distanceKm ? ` · ${fmt(ex.distanceKm)} km` : ""}${ex.elevationM ? ` · ${fmt(ex.elevationM)} m de elevação` : ""}${ex.activeCalories !== undefined ? ` · ${ex.activeCalories} kcal ativas` : ""}`
+                                        : p?.pulse
+                                          ? ` · ${p.pulse} bpm`
+                                          : ""}
                                     </small>
-                                    <PhotoStrip paths={ex?.photos} />
+                                    <PhotoStrip
+                                      paths={
+                                        ex?.photos ?? p?.photos ?? w?.photos
+                                      }
+                                    />
                                   </div>
-                                  <button
-                                    className="icon-btn -mr-2 hover:text-brand-600"
-                                    aria-label="Excluir registro"
-                                    onClick={() => {
-                                      if (
-                                        !window.confirm(
-                                          "Excluir este registro?",
+                                  <div className="-mr-2 flex shrink-0">
+                                    <button
+                                      className="icon-btn hover:text-brand-600"
+                                      aria-label="Editar registro"
+                                      onClick={() =>
+                                        openRecord(
+                                          kind === "weights"
+                                            ? "weight"
+                                            : kind === "exercises"
+                                              ? "exercise"
+                                              : "pressure",
+                                          item.id,
                                         )
-                                      )
-                                        return;
-                                      void removePhotos(ex?.photos);
-                                      setState({
-                                        ...state,
-                                        completedDays:
-                                          kind === "exercises"
-                                            ? reopenDay(state, item.date)
-                                            : state.completedDays,
-                                        [kind]: state[kind].filter(
-                                          (x) => x.id !== item.id,
-                                        ),
-                                      });
-                                    }}
-                                  >
-                                    <RiDeleteBin6Line className="size-[18px]" />
-                                  </button>
+                                      }
+                                    >
+                                      <RiPencilLine className="size-[18px]" />
+                                    </button>
+                                    <button
+                                      className="icon-btn hover:text-brand-600"
+                                      aria-label="Excluir registro"
+                                      onClick={async () => {
+                                        if (
+                                          !(await confirmDialog({
+                                            title: "Excluir registro?",
+                                            message:
+                                              "O registro e as fotos dele serão apagados da sua conta.",
+                                            confirmLabel: "Excluir",
+                                            danger: true,
+                                          }))
+                                        )
+                                          return;
+                                        void removePhotos(
+                                          ex?.photos ?? p?.photos ?? w?.photos,
+                                        );
+                                        setState({
+                                          ...state,
+                                          completedDays:
+                                            kind === "exercises"
+                                              ? reopenDay(state, item.date)
+                                              : state.completedDays,
+                                          [kind]: state[kind].filter(
+                                            (x) => x.id !== item.id,
+                                          ),
+                                        });
+                                      }}
+                                    >
+                                      <RiDeleteBin6Line className="size-[18px]" />
+                                    </button>
+                                  </div>
                                 </li>
                               );
                             })}
@@ -1001,106 +1298,6 @@ export default function App({ account }: { account: User }) {
                     </Panel>
                   ),
                 )}
-              </div>
-            </>
-          )}
-          {tab === "goals" && (
-            <>
-              <PageTitle
-                title="Meta de peso"
-                text="Defina um peso alvo e veja uma estimativa de prazo."
-              />
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Panel>
-                  <CardHeader title="Objetivo" />
-                  <form
-                    className="space-y-4"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const f = new FormData(e.currentTarget);
-                      const goal = Number(f.get("goal"));
-                      const intake = Number(f.get("intake"));
-                      if (!weight || goal >= weight) {
-                        setNotice(
-                          "Registre seu peso e escolha uma meta abaixo do peso atual.",
-                        );
-                        return;
-                      }
-                      setState({ ...state, goal, intake });
-                      setNotice("Meta atualizada.");
-                    }}
-                  >
-                    <Field label="Peso desejado (kg)">
-                      <input
-                        className="input"
-                        name="goal"
-                        type="number"
-                        min="20"
-                        max="400"
-                        step="0.1"
-                        required
-                        defaultValue={state.goal || ""}
-                      />
-                    </Field>
-                    <Field label="Consumo diário para a simulação (kcal)">
-                      <input
-                        className="input"
-                        name="intake"
-                        type="number"
-                        min="1"
-                        max="10000"
-                        required
-                        defaultValue={state.intake || ""}
-                      />
-                      <span className="hint block">
-                        Use um valor combinado com seu profissional de saúde. O
-                        app não prescreve dietas.
-                      </span>
-                    </Field>
-                    <button className="btn-primary" type="submit">
-                      <RiCheckLine className="size-5" /> Salvar meta
-                    </button>
-                  </form>
-                </Panel>
-                <Panel>
-                  <CardHeader title="Prazo estimado" />
-                  <div className="flex items-baseline gap-2">
-                    <strong className="text-5xl font-semibold tracking-tight tabular-nums">
-                      {days ? `~${days}` : "—"}
-                    </strong>
-                    {days ? <span className="text-ink-500">dias</span> : null}
-                  </div>
-                  <p className="mt-2 text-sm text-ink-500">
-                    {days
-                      ? "Cálculo com os valores informados."
-                      : "Preencha peso, perfil, meta e consumo para calcular."}
-                  </p>
-                  <dl className="mt-4 divide-y divide-line border-y border-line text-sm">
-                    <div className="flex justify-between py-3">
-                      <dt className="text-ink-500">Basal estimado</dt>
-                      <dd className="font-medium tabular-nums">
-                        {bmr ? `${fmt(bmr)} kcal/dia` : "—"}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between py-3">
-                      <dt className="text-ink-500">Gasto diário estimado</dt>
-                      <dd className="font-medium tabular-nums">
-                        {expenditure ? `${fmt(expenditure)} kcal/dia` : "—"}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className={note + " mt-4"}>
-                    Considera 7.700 kcal por kg e gasto constante, sem adaptação
-                    do metabolismo, então não é uma data garantida. Só
-                    calculamos com diferença entre 100 e 1.000 kcal/dia, o que
-                    não é uma recomendação de déficit. Revise a meta com um
-                    profissional.
-                  </p>
-                  <p className={note + " mt-2"}>
-                    O nível de atividade do perfil já inclui os exercícios; eles
-                    não são somados de novo.
-                  </p>
-                </Panel>
               </div>
             </>
           )}
@@ -1192,10 +1389,10 @@ export default function App({ account }: { account: User }) {
                 </form>
                 {answer && (
                   <div
-                    className="mt-6 rounded-lg border border-line bg-surface p-4 leading-relaxed whitespace-pre-wrap"
+                    className="mt-6 rounded-lg border border-line bg-surface p-4 leading-relaxed text-ink-700"
                     aria-live="polite"
                   >
-                    {answer}
+                    <RichText text={answer} />
                   </div>
                 )}
               </Panel>
@@ -1237,7 +1434,16 @@ export default function App({ account }: { account: User }) {
                           type="button"
                           className="btn-ghost text-ink-500 hover:text-brand-700"
                           disabled={busy}
-                          onClick={() => void changePhoto(null)}
+                          onClick={async () => {
+                            if (
+                              await confirmDialog({
+                                title: "Remover foto de perfil?",
+                                confirmLabel: "Remover",
+                                danger: true,
+                              })
+                            )
+                              void changePhoto(null);
+                          }}
                         >
                           Remover
                         </button>
@@ -1286,11 +1492,12 @@ export default function App({ account }: { account: User }) {
                         defaultValue={state.profile.gender}
                       >
                         {[
-                          "Não informado",
                           "Mulher",
                           "Homem",
                           "Não binário",
                           "Outro",
+                          "Prefiro não informar",
+                          "Não informado",
                         ].map((x) => (
                           <option key={x}>{x}</option>
                         ))}
@@ -1330,69 +1537,13 @@ export default function App({ account }: { account: User }) {
                 </Panel>
                 <div className="grid content-start gap-4">
                   <Panel>
-                    <CardHeader
-                      title="Conta e backup"
-                      text="Os registros ficam neste aparelho. Salve uma cópia na conta para usar em outro."
-                    >
-                      <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-medium text-ink-500">
-                        {supabase ? "Nuvem" : "Só local"}
-                      </span>
-                    </CardHeader>
-                    {!supabase ? (
-                      <div className="rounded-lg bg-surface p-3 text-sm text-ink-700">
-                        A conexão com a nuvem não está configurada neste app.
-                      </div>
-                    ) : user ? (
-                      <>
-                        <p className="mb-3 truncate text-sm font-medium">
-                          {user}
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            disabled={busy}
-                            className="btn-primary flex-1"
-                            onClick={() => cloud("save")}
-                          >
-                            <RiUpload2Line className="size-5" /> Salvar na conta
-                          </button>
-                          <button
-                            disabled={busy}
-                            className="btn-secondary flex-1"
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  "Substituir os dados deste aparelho pela cópia da conta?",
-                                )
-                              )
-                                void cloud("load");
-                            }}
-                          >
-                            <RiDownload2Line className="size-5" /> Carregar
-                          </button>
-                          <button
-                            className="btn-secondary"
-                            aria-label="Sair da conta"
-                            title="Sair da conta"
-                            onClick={async () => {
-                              const result = await supabase?.auth.signOut({
-                                scope: "local",
-                              });
-                              if (result?.error) {
-                                setNotice(
-                                  "Não foi possível sair. Tente novamente.",
-                                );
-                                return;
-                              }
-                              setNotice(
-                                "Conta desconectada. Os dados locais permanecem neste aparelho.",
-                              );
-                            }}
-                          >
-                            <RiLogoutBoxRLine className="size-5" />
-                          </button>
-                        </div>
-                      </>
-                    ) : null}
+                    <CardHeader title="Conta" />
+                    {user && (
+                      <p className="truncate text-sm font-medium">{user}</p>
+                    )}
+                    <p className="mt-1 mb-4 flex items-center gap-2 text-sm text-ink-500">
+                      <SyncBadge status={sync.status} label />
+                    </p>
                     <AccountAccess
                       user={user}
                       recovery={false}
@@ -1401,62 +1552,122 @@ export default function App({ account }: { account: User }) {
                   </Panel>
                   <Panel>
                     <CardHeader
-                      title="Arquivo de backup"
-                      text="Exporte seus registros ou restaure de um arquivo do Ritmo."
+                      title="Aparência"
+                      text="Escolha a cor do app."
                     />
-                    <div className="flex flex-wrap gap-2">
-                      <button className="btn-secondary" onClick={exportData}>
-                        <RiDownload2Line className="size-5" /> Exportar
-                      </button>
-                      <label className="btn-secondary relative">
-                        <RiUpload2Line className="size-5" /> Importar
-                        <input
-                          className="absolute inset-0 cursor-pointer opacity-0"
-                          type="file"
-                          accept="application/json,.json"
-                          onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            try {
-                              if (file.size > 5000000) throw Error();
-                              const data = JSON.parse(await file.text());
-                              if (!validState(data)) throw Error();
-                              if (
-                                window.confirm(
-                                  "Substituir os registros locais por este arquivo?",
-                                )
-                              ) {
-                                setState(data);
-                                setNotice("Arquivo importado.");
-                              }
-                            } catch {
-                              setNotice(
-                                "Arquivo inválido. Use um backup JSON exportado pelo Ritmo (até 5 MB).",
-                              );
-                            }
-                            e.target.value = "";
-                          }}
-                        />
-                      </label>
-                    </div>
-                    <button
-                      className="btn-ghost mt-4 text-brand-700"
-                      onClick={() => {
-                        if (
-                          window.confirm(
-                            "Apagar todos os dados deste aparelho? A cópia na nuvem será mantida.",
-                          )
-                        ) {
-                          setState(structuredClone(initial));
-                          setNotice("Dados locais apagados.");
-                        }
-                      }}
-                    >
-                      <RiDeleteBin6Line className="size-4" /> Apagar dados deste
-                      aparelho
-                    </button>
+                    <AccentPicker
+                      value={state.accent ?? DEFAULT_ACCENT}
+                      onChange={(hex) =>
+                        setState((s) => ({
+                          ...s,
+                          accent: hex === DEFAULT_ACCENT ? undefined : hex,
+                        }))
+                      }
+                    />
                   </Panel>
                 </div>
+              </div>
+              <div id="meta" className="mt-10 mb-4 scroll-mt-20">
+                <h2 className="text-xl font-semibold tracking-tight">
+                  Meta de peso
+                </h2>
+                <p className="mt-1 text-ink-500">
+                  Defina um peso alvo e veja uma estimativa de prazo.
+                </p>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Panel>
+                  <CardHeader title="Objetivo" />
+                  <form
+                    className="space-y-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const f = new FormData(e.currentTarget);
+                      const goal = Number(f.get("goal"));
+                      const intake = Number(f.get("intake"));
+                      if (!weight || goal >= weight) {
+                        setNotice(
+                          "Registre seu peso e escolha uma meta abaixo do peso atual.",
+                        );
+                        return;
+                      }
+                      setState({ ...state, goal, intake });
+                      setNotice("Meta atualizada.");
+                    }}
+                  >
+                    <Field label="Peso desejado (kg)">
+                      <input
+                        className="input"
+                        name="goal"
+                        type="number"
+                        min="20"
+                        max="400"
+                        step="0.1"
+                        required
+                        defaultValue={state.goal || ""}
+                      />
+                    </Field>
+                    <Field label="Meta de consumo diário (kcal)">
+                      <input
+                        className="input"
+                        name="intake"
+                        type="number"
+                        min="1"
+                        max="10000"
+                        required
+                        defaultValue={state.intake || ""}
+                      />
+                      <span className="hint block">
+                        Vira o limite de "Calorias do dia" (mais os exercícios)
+                        e entra na simulação de prazo. Use um valor combinado
+                        com seu profissional de saúde; o app não prescreve
+                        dietas.
+                      </span>
+                    </Field>
+                    <button className="btn-primary" type="submit">
+                      <RiCheckLine className="size-5" /> Salvar meta
+                    </button>
+                  </form>
+                </Panel>
+                <Panel>
+                  <CardHeader title="Prazo estimado" />
+                  <div className="flex items-baseline gap-2">
+                    <strong className="text-5xl font-semibold tracking-tight tabular-nums">
+                      {days ? `~${days}` : "—"}
+                    </strong>
+                    {days ? <span className="text-ink-500">dias</span> : null}
+                  </div>
+                  <p className="mt-2 text-sm text-ink-500">
+                    {days
+                      ? "Cálculo com os valores informados."
+                      : "Preencha peso, perfil, meta e consumo para calcular."}
+                  </p>
+                  <dl className="mt-4 divide-y divide-line border-y border-line text-sm">
+                    <div className="flex justify-between py-3">
+                      <dt className="text-ink-500">Basal estimado</dt>
+                      <dd className="font-medium tabular-nums">
+                        {bmr ? `${fmt(bmr)} kcal/dia` : "—"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between py-3">
+                      <dt className="text-ink-500">Gasto diário estimado</dt>
+                      <dd className="font-medium tabular-nums">
+                        {expenditure ? `${fmt(expenditure)} kcal/dia` : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className={note + " mt-4"}>
+                    Considera 7.700 kcal por kg e gasto constante, sem adaptação
+                    do metabolismo, então não é uma data garantida. Só
+                    calculamos com diferença entre 100 e 1.000 kcal/dia, o que
+                    não é uma recomendação de déficit. Revise a meta com um
+                    profissional.
+                  </p>
+                  <p className={note + " mt-2"}>
+                    O nível de atividade do perfil já inclui os exercícios; eles
+                    não são somados de novo.
+                  </p>
+                </Panel>
               </div>
             </>
           )}
@@ -1489,18 +1700,19 @@ export default function App({ account }: { account: User }) {
         >
           <section
             id="record-dialog"
-            className="max-h-[calc(100dvh-24px-env(safe-area-inset-top))] w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pt-5 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-sm sm:max-w-md sm:rounded-2xl sm:pb-5"
+            className="max-h-[calc(100dvh-24px-env(safe-area-inset-top))] w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pt-5 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-sm sm:max-w-md sm:rounded-2xl sm:pb-5 md:max-w-3xl md:px-7 md:pt-6"
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 id="modal-title" className="text-lg font-semibold">
+                {editItem ? "Editar" : "Registrar"}{" "}
                 {modal === "weight"
-                  ? "Registrar peso"
+                  ? "peso"
                   : modal === "exercise"
-                    ? "Registrar exercício"
-                    : "Registrar pressão"}
+                    ? "exercício"
+                    : "pressão"}
               </h2>
               <button
                 className="icon-btn -mr-2"
@@ -1510,64 +1722,48 @@ export default function App({ account }: { account: User }) {
                 <RiCloseLine className="size-6" />
               </button>
             </div>
-            <form className="space-y-4" onSubmit={submitRecord}>
+            <form
+              key={editing ?? modal}
+              className="grid gap-4 md:grid-cols-2 md:gap-x-5"
+              onSubmit={submitRecord}
+            >
               <Field label="Data">
                 <input
                   className="input"
                   autoFocus
                   name="date"
                   type="date"
-                  defaultValue={tab === "nutrition" ? diaryDate : today()}
+                  defaultValue={
+                    editItem?.date ??
+                    (tab === "nutrition" ? diaryDate : today())
+                  }
                   max={today()}
                   required
                 />
               </Field>
               {modal === "weight" ? (
-                <Field label="Peso (kg)">
-                  <input
-                    className="input"
-                    name="value"
-                    type="number"
-                    min="20"
-                    max="400"
-                    step="0.1"
-                    required
-                    placeholder="Ex.: 78,5"
-                  />
-                  <span className="hint block">
-                    Um peso por dia. Registrar de novo na mesma data substitui o
-                    anterior.
-                  </span>
-                </Field>
+                <WeightFields
+                  initial={
+                    editItem && "value" in editItem ? editItem : undefined
+                  }
+                />
               ) : modal === "exercise" ? (
-                <ExerciseFields />
+                <ExerciseFields
+                  initial={
+                    editItem && "type" in editItem ? editItem : undefined
+                  }
+                />
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Sistólica (mmHg)">
-                    <input
-                      className="input"
-                      name="systolic"
-                      type="number"
-                      min="50"
-                      max="300"
-                      required
-                      placeholder="120"
-                    />
-                  </Field>
-                  <Field label="Diastólica (mmHg)">
-                    <input
-                      className="input"
-                      name="diastolic"
-                      type="number"
-                      min="30"
-                      max="200"
-                      required
-                      placeholder="80"
-                    />
-                  </Field>
-                </div>
+                <PressureFields
+                  initial={
+                    editItem && "systolic" in editItem ? editItem : undefined
+                  }
+                />
               )}
-              <button className="btn-primary w-full" disabled={busy}>
+              <button
+                className="btn-primary w-full md:col-span-2"
+                disabled={busy}
+              >
                 {busy ? (
                   "Enviando fotos…"
                 ) : (

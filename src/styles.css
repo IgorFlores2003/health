@@ -45,9 +45,6 @@
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-500;
   }
-  input[type="date"]::-webkit-calendar-picker-indicator {
-    opacity: 0.55;
-  }
 }
 
 /* Componentes repetidos (funcionam com variantes: md:card, hover:btn...). */
@@ -77,6 +74,53 @@
 }
 @utility hint {
   @apply mt-1.5 text-[13px] leading-relaxed text-ink-500;
+}
+
+/*
+ * Campos nativos com a mesma cara em Android, iOS e desktop. Fora de @layer
+ * de propósito: assim vencem o padding das utilities do .input.
+ */
+select.input,
+input.input[type="date"] {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem;
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 18px;
+  cursor: pointer;
+}
+select.input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2371717a'%3E%3Cpath d='M12 13.17l4.95-4.95 1.41 1.42L12 16 5.64 9.64l1.41-1.42z'/%3E%3C/svg%3E");
+}
+input.input[type="date"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 2.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%2371717a'%3E%3Cpath d='M9 1v2h6V1h2v2h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4V1zm11 10H4v8h16zM7 5H4v4h16V5h-3v2h-2V5H9v2H7z'/%3E%3C/svg%3E");
+}
+input[type="date"]::-webkit-date-and-time-value {
+  margin: 0;
+  text-align: left;
+}
+/* O ícone nativo fica invisível e cobre o campo todo: tocar em qualquer parte abre o calendário. */
+input.input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  opacity: 0;
+  cursor: pointer;
+}
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

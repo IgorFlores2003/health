@@ -53,3 +53,62 @@ test("snapshot keeps photo paths and rejects embedded images", () => {
     false,
   );
 });
+test("blood pressure records keep the monitor photo path", () => {
+  const photo = `${user}/pressures/p1/${user}.jpg`;
+  const pressure = {
+    id: "p1",
+    date: "2026-10-26",
+    systolic: 120,
+    diastolic: 80,
+  };
+  const base = { ...initial, profile: { ...initial.profile } };
+  assert.equal(
+    validState({ ...base, pressures: [{ ...pressure, photos: [photo] }] }),
+    true,
+  );
+  assert.equal(
+    validState({
+      ...base,
+      pressures: [{ ...pressure, photos: ["data:image/jpeg;base64,AAAA"] }],
+    }),
+    false,
+  );
+});
+test("exercise duration uses hh:mm and keeps elevation and pulse", async () => {
+  const { parseDuration, formatDuration, durationLabel } =
+    await import("../src/domain.ts");
+  assert.equal(parseDuration("00:34"), 34);
+  assert.equal(parseDuration("01:05"), 65);
+  assert.equal(parseDuration("1:60"), null);
+  assert.equal(parseDuration("34"), null);
+  assert.equal(formatDuration(59.7), "01:00");
+  assert.equal(durationLabel(34), "34 min");
+  assert.equal(durationLabel(65), "1h05");
+  const base = { ...initial, profile: { ...initial.profile } };
+  const ex = {
+    id: "e1",
+    date: "2026-10-26",
+    type: "Caminhada",
+    minutes: 60,
+    intensity: "Leve",
+    distanceKm: 3.69,
+    elevationM: 50,
+  };
+  assert.equal(validState({ ...base, exercises: [ex] }), true);
+  assert.equal(
+    validState({ ...base, exercises: [{ ...ex, elevationM: -5 }] }),
+    false,
+  );
+  const pr = {
+    id: "p1",
+    date: "2026-10-26",
+    systolic: 128,
+    diastolic: 81,
+    pulse: 80,
+  };
+  assert.equal(validState({ ...base, pressures: [pr] }), true);
+  assert.equal(
+    validState({ ...base, pressures: [{ ...pr, pulse: 400 }] }),
+    false,
+  );
+});

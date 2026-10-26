@@ -24,10 +24,23 @@ async function compress(file: File): Promise<Blob> {
   return blob;
 }
 
+/** Imagem reduzida em base64, para a IA ler o print/foto. */
+export async function photoBase64(file: File) {
+  const bytes = new Uint8Array(await (await compress(file)).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000)
+    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
 /** Envia a foto e devolve somente o caminho, que é o que vai para o banco. */
 export async function uploadPhoto(
   userId: string,
-  folder: "profile" | `exercises/${string}`,
+  folder:
+    | "profile"
+    | `exercises/${string}`
+    | `pressures/${string}`
+    | `weights/${string}`,
   file: File,
 ) {
   if (!supabase) throw Error("Conecte-se para enviar fotos.");

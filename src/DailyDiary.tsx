@@ -1,4 +1,5 @@
 import { PhotoStrip, removePhotos } from "./photos";
+import CalorieBudget from "./CalorieBudget";
 import {
   useState,
   useRef,
@@ -14,8 +15,16 @@ import {
   RiPencilLine,
   RiRestaurant2Line,
 } from "react-icons/ri";
+import { confirmDialog } from "./confirm";
+import MealPhoto from "./MealPhoto";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
-import { today, validState, type State, type Food } from "./domain";
+import {
+  durationLabel,
+  today,
+  validState,
+  type State,
+  type Food,
+} from "./domain";
 import { supabase } from "./supabase";
 export const balanceLabels = {
   incomplete: "Registros incompletos",
@@ -33,14 +42,16 @@ export default function DailyDiary({
   onExercise,
   onAnalyze,
   onProfile,
+  onWeight,
 }: {
   state: State;
   setState: Dispatch<SetStateAction<State>>;
   date: string;
   setDate: (s: string) => void;
-  onExercise: () => void;
+  onExercise: (id?: string) => void;
   onAnalyze: () => void;
   onProfile: () => void;
+  onWeight: () => void;
 }) {
   const day = dailyEnergy(state, date);
   const estimateId = useRef(0);
@@ -48,6 +59,7 @@ export default function DailyDiary({
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [grams, setGrams] = useState("");
+  const [gramsFromAi, setGramsFromAi] = useState(false);
   const [per100, setPer100] = useState("");
   const [source, setSource] = useState<Food["source"]>("pending");
   const [note, setNote] = useState("");
@@ -58,6 +70,7 @@ export default function DailyDiary({
     setEditing(food?.id ?? null);
     setName(food?.name ?? "");
     setGrams(food ? String(food.grams) : "");
+    setGramsFromAi(false);
     setPer100(food?.kcalPer100g == null ? "" : String(food.kcalPer100g));
     setSource(food?.source ?? "pending");
     setNote(food?.note ?? "");
@@ -92,6 +105,16 @@ export default function DailyDiary({
         throw Error();
       setPer100(String(data.kcalPer100g));
       setSource("ai");
+      // Sem balança: usa o peso médio das unidades descritas ("3 ovos"),
+      // sem sobrescrever gramas que a pessoa pesou.
+      if (
+        typeof data.portionGrams === "number" &&
+        data.portionGrams > 0 &&
+        (grams.trim() === "" || gramsFromAi)
+      ) {
+        setGrams(String(data.portionGrams));
+        setGramsFromAi(true);
+      }
       setNote(
         typeof data.note === "string"
           ? data.note.slice(0, 500)
@@ -159,34 +182,12 @@ export default function DailyDiary({
           />
         </label>
       </div>
-      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric
-          label="Consumo"
-          value={kcal(day.intake)}
-          note={
-            day.foodMissing
-              ? `${day.foodMissing} alimento(s) sem calorias`
-              : `${day.foodCount} alimento(s)`
-          }
-        />
-        <Metric
-          label="Base diária"
-          value={kcal(day.baseline)}
-          note="Basal × 1,2 (rotina leve)"
-        />
-        <Metric
-          label="Exercícios"
-          value={kcal(day.active)}
-          note={
-            day.exerciseMissing
-              ? `${day.exerciseMissing} exercício(s) pendente(s)`
-              : "Calorias ativas, sem repouso"
-          }
-        />
-        <Metric
-          label="Gasto total"
-          value={kcal(day.expenditure)}
-          note="Base diária + exercícios"
+      <div className="mb-4">
+        <CalorieBudget
+          state={state}
+          date={date}
+          onProfile={onProfile}
+          onWeight={onWeight}
         />
       </div>
       <section className="card mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -218,20 +219,46 @@ export default function DailyDiary({
       </section>
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <section className="card min-w-0">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
+          <div className="mb-4 flex flex-wrap items-start justify-end gap-3">
+            <div className="mr-auto">
               <h2 className="text-base font-semibold">Alimentação</h2>
               <p className="mt-0.5 text-sm text-ink-500">
                 Inclua preparo, marca, molhos e bebidas.
               </p>
             </div>
-            <button
-              className="btn-secondary"
-              onClick={() => open()}
-              disabled={busy}
-            >
-              <RiAddLine size={18} /> Alimento
-            </button>
+            <div className="contents">
+              <MealPhoto
+                disabled={busy || !supabase}
+                onAdd={(items, note) =>
+                  setState((s) => ({
+                    ...s,
+                    foods: [
+                      ...(s.foods ?? []),
+                      ...items.map((x) => ({
+                        id: crypto.randomUUID(),
+                        date,
+                        name: x.name,
+                        grams: x.grams,
+                        kcalPer100g: x.kcalPer100g,
+                        source: "ai" as const,
+                        note: ("Estimado pela foto do prato. " + note).slice(
+                          0,
+                          500,
+                        ),
+                      })),
+                    ],
+                    completedDays: reopenDay(s, date),
+                  }))
+                }
+              />
+              <button
+                className="btn-secondary"
+                onClick={() => open()}
+                disabled={busy}
+              >
+                <RiAddLine size={18} /> Alimento
+              </button>
+            </div>
           </div>
           {showFood && (
             <form
@@ -248,6 +275,8 @@ export default function DailyDiary({
                     onChange={(e) => {
                       setName(e.target.value);
                       if (source === "ai") {
+                        if (gramsFromAi) setGrams("");
+                        setGramsFromAi(false);
                         setPer100("");
                         setSource("pending");
                         setNote("");
@@ -269,9 +298,15 @@ export default function DailyDiary({
                       step="0.1"
                       required
                       value={grams}
-                      onChange={(e) => setGrams(e.target.value)}
-                      placeholder="150"
+                      onChange={(e) => {
+                        setGrams(e.target.value);
+                        setGramsFromAi(false);
+                      }}
+                      placeholder="Ou deixe a IA estimar"
                     />
+                    {gramsFromAi && (
+                      <span className="hint block">Peso médio estimado</span>
+                    )}
                   </label>
                   <label className="block">
                     <span className="label">kcal por 100 g</span>
@@ -302,9 +337,10 @@ export default function DailyDiary({
                     {busy ? "Estimando…" : "Estimar com IA"}
                   </button>
                   <p className="hint">
-                    A IA recebe só a descrição do alimento, e a estimativa por
-                    100 g precisa bater com o preparo informado. Prefira o
-                    rótulo quando houver.
+                    Não pesou? Escreva a quantidade (ex.: "3 ovos cozidos", "2
+                    fatias de pão de forma") e a IA estima o peso médio e as
+                    calorias. A IA recebe só a descrição. Prefira o rótulo e a
+                    balança quando houver.
                   </p>
                 </div>
                 {note && (
@@ -396,8 +432,15 @@ export default function DailyDiary({
                   <button
                     className="icon-btn size-11 hover:text-brand-600"
                     aria-label={`Excluir ${food.name}`}
-                    onClick={() => {
-                      if (window.confirm("Excluir este alimento?"))
+                    onClick={async () => {
+                      if (
+                        await confirmDialog({
+                          title: "Excluir alimento?",
+                          message: `"${food.name}" sai do diário deste dia.`,
+                          confirmLabel: "Excluir",
+                          danger: true,
+                        })
+                      )
                         setState((s) => ({
                           ...s,
                           foods: (s.foods ?? []).filter(
@@ -422,7 +465,7 @@ export default function DailyDiary({
                 Calorias informadas ou estimadas pela atividade.
               </p>
             </div>
-            <button className="btn-secondary" onClick={onExercise}>
+            <button className="btn-secondary" onClick={() => onExercise()}>
               <RiAddLine size={18} /> Exercício
             </button>
           </div>
@@ -442,7 +485,7 @@ export default function DailyDiary({
                     {ex.type}
                   </strong>
                   <small className="mt-0.5 block text-[13px] text-ink-500">
-                    {ex.minutes ? `${ex.minutes} min · ` : ""}
+                    {ex.minutes ? `${durationLabel(ex.minutes)} · ` : ""}
                     {ex.distanceKm ? `${ex.distanceKm} km · ` : ""}
                     {ex.calories === null
                       ? "calorias pendentes"
@@ -459,23 +502,41 @@ export default function DailyDiary({
                     </small>
                   )}
                 </div>
-                <button
-                  className="icon-btn size-11 hover:text-brand-600"
-                  aria-label={`Excluir ${ex.type}`}
-                  onClick={() => {
-                    if (!window.confirm("Excluir este exercício?")) return;
-                    void removePhotos(
-                      state.exercises.find((x) => x.id === ex.id)?.photos,
-                    );
-                    setState((s) => ({
-                      ...s,
-                      exercises: s.exercises.filter((x) => x.id !== ex.id),
-                      completedDays: reopenDay(s, date),
-                    }));
-                  }}
-                >
-                  <RiDeleteBin6Line size={18} />
-                </button>
+                <div className="flex shrink-0">
+                  <button
+                    className="icon-btn size-11 hover:text-brand-600"
+                    aria-label={`Editar ${ex.type}`}
+                    onClick={() => onExercise(ex.id)}
+                  >
+                    <RiPencilLine size={18} />
+                  </button>
+                  <button
+                    className="icon-btn size-11 hover:text-brand-600"
+                    aria-label={`Excluir ${ex.type}`}
+                    onClick={async () => {
+                      if (
+                        !(await confirmDialog({
+                          title: "Excluir exercício?",
+                          message:
+                            "O exercício e as fotos dele serão apagados da sua conta.",
+                          confirmLabel: "Excluir",
+                          danger: true,
+                        }))
+                      )
+                        return;
+                      void removePhotos(
+                        state.exercises.find((x) => x.id === ex.id)?.photos,
+                      );
+                      setState((s) => ({
+                        ...s,
+                        exercises: s.exercises.filter((x) => x.id !== ex.id),
+                        completedDays: reopenDay(s, date),
+                      }));
+                    }}
+                  >
+                    <RiDeleteBin6Line size={18} />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -537,22 +598,5 @@ export default function DailyDiary({
         </details>
       </section>
     </>
-  );
-}
-function Metric({
-  label,
-  value,
-  note,
-}: {
-  label: string;
-  value: string;
-  note: string;
-}) {
-  return (
-    <section className="card min-w-0 p-4">
-      <span className="text-sm text-ink-500">{label}</span>
-      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
-      <p className="mt-1 text-[13px] leading-snug text-ink-500">{note}</p>
-    </section>
   );
 }

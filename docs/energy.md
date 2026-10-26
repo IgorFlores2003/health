@@ -32,6 +32,17 @@ O usuário precisa revisar/salvar o perfil, registrar peso nessa data ou antes, 
 
 A estimativa de rotina leve pode subestimar trabalhos fisicamente ativos e não prevê perda de peso. Calorias de relógios, rótulos e IA também têm incerteza. Não há prescrição de déficit, dieta ou tratamento.
 
+## Calorias do dia (quanto ainda posso comer)
+
+Card no Início e no Diário (`dailyBudget` em `supabase/functions/_shared/energy.ts`):
+
+- Meta base = meta de consumo diário da aba Meta (`state.intake`) ou, sem ela, a base diária (Mifflin–St Jeor × 1,2, manutenção).
+- Disponível = meta base + calorias ativas dos exercícios do dia.
+- Restante = disponível − consumo registrado. Valor negativo aparece como "acima do disponível".
+- Alimentos e exercícios sem calorias não entram na conta e são avisados.
+- Se a meta de consumo for menor que o gasto basal estimado, o card recomenda revisar com um profissional.
+- Sem perfil salvo ou sem peso até a data, não há cálculo.
+
 ## Persistência e compatibilidade
 
 Alimentos e fechamento diário seguem no JSON da tabela health_snapshots: não é necessária nova migração SQL. Backups anteriores continuam válidos; campos novos são opcionais e nenhum histórico é descartado. Os dados continuam sendo salvos localmente e copiados para a conta pela opção Salvar na conta.

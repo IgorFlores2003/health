@@ -173,3 +173,32 @@ export function dailyEnergy(state: State, date: string) {
 export function reopenDay(state: State, date: string) {
   return (state.completedDays ?? []).filter((d) => d !== date);
 }
+/**
+ * Quanto ainda dá para comer no dia.
+ * Meta base = consumo diário definido na aba Meta ou, sem ele, a base diária
+ * estimada (manutenção). Exercícios do dia somam ao que está disponível.
+ */
+export function dailyBudget(state: State, date: string) {
+  const day = dailyEnergy(state, date);
+  if (day.baseline === null)
+    return {
+      ...day,
+      ready: false as const,
+      reason: !state.profileReviewed
+        ? ("profile" as const)
+        : ("weight" as const),
+    };
+  const goal = state.intake > 0 ? state.intake : null;
+  const target = goal ?? day.baseline;
+  const available = target + day.active;
+  return {
+    ...day,
+    ready: true as const,
+    source: goal ? ("goal" as const) : ("maintenance" as const),
+    target,
+    available,
+    consumed: day.intake,
+    remaining: available - day.intake,
+    belowBasal: goal !== null && day.bmr !== null && goal < day.bmr,
+  };
+}
