@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/*
+ * Paleta: fundo branco, vermelho como cor de ação e neutros para o texto.
+ * Use as classes do Tailwind direto no JSX (bg-brand-600, text-ink-500...).
+ * Os componentes abaixo existem só para o que se repete em todas as telas.
+ */
+@theme {
+  --font-sans:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --color-brand-50: #fff1f1;
+  --color-brand-100: #ffe0e0;
+  --color-brand-200: #ffc5c5;
+  --color-brand-300: #ff9d9d;
+  --color-brand-400: #f86464;
+  --color-brand-500: #ee3636;
+  --color-brand-600: #d91c1c;
+  --color-brand-700: #b51414;
+  --color-brand-800: #951515;
+  --color-brand-900: #7b1818;
+  --color-ink-900: #18181b;
+  --color-ink-700: #3f3f46;
+  --color-ink-500: #71717a;
+  --color-ink-400: #a1a1aa;
+  --color-line: #ececef;
+  --color-surface: #fafafa;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-white font-sans text-[15px] text-ink-900 antialiased;
+  }
+  button,
+  a,
+  label {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+  }
+}
+
+/* Componentes repetidos (funcionam com variantes: md:card, hover:btn...). */
+@utility card {
+  @apply rounded-xl border border-line bg-white p-5;
+}
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-white text-ink-900 hover:bg-surface;
+}
+@utility btn-ghost {
+  @apply btn min-h-10 px-2 font-medium text-brand-700 hover:bg-brand-50;
+}
+@utility icon-btn {
+  @apply inline-flex size-10 shrink-0 items-center justify-center rounded-lg text-ink-500 transition-colors hover:bg-surface hover:text-ink-900 disabled:opacity-50;
+}
+@utility label {
+  @apply mb-1.5 block text-sm font-medium text-ink-700;
+}
+@utility input {
+  @apply block min-h-11 w-full min-w-0 rounded-lg border border-line bg-white px-3 text-base text-ink-900 transition-colors placeholder:text-ink-400 focus:border-brand-500 focus:ring-3 focus:ring-brand-100 focus:outline-none disabled:bg-surface md:text-[15px];
+}
+@utility hint {
+  @apply mt-1.5 text-[13px] leading-relaxed text-ink-500;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

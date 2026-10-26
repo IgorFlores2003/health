@@ -1,0 +1,44 @@
+# Dependências e builds
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+# Segredos: nunca versionar chaves (Supabase, Gemini, SMTP)
+.env
+.env.*
+!.env.example
+!.env.smtp.example
+*.pem
+*.key
+
+# Android
+android/.gradle/
+android/.idea/
+android/local.properties
+android/**/build/
+android/app/release/
+android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+keystore.properties
+
+# Supabase CLI (estado local)
+supabase/.temp/
+supabase/.branches/
+
+# Logs e testes
+*.log
+npm-debug.log*
+playwright-report/
+test-results/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp

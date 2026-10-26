@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="18 18 72 72">
+  <!-- Ícone completo (web e Android antigo): os 72dp visíveis do ícone adaptativo. -->
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2a5240"/><stop offset="1" stop-color="#132d27"/></linearGradient></defs>
+  <rect x="18" y="18" width="72" height="72" fill="url(#g)"/>
+  <circle cx="54" cy="54" r="30" fill="none" stroke="#a7bc85" stroke-opacity="0.28" stroke-width="1.4"/>
+  <g transform="translate(29 29) scale(2.0833)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" stroke="#e4ecc8" stroke-width="2.3"/>
+  </g>
+  <circle cx="81.5" cy="54" r="2.4" fill="#c4d3a4"/>
+</svg>
