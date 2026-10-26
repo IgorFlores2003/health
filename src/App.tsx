@@ -12,28 +12,37 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import type { IconType } from "react-icons";
 import {
-  Activity,
-  Camera,
-  Utensils,
-  ArrowRight,
-  Check,
-  ChevronRight,
-  Download,
-  Flame,
-  Footprints,
-  Heart,
-  LayoutDashboard,
-  LogOut,
-  Plus,
-  Scale,
-  Settings,
-  Sparkles,
-  Target,
-  Trash2,
-  TrendingUp,
-  X,
-} from "lucide-react";
+  RiAddLine,
+  RiArrowRightLine,
+  RiArrowRightSLine,
+  RiCameraLine,
+  RiChat3Fill,
+  RiChat3Line,
+  RiCheckLine,
+  RiCloseLine,
+  RiDeleteBin6Line,
+  RiDownload2Line,
+  RiFileList3Fill,
+  RiFileList3Line,
+  RiFireLine,
+  RiFocus3Fill,
+  RiFocus3Line,
+  RiFootprintLine,
+  RiHeartPulseLine,
+  RiHome5Fill,
+  RiHome5Line,
+  RiLineChartLine,
+  RiLogoutBoxRLine,
+  RiPulseLine,
+  RiRestaurant2Fill,
+  RiRestaurant2Line,
+  RiScales3Line,
+  RiUpload2Line,
+  RiUser3Fill,
+  RiUser3Line,
+} from "react-icons/ri";
 import {
   Area,
   AreaChart,
@@ -71,33 +80,68 @@ const dateLabel = (d: string) =>
     day: "2-digit",
     month: "short",
   });
-const tabs = [
+const tabs: {
+  id: string;
+  label: string;
+  short: string;
+  icon: IconType;
+  active: IconType;
+}[] = [
   {
     id: "overview",
-    label: "Visão geral",
+    label: "Início",
     short: "Início",
-    icon: LayoutDashboard,
+    icon: RiHome5Line,
+    active: RiHome5Fill,
   },
-  { id: "nutrition", label: "Alimentação", short: "Diário", icon: Utensils },
+  {
+    id: "nutrition",
+    label: "Diário",
+    short: "Diário",
+    icon: RiRestaurant2Line,
+    active: RiRestaurant2Fill,
+  },
   {
     id: "records",
-    label: "Meus registros",
+    label: "Registros",
     short: "Registros",
-    icon: Activity,
+    icon: RiFileList3Line,
+    active: RiFileList3Fill,
   },
-  { id: "goals", label: "Minha meta", short: "Meta", icon: Target },
-  { id: "insights", label: "Assistente IA", short: "IA", icon: Sparkles },
+  {
+    id: "goals",
+    label: "Meta",
+    short: "Meta",
+    icon: RiFocus3Line,
+    active: RiFocus3Fill,
+  },
+  {
+    id: "insights",
+    label: "Assistente",
+    short: "Assistente",
+    icon: RiChat3Line,
+    active: RiChat3Fill,
+  },
   {
     id: "settings",
-    label: "Perfil e conexões",
+    label: "Perfil",
     short: "Perfil",
-    icon: Settings,
+    icon: RiUser3Line,
+    active: RiUser3Fill,
   },
 ];
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  children,
+  className = "",
+}: {
+  label: string;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <label className="field">
-      <span>{label}</span>
+    <label className={"block " + className}>
+      <span className="label">{label}</span>
       {children}
     </label>
   );
@@ -109,8 +153,29 @@ function Panel({
   children: ReactNode;
   className?: string;
 }) {
-  return <section className={"panel " + className}>{children}</section>;
+  return <section className={"card min-w-0 " + className}>{children}</section>;
 }
+function CardHeader({
+  title,
+  text,
+  children,
+}: {
+  title: string;
+  text?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-base font-semibold">{title}</h2>
+        {text && <p className="mt-0.5 text-sm text-ink-500">{text}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+const note = "text-[13px] leading-relaxed text-ink-500";
+const axisTick = { fontSize: 12, fill: "#a1a1aa" };
 export default function App({ account }: { account: User }) {
   const localKey = userStorageKey(account.id);
   const user = account.email || "";
@@ -150,7 +215,7 @@ export default function App({ account }: { account: User }) {
       if (e.key === "Tab") {
         const nodes = Array.from(
           document.querySelectorAll<HTMLElement>(
-            ".modal button, .modal input, .modal select, .modal textarea",
+            "#record-dialog :is(button, input, select, textarea)",
           ),
         );
         const first = nodes[0],
@@ -452,200 +517,192 @@ export default function App({ account }: { account: User }) {
       setBusy(false);
     }
   }
+  const firstName = state.profile.name.split(" ")[0];
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <a className="brand" href="#" onClick={() => setTab("overview")}>
-          <span className="brand-icon">
-            <Activity size={25} />
-          </span>
-          ritmo<span className="brand-dot">.</span>
+    <div className="min-h-dvh bg-white">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line bg-white px-4 py-6 md:flex">
+        <a
+          className="mb-8 flex items-center gap-2 px-2 text-xl font-bold tracking-tight"
+          href="#"
+          onClick={() => setTab("overview")}
+        >
+          <RiPulseLine className="size-6 text-brand-600" />
+          ritmo
         </a>
-        <div className="sidebar-caption">SEU ESPAÇO DE CUIDADO</div>
-        <nav>
-          {tabs.map(({ id, label, short, icon: Icon }) => (
+        <nav className="grid gap-1">
+          {tabs.map(({ id, label, icon: Icon, active: ActiveIcon }) => (
             <button
               key={id}
-              className={tab === id ? "nav-item active" : "nav-item"}
+              className={
+                "flex min-h-11 items-center gap-3 rounded-lg px-3 text-left text-sm font-medium transition-colors " +
+                (tab === id
+                  ? "bg-brand-50 text-brand-700"
+                  : "text-ink-700 hover:bg-surface")
+              }
               onClick={() => setTab(id)}
-              aria-label={label}
               aria-current={tab === id ? "page" : undefined}
             >
-              <Icon size={20} />
-              <span className="nav-label">{label}</span>
-              <span className="nav-short">{short}</span>
-              {tab === id && <span className="nav-dot" />}
+              {tab === id ? (
+                <ActiveIcon className="size-5" />
+              ) : (
+                <Icon className="size-5 text-ink-400" />
+              )}
+              {label}
             </button>
           ))}
         </nav>
-        <div className="sidebar-note">
-          <div className="little-sun">✳</div>
-          <h3>Um pouco, todos os dias.</h3>
-          <p>Pequenos passos também levam você longe.</p>
-          <span>NO SEU TEMPO. NO SEU RITMO.</span>
-        </div>
-        <button className="sidebar-user" onClick={() => setTab("settings")}>
+        <button
+          className="mt-auto flex items-center gap-3 rounded-lg border-t border-line px-2 pt-4 text-left"
+          onClick={() => setTab("settings")}
+        >
           <Avatar path={state.profile.photo} name={state.profile.name} />
-          <span>
-            <strong>{state.profile.name || "Seu perfil"}</strong>
-            <small>{user ? "Conta conectada" : "Salvo neste aparelho"}</small>
+          <span className="min-w-0">
+            <strong className="block truncate text-sm font-semibold">
+              {state.profile.name || "Seu perfil"}
+            </strong>
+            <small className="block truncate text-xs text-ink-500">
+              {user || "Salvo neste aparelho"}
+            </small>
           </span>
-          <Settings size={17} />
         </button>
       </aside>
-      <main>
-        <header className="topbar">
-          <span className="breadcrumb">
-            Meu espaço <ChevronRight size={14} />{" "}
-            <strong>{tabs.find((t) => t.id === tab)?.label}</strong>
-          </span>
-          <span className="today">
-            <span className="status-dot" />
-            {new Date().toLocaleDateString("pt-BR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </span>
+      <nav
+        aria-label="Navegação principal"
+        className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
+      >
+        {tabs.map(({ id, label, short, icon: Icon, active: ActiveIcon }) => (
+          <button
+            key={id}
+            className={
+              "flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium " +
+              (tab === id ? "text-brand-600" : "text-ink-500")
+            }
+            onClick={() => setTab(id)}
+            aria-label={label}
+            aria-current={tab === id ? "page" : undefined}
+          >
+            {tab === id ? (
+              <ActiveIcon className="size-[22px]" />
+            ) : (
+              <Icon className="size-[22px]" />
+            )}
+            <span className="max-w-full truncate px-0.5">{short}</span>
+          </button>
+        ))}
+      </nav>
+      <main className="pb-[calc(64px+env(safe-area-inset-bottom))] md:ml-60 md:pb-0">
+        <header className="sticky top-0 z-10 border-b border-line bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+          <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4 md:px-8">
+            <span className="flex items-center gap-2 text-[15px] font-semibold">
+              <RiPulseLine className="size-5 text-brand-600 md:hidden" />
+              {tabs.find((t) => t.id === tab)?.label}
+            </span>
+            <span className="hidden text-sm text-ink-500 min-[360px]:inline">
+              {new Date().toLocaleDateString("pt-BR", {
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+          </div>
         </header>
-        <div className="content">
+        <div className="mx-auto max-w-6xl px-4 py-6 md:px-8 md:py-8">
           {tab === "overview" && (
             <>
-              <div className="page-heading">
+              <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <div className="eyebrow">CADA PASSO CONTA</div>
-                  <h1>
-                    Seu bem-estar, em movimento<span>.</span>
+                  <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+                    Olá{firstName ? `, ${firstName}` : ""}
                   </h1>
-                  <p>
-                    Olá
-                    {state.profile.name
-                      ? `, ${state.profile.name.split(" ")[0]}`
-                      : ""}
-                    ! Vamos cuidar de você hoje?
-                  </p>
-                </div>
-                <button className="primary" onClick={() => setModal("weight")}>
-                  <Plus size={18} /> Registrar peso
-                </button>
-              </div>
-              <div className="hero">
-                <div className="hero-copy">
-                  <span className="pill">
-                    <span /> SUA JORNADA, SEU RITMO
-                  </span>
-                  <h2>
-                    Mais equilíbrio.
-                    <br />
-                    Uma conquista de cada vez.
-                  </h2>
-                  <p>
-                    Acompanhe sua evolução e transforme pequenas
-                    <br className="desktop-break" /> escolhas em hábitos que
-                    fazem bem.
-                  </p>
-                  <button onClick={() => setTab("goals")}>
-                    Ver minha meta <ArrowRight size={17} />
-                  </button>
-                </div>
-                <div className="hero-art" aria-hidden="true">
-                  <div className="orbit orbit-one" />
-                  <div className="orbit orbit-two" />
-                  <div className="art-path" />
-                  <div className="floating-heart">
-                    <Heart size={28} />
-                  </div>
-                  <div className="art-ring">
-                    <Footprints size={56} strokeWidth={1.5} />
-                  </div>
-                  <div className="floating-leaf">↗</div>
-                  <div className="art-caption">PROGRESSO, NÃO PERFEIÇÃO</div>
-                </div>
-              </div>
-              <section className="panel dashboard-diary">
-                <div>
-                  <span className="eyebrow">ALIMENTAÇÃO E EXERCÍCIOS</span>
-                  <h2>{balanceLabels[dailyEnergy(state, today()).status]}</h2>
-                  <p>
-                    Registre alimentos em gramas e o gasto dos treinos para
-                    entender o seu dia.
-                  </p>
+                  <p className="mt-1 text-ink-500">Resumo de hoje</p>
                 </div>
                 <button
-                  className="primary"
+                  className="btn-primary w-full sm:w-auto"
+                  onClick={() => setModal("weight")}
+                >
+                  <RiAddLine className="size-5" /> Registrar peso
+                </button>
+              </div>
+              <section className="card mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                    <RiRestaurant2Line className="size-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm text-ink-500">Diário de hoje</p>
+                    <h2 className="font-semibold">
+                      {balanceLabels[dailyEnergy(state, today()).status]}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  className="btn-secondary w-full sm:w-auto"
                   onClick={() => {
                     setDiaryDate(today());
                     setTab("nutrition");
                   }}
                 >
-                  <Utensils size={17} /> Abrir diário
+                  Abrir diário <RiArrowRightLine className="size-4" />
                 </button>
               </section>
-              <div className="stats">
+              <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                 <Stat
-                  icon={<Scale />}
+                  icon={<RiScales3Line />}
                   label="Peso atual"
                   value={weight ? fmt(weight) : "—"}
                   unit="kg"
                   detail={
                     state.weights.length > 1
-                      ? `${difference > 0 ? "+" : ""}${fmt(Number(difference.toFixed(1)))} kg desde o primeiro registro`
-                      : "Seu ponto de partida começa aqui"
+                      ? `${difference > 0 ? "+" : ""}${fmt(Number(difference.toFixed(1)))} kg desde o início`
+                      : "Sem histórico ainda"
                   }
-                  color="green"
                 />
                 <Stat
-                  icon={<Flame />}
-                  label="Metabolismo basal"
+                  icon={<RiFireLine />}
+                  label="Basal"
                   value={bmr ? fmt(bmr) : "—"}
                   unit="kcal/dia"
-                  detail="Estimativa de energia em repouso"
-                  color="orange"
+                  detail="Gasto estimado em repouso"
                 />
                 <Stat
-                  icon={<Footprints />}
-                  label="Movimento na semana"
+                  icon={<RiFootprintLine />}
+                  label="Exercício (7 dias)"
                   value={fmt(minutes)}
                   unit="min"
-                  detail={`${week.length} atividade${week.length === 1 ? "" : "s"} nos últimos 7 dias`}
-                  color="purple"
+                  detail={`${week.length} atividade${week.length === 1 ? "" : "s"}`}
                 />
                 <Stat
-                  icon={<Target />}
-                  label="Sua meta de peso"
+                  icon={<RiFocus3Line />}
+                  label="Meta"
                   value={state.goal ? fmt(state.goal) : "—"}
                   unit="kg"
                   detail={
                     state.goal && weight
-                      ? `${fmt(Math.max(0, Number((weight - state.goal).toFixed(1))))} kg até sua meta`
-                      : "Defina uma direção para sua jornada"
+                      ? `Faltam ${fmt(Math.max(0, Number((weight - state.goal).toFixed(1))))} kg`
+                      : "Não definida"
                   }
-                  color="yellow"
                 />
               </div>
-              <div className="dashboard-grid">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]">
                 <Panel>
-                  <div className="panel-heading">
-                    <div>
-                      <h2>Evolução do peso</h2>
-                      <p>Uma visão mais ampla do seu progresso</p>
-                    </div>
+                  <CardHeader title="Peso">
                     <select
                       aria-label="Período do gráfico"
+                      className="input min-h-9 w-auto py-1 text-sm md:text-sm"
                       value={period}
                       onChange={(e) => setPeriod(e.target.value)}
                     >
-                      <option value="30">Últimos 30 dias</option>
-                      <option value="90">Últimos 90 dias</option>
-                      <option value="365">Último ano</option>
+                      <option value="30">30 dias</option>
+                      <option value="90">90 dias</option>
+                      <option value="365">1 ano</option>
                     </select>
-                  </div>
+                  </CardHeader>
                   {chart.length ? (
-                    <div className="chart">
+                    <div className="h-56 md:h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         <AreaChart
                           data={chart}
-                          margin={{ top: 12, right: 10, left: -20, bottom: 0 }}
+                          margin={{ top: 8, right: 8, left: -20, bottom: 0 }}
                         >
                           <defs>
                             <linearGradient
@@ -657,32 +714,28 @@ export default function App({ account }: { account: User }) {
                             >
                               <stop
                                 offset="0%"
-                                stopColor="#3a8b6e"
-                                stopOpacity={0.23}
+                                stopColor="#d91c1c"
+                                stopOpacity={0.14}
                               />
                               <stop
                                 offset="100%"
-                                stopColor="#3a8b6e"
+                                stopColor="#d91c1c"
                                 stopOpacity={0}
                               />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid
-                            vertical={false}
-                            strokeDasharray="4 5"
-                            stroke="#e6eae6"
-                          />
+                          <CartesianGrid vertical={false} stroke="#ececef" />
                           <XAxis
                             dataKey="date"
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fontSize: 11, fill: "#87918b" }}
+                            tick={axisTick}
                           />
                           <YAxis
                             domain={["auto", "auto"]}
                             axisLine={false}
                             tickLine={false}
-                            tick={{ fontSize: 11, fill: "#87918b" }}
+                            tick={axisTick}
                           />
                           <Tooltip
                             formatter={(value) => [`${value} kg`, "Peso"]}
@@ -690,12 +743,12 @@ export default function App({ account }: { account: User }) {
                           <Area
                             type="monotone"
                             dataKey="peso"
-                            stroke="#3a8b6e"
-                            strokeWidth={3}
+                            stroke="#d91c1c"
+                            strokeWidth={2}
                             fill="url(#weightFill)"
                             dot={{
-                              r: 4,
-                              fill: "#3a8b6e",
+                              r: 3,
+                              fill: "#d91c1c",
                               stroke: "white",
                               strokeWidth: 2,
                             }}
@@ -705,149 +758,120 @@ export default function App({ account }: { account: User }) {
                     </div>
                   ) : (
                     <Empty
-                      icon={<TrendingUp />}
-                      title="Sua história começa com um registro"
-                      text="Adicione seu peso para acompanhar a evolução por aqui."
+                      icon={<RiLineChartLine />}
+                      title="Nenhum peso registrado"
+                      text="Registre seu peso para ver o gráfico."
                       action={() => setModal("weight")}
                     />
                   )}
-                  <div className="chart-footer">
-                    <span className="legend-dot" /> Peso registrado{" "}
-                    <span className="right-note">
-                      Cada corpo tem seu próprio ritmo
-                    </span>
-                  </div>
                 </Panel>
-                <Panel className="goal-panel">
-                  <div className="panel-heading">
-                    <h2>Um passo mais perto</h2>
-                    <Target size={20} />
+                <Panel>
+                  <CardHeader title="Progresso da meta" />
+                  <div className="flex items-baseline gap-1">
+                    <strong className="text-4xl font-semibold tabular-nums">
+                      {Math.round(progress)}
+                    </strong>
+                    <span className="text-lg text-ink-500">%</span>
                   </div>
                   <div
-                    className="progress-ring"
-                    style={{
-                      background: `conic-gradient(#3b8065 ${progress * 3.6}deg, #edf0e8 0deg)`,
-                    }}
+                    className="mt-3 h-2 overflow-hidden rounded-full bg-line"
+                    role="progressbar"
+                    aria-label="Progresso da meta"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={Math.round(progress)}
                   >
-                    <div>
-                      <strong>
-                        {Math.round(progress)}
-                        <small>%</small>
-                      </strong>
-                      <span>da sua jornada</span>
-                    </div>
+                    <div
+                      className="h-full rounded-full bg-brand-600"
+                      style={{ width: `${progress}%` }}
+                    />
                   </div>
-                  <div className="goal-values">
+                  <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
-                      <span>Início</span>
-                      <strong>{first ? `${fmt(first)} kg` : "—"}</strong>
+                      <dt className="text-ink-500">Início</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {first ? `${fmt(first)} kg` : "—"}
+                      </dd>
                     </div>
-                    <ArrowRight size={16} />
-                    <div>
-                      <span>Meta</span>
-                      <strong>
-                        {state.goal ? `${fmt(state.goal)} kg` : "A definir"}
-                      </strong>
+                    <div className="text-right">
+                      <dt className="text-ink-500">Meta</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {state.goal ? `${fmt(state.goal)} kg` : "Não definida"}
+                      </dd>
                     </div>
-                  </div>
-                  <p className="goal-tip">
-                    {state.goal
-                      ? "Consistência vale mais que pressa. Continue registrando sua evolução."
-                      : "Uma meta é um convite para começar. Escolha a sua."}
-                  </p>
+                  </dl>
                   <button
-                    className="secondary full"
+                    className="btn-secondary mt-5 w-full"
                     onClick={() => setTab("goals")}
                   >
-                    Acompanhar minha meta <ArrowRight size={16} />
+                    {state.goal ? "Ver meta" : "Definir meta"}
+                    <RiArrowRightLine className="size-4" />
                   </button>
                 </Panel>
                 <Panel>
-                  <div className="panel-heading">
-                    <div>
-                      <h2>Seu movimento</h2>
-                      <p>Minutos de atividade nos últimos 7 dias</p>
-                    </div>
+                  <CardHeader
+                    title="Exercício"
+                    text="Minutos por dia, últimos 7 dias"
+                  >
                     <button
-                      className="text-button"
+                      className="btn-ghost"
                       onClick={() => setModal("exercise")}
                     >
-                      <Plus size={16} /> Atividade
+                      <RiAddLine className="size-4" /> Adicionar
                     </button>
-                  </div>
-                  <div className="chart small">
+                  </CardHeader>
+                  <div className="h-44">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
                         data={exerciseChart}
                         margin={{ left: -25, right: 0 }}
                       >
-                        <CartesianGrid
-                          vertical={false}
-                          strokeDasharray="4 5"
-                          stroke="#e6eae6"
-                        />
+                        <CartesianGrid vertical={false} stroke="#ececef" />
                         <XAxis
                           dataKey="dia"
                           axisLine={false}
                           tickLine={false}
-                          tick={{ fontSize: 11, fill: "#87918b" }}
+                          tick={axisTick}
                         />
                         <YAxis
                           allowDecimals={false}
                           axisLine={false}
                           tickLine={false}
-                          tick={{ fontSize: 11, fill: "#87918b" }}
+                          tick={axisTick}
                         />
-                        <Tooltip formatter={(v) => [`${v} min`, "Atividade"]} />
+                        <Tooltip
+                          cursor={{ fill: "#fff1f1" }}
+                          formatter={(v) => [`${v} min`, "Exercício"]}
+                        />
                         <Bar
                           dataKey="minutos"
-                          fill="#9bb9a3"
-                          radius={[5, 5, 0, 0]}
-                          maxBarSize={30}
+                          fill="#d91c1c"
+                          radius={[4, 4, 0, 0]}
+                          maxBarSize={28}
                         />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </Panel>
-                <Panel className="quick-panel">
-                  <div className="panel-heading">
-                    <h2>Como você está hoje?</h2>
-                    <Heart size={20} />
-                  </div>
-                  <p>Reserve um momento para cuidar de você.</p>
-                  <button
-                    className="quick-action"
+                <Panel className="p-2">
+                  <h2 className="px-3 pt-3 pb-1 text-base font-semibold">
+                    Atalhos
+                  </h2>
+                  <QuickAction
+                    icon={<RiHeartPulseLine />}
+                    title="Registrar pressão"
                     onClick={() => setModal("pressure")}
-                  >
-                    <span className="icon-box pink">
-                      <Heart size={20} />
-                    </span>
-                    <span>
-                      <strong>Registrar pressão</strong>
-                      <small>Acompanhe seu histórico</small>
-                    </span>
-                    <ChevronRight size={18} />
-                  </button>
-                  <button
-                    className="quick-action"
+                  />
+                  <QuickAction
+                    icon={<RiFootprintLine />}
+                    title="Adicionar exercício"
                     onClick={() => setModal("exercise")}
-                  >
-                    <span className="icon-box purple">
-                      <Footprints size={20} />
-                    </span>
-                    <span>
-                      <strong>Adicionar exercício</strong>
-                      <small>Todo movimento conta</small>
-                    </span>
-                    <ChevronRight size={18} />
-                  </button>
-                  <button
-                    className="ai-link"
+                  />
+                  <QuickAction
+                    icon={<RiChat3Line />}
+                    title="Perguntar ao assistente"
                     onClick={() => setTab("insights")}
-                  >
-                    <Sparkles size={17} /> Conheça seu assistente{" "}
-                    <ArrowRight size={16} />
-                  </button>
+                  />
                 </Panel>
               </div>
             </>
@@ -871,41 +895,45 @@ export default function App({ account }: { account: User }) {
           {tab === "records" && (
             <>
               <PageTitle
-                eyebrow="SEU HISTÓRICO"
-                title="Pequenos passos, registrados."
-                text="Peso, pressão e movimento reunidos em um só lugar."
+                title="Registros"
+                text="Peso, exercícios e pressão arterial."
               />
-              <div className="action-row">
-                <button className="primary" onClick={() => setModal("weight")}>
-                  <Plus size={17} /> Peso
+              <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <button
+                  className="btn-primary"
+                  onClick={() => setModal("weight")}
+                >
+                  <RiAddLine className="size-5" /> Peso
                 </button>
                 <button
-                  className="secondary"
+                  className="btn-secondary"
                   onClick={() => setModal("exercise")}
                 >
-                  <Plus size={17} /> Exercício
+                  <RiAddLine className="size-5" /> Exercício
                 </button>
                 <button
-                  className="secondary"
+                  className="btn-secondary"
                   onClick={() => setModal("pressure")}
                 >
-                  <Plus size={17} /> Pressão
+                  <RiAddLine className="size-5" /> Pressão
                 </button>
-                <button className="secondary" onClick={exportData}>
-                  <Download size={17} /> Exportar dados
+                <button className="btn-secondary" onClick={exportData}>
+                  <RiDownload2Line className="size-5" /> Exportar
                 </button>
               </div>
-              <div className="record-grid">
+              <div className="grid gap-4 lg:grid-cols-3">
                 {(["weights", "exercises", "pressures"] as const).map(
                   (kind, i) => (
                     <Panel key={kind}>
-                      <h2>{["Peso", "Exercícios", "Pressão arterial"][i]}</h2>
+                      <h2 className="text-base font-semibold">
+                        {["Peso", "Exercícios", "Pressão arterial"][i]}
+                      </h2>
                       {!state[kind].length ? (
-                        <p className="muted empty-inline">
+                        <p className="py-8 text-sm text-ink-500">
                           Nenhum registro ainda.
                         </p>
                       ) : (
-                        <div className="record-list">
+                        <ul className="mt-2 divide-y divide-line">
                           {byDate(state[kind] as { id: string; date: string }[])
                             .reverse()
                             .map((item) => {
@@ -919,16 +947,19 @@ export default function App({ account }: { account: User }) {
                                 (x) => x.id === item.id,
                               );
                               return (
-                                <div className="record" key={item.id}>
-                                  <div>
-                                    <strong>
+                                <li
+                                  className="flex items-start justify-between gap-2 py-3"
+                                  key={item.id}
+                                >
+                                  <div className="min-w-0">
+                                    <strong className="block font-semibold tabular-nums">
                                       {w
                                         ? `${fmt(w.value)} kg`
                                         : ex
                                           ? ex.type
                                           : `${p?.systolic}/${p?.diastolic} mmHg`}
                                     </strong>
-                                    <small>
+                                    <small className="mt-0.5 block text-[13px] text-ink-500">
                                       {dateLabel(item.date)}{" "}
                                       {item.date.slice(0, 4)}
                                       {ex
@@ -938,7 +969,7 @@ export default function App({ account }: { account: User }) {
                                     <PhotoStrip paths={ex?.photos} />
                                   </div>
                                   <button
-                                    className="icon-button"
+                                    className="icon-btn -mr-2 hover:text-brand-600"
                                     aria-label="Excluir registro"
                                     onClick={() => {
                                       if (
@@ -960,12 +991,12 @@ export default function App({ account }: { account: User }) {
                                       });
                                     }}
                                   >
-                                    <Trash2 size={16} />
+                                    <RiDeleteBin6Line className="size-[18px]" />
                                   </button>
-                                </div>
+                                </li>
                               );
                             })}
-                        </div>
+                        </ul>
                       )}
                     </Panel>
                   ),
@@ -976,14 +1007,14 @@ export default function App({ account }: { account: User }) {
           {tab === "goals" && (
             <>
               <PageTitle
-                eyebrow="UMA DIREÇÃO PARA SEGUIR"
-                title="Sua meta, no seu tempo."
-                text="Planeje com cuidado e acompanhe a evolução real."
+                title="Meta de peso"
+                text="Defina um peso alvo e veja uma estimativa de prazo."
               />
-              <div className="two-columns">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <Panel>
-                  <h2>Defina seu objetivo</h2>
+                  <CardHeader title="Objetivo" />
                   <form
+                    className="space-y-4"
                     onSubmit={(e) => {
                       e.preventDefault();
                       const f = new FormData(e.currentTarget);
@@ -1001,6 +1032,7 @@ export default function App({ account }: { account: User }) {
                   >
                     <Field label="Peso desejado (kg)">
                       <input
+                        className="input"
                         name="goal"
                         type="number"
                         min="20"
@@ -1010,8 +1042,9 @@ export default function App({ account }: { account: User }) {
                         defaultValue={state.goal || ""}
                       />
                     </Field>
-                    <Field label="Consumo calórico diário para a simulação (kcal)">
+                    <Field label="Consumo diário para a simulação (kcal)">
                       <input
+                        className="input"
                         name="intake"
                         type="number"
                         min="1"
@@ -1019,49 +1052,53 @@ export default function App({ account }: { account: User }) {
                         required
                         defaultValue={state.intake || ""}
                       />
+                      <span className="hint block">
+                        Use um valor combinado com seu profissional de saúde. O
+                        app não prescreve dietas.
+                      </span>
                     </Field>
-                    <p className="form-note">
-                      Informe um consumo definido com seu profissional de saúde.
-                      O aplicativo não prescreve dietas.
-                    </p>
-                    <button className="primary" type="submit">
-                      Salvar meta <Check size={17} />
+                    <button className="btn-primary" type="submit">
+                      <RiCheckLine className="size-5" /> Salvar meta
                     </button>
                   </form>
                 </Panel>
                 <Panel>
-                  <div className="icon-box green">
-                    <Target />
-                  </div>
-                  <h2 className="spaced">Simulação de prazo</h2>
-                  <div className="projection">
-                    {days ? `~${days}` : "—"} <span>{days ? "dias" : ""}</span>
-                  </div>
-                  <p>
-                    {days
-                      ? "Cenário matemático inicial com os valores informados."
-                      : "Cadastre peso, perfil, meta e consumo para visualizar um cenário."}
-                  </p>
-                  <div className="summary-row">
-                    <span>Basal estimado</span>
-                    <strong>{bmr ? `${fmt(bmr)} kcal/dia` : "—"}</strong>
-                  </div>
-                  <div className="summary-row">
-                    <span>Gasto diário estimado</span>
-                    <strong>
-                      {expenditure ? `${fmt(expenditure)} kcal/dia` : "—"}
+                  <CardHeader title="Prazo estimado" />
+                  <div className="flex items-baseline gap-2">
+                    <strong className="text-5xl font-semibold tracking-tight tabular-nums">
+                      {days ? `~${days}` : "—"}
                     </strong>
+                    {days ? <span className="text-ink-500">dias</span> : null}
                   </div>
-                  <p className="form-note">
-                    A simulação usa 7.700 kcal/kg e gasto constante; não prevê
-                    adaptações metabólicas nem garante uma data. Só exibimos
-                    cenários com diferença de 100 a 1.000 kcal/dia, sem
-                    recomendar esse déficit. Reavalie a meta com um
+                  <p className="mt-2 text-sm text-ink-500">
+                    {days
+                      ? "Cálculo com os valores informados."
+                      : "Preencha peso, perfil, meta e consumo para calcular."}
+                  </p>
+                  <dl className="mt-4 divide-y divide-line border-y border-line text-sm">
+                    <div className="flex justify-between py-3">
+                      <dt className="text-ink-500">Basal estimado</dt>
+                      <dd className="font-medium tabular-nums">
+                        {bmr ? `${fmt(bmr)} kcal/dia` : "—"}
+                      </dd>
+                    </div>
+                    <div className="flex justify-between py-3">
+                      <dt className="text-ink-500">Gasto diário estimado</dt>
+                      <dd className="font-medium tabular-nums">
+                        {expenditure ? `${fmt(expenditure)} kcal/dia` : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className={note + " mt-4"}>
+                    Considera 7.700 kcal por kg e gasto constante, sem adaptação
+                    do metabolismo, então não é uma data garantida. Só
+                    calculamos com diferença entre 100 e 1.000 kcal/dia, o que
+                    não é uma recomendação de déficit. Revise a meta com um
                     profissional.
                   </p>
-                  <p className="form-note">
-                    O fator de atividade do perfil já inclui exercícios. Os
-                    registros não são somados novamente ao gasto diário.
+                  <p className={note + " mt-2"}>
+                    O nível de atividade do perfil já inclui os exercícios; eles
+                    não são somados de novo.
                   </p>
                 </Panel>
               </div>
@@ -1070,21 +1107,13 @@ export default function App({ account }: { account: User }) {
           {tab === "insights" && (
             <>
               <PageTitle
-                eyebrow="ENTENDA SUA JORNADA"
-                title="Uma conversa sobre seu progresso."
-                text="Explicações claras para acompanhar seus hábitos com mais consciência."
+                title="Assistente"
+                text="Pergunte sobre o consumo, os exercícios e o saldo de um dia."
               />
-              <Panel className="assistant-panel">
-                <span className="icon-box green">
-                  <Sparkles />
-                </span>
-                <h2>Seu assistente Ritmo</h2>
-                <p>
-                  Entenda o consumo, os exercícios e o saldo estimado do dia
-                  selecionado.
-                </p>
+              <Panel className="max-w-3xl">
                 <Field label="Dia da análise">
                   <input
+                    className="input"
                     type="date"
                     value={diaryDate}
                     max={today()}
@@ -1094,20 +1123,22 @@ export default function App({ account }: { account: User }) {
                     }}
                   />
                 </Field>
-                <p className="connection-note">
-                  {balanceLabels[day.status]} · {day.foodCount} alimento(s) ·{" "}
-                  {day.exerciseCount} exercício(s).{" "}
-                  {day.complete
-                    ? "Dia marcado como completo."
-                    : "A IA não concluirá déficit com registros incompletos."}
-                </p>
-                <button
-                  className="text-button"
-                  onClick={() => setTab("nutrition")}
-                >
-                  Ver ou completar o diário <ArrowRight size={15} />
-                </button>
-                <div className="suggestions">
+                <div className="mt-3 flex flex-col gap-2 rounded-lg bg-surface p-3 text-sm text-ink-700 sm:flex-row sm:items-center sm:justify-between">
+                  <span>
+                    {balanceLabels[day.status]} · {day.foodCount} alimento(s) ·{" "}
+                    {day.exerciseCount} exercício(s).{" "}
+                    {day.complete
+                      ? "Dia marcado como completo."
+                      : "Com o dia incompleto, o assistente não conclui se houve déficit."}
+                  </span>
+                  <button
+                    className="btn-ghost self-start sm:self-auto"
+                    onClick={() => setTab("nutrition")}
+                  >
+                    Abrir diário <RiArrowRightLine className="size-4" />
+                  </button>
+                </div>
+                <div className="my-5 flex flex-wrap gap-2">
                   {[
                     "Estou em déficit calórico neste dia?",
                     "Resuma meu progresso até aqui.",
@@ -1116,7 +1147,7 @@ export default function App({ account }: { account: User }) {
                   ].map((q) => (
                     <button
                       key={q}
-                      className="secondary"
+                      className="min-h-9 rounded-full border border-line px-3 py-1.5 text-left text-sm text-ink-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
                       onClick={() => setQuestion(q)}
                     >
                       {q}
@@ -1124,44 +1155,46 @@ export default function App({ account }: { account: User }) {
                   ))}
                 </div>
                 {(!supabase || !user) && (
-                  <div className="connection-note">
-                    O assistente precisa de uma conta conectada e da função
+                  <div className="mb-4 rounded-lg bg-surface p-3 text-sm text-ink-700">
+                    O assistente precisa de uma conta conectada e da função do
                     Gemini configurada.{" "}
                     <button
-                      className="text-button"
+                      className="btn-ghost"
                       onClick={() => setTab("settings")}
                     >
-                      Ver conexões <ArrowRight size={14} />
+                      Ver perfil <RiArrowRightLine className="size-4" />
                     </button>
                   </div>
                 )}
                 <form onSubmit={ask}>
                   <Field label="Sua pergunta">
                     <textarea
+                      className="input min-h-28 py-2.5"
                       value={question}
                       onChange={(e) => setQuestion(e.target.value)}
                       maxLength={1000}
                       required
-                      placeholder="O que você gostaria de entender?"
+                      placeholder="Escreva sua pergunta"
                     />
                   </Field>
-                  <p className="form-note">
-                    Ao enviar, você compartilha com o Gemini a pergunta e um
-                    resumo de peso e meta, perfil usado no cálculo, alimentos,
-                    gramas, calorias e exercícios do dia selecionado. Nome e
-                    pressão arterial não são enviados. O assistente não faz
-                    diagnósticos nem prescreve tratamentos.
+                  <p className={note + " mt-2"}>
+                    Enviamos ao Gemini a pergunta e um resumo do dia: peso,
+                    meta, dados do perfil usados no cálculo, alimentos e
+                    exercícios. Nome, fotos e pressão arterial não são enviados.
+                    O assistente não faz diagnóstico nem prescreve tratamento.
                   </p>
                   <button
-                    className="primary"
+                    className="btn-primary mt-4 w-full sm:w-auto"
                     disabled={!supabase || !user || busy || !question.trim()}
                   >
-                    {busy ? "Consultando…" : "Conversar com o assistente"}
-                    <Sparkles size={17} />
+                    {busy ? "Consultando…" : "Enviar pergunta"}
                   </button>
                 </form>
                 {answer && (
-                  <div className="assistant-answer" aria-live="polite">
+                  <div
+                    className="mt-6 rounded-lg border border-line bg-surface p-4 leading-relaxed whitespace-pre-wrap"
+                    aria-live="polite"
+                  >
                     {answer}
                   </div>
                 )}
@@ -1171,24 +1204,24 @@ export default function App({ account }: { account: User }) {
           {tab === "settings" && (
             <>
               <PageTitle
-                eyebrow="DO SEU JEITO"
-                title="Seu perfil e suas conexões."
-                text="Mantenha seus dados atualizados para melhorar as estimativas."
+                title="Perfil"
+                text="Esses dados entram no cálculo das estimativas."
               />
-              <div className="two-columns">
+              <div className="grid gap-4 lg:grid-cols-2">
                 <Panel>
-                  <h2>Sobre você</h2>
-                  <div className="profile-photo">
+                  <CardHeader title="Sobre você" />
+                  <div className="mb-5 flex items-center gap-4">
                     <Avatar
                       path={state.profile.photo}
                       name={state.profile.name}
                       size={72}
                     />
-                    <div>
-                      <label className="secondary import-button">
-                        <Camera size={17} />
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="btn-secondary relative">
+                        <RiCameraLine className="size-5" />
                         {state.profile.photo ? "Trocar foto" : "Adicionar foto"}
                         <input
+                          className="absolute inset-0 cursor-pointer opacity-0"
                           type="file"
                           accept="image/jpeg,image/png,image/webp"
                           disabled={busy}
@@ -1202,27 +1235,29 @@ export default function App({ account }: { account: User }) {
                       {state.profile.photo && (
                         <button
                           type="button"
-                          className="danger-button"
+                          className="btn-ghost text-ink-500 hover:text-brand-700"
                           disabled={busy}
                           onClick={() => void changePhoto(null)}
                         >
-                          Remover foto
+                          Remover
                         </button>
                       )}
                     </div>
                   </div>
-                  <form onSubmit={saveProfile}>
-                    <Field label="Como podemos chamar você?">
+                  <form className="space-y-4" onSubmit={saveProfile}>
+                    <Field label="Nome">
                       <input
+                        className="input"
                         name="name"
                         maxLength={60}
                         defaultValue={state.profile.name}
-                        placeholder="Seu nome"
+                        placeholder="Como quer ser chamado(a)"
                       />
                     </Field>
-                    <div className="form-grid">
+                    <div className="grid grid-cols-2 gap-3">
                       <Field label="Altura (cm)">
                         <input
+                          className="input"
                           name="height"
                           type="number"
                           min="100"
@@ -1234,6 +1269,7 @@ export default function App({ account }: { account: User }) {
                       </Field>
                       <Field label="Idade (anos)">
                         <input
+                          className="input"
                           name="age"
                           type="number"
                           min="18"
@@ -1244,7 +1280,11 @@ export default function App({ account }: { account: User }) {
                       </Field>
                     </div>
                     <Field label="Gênero">
-                      <select name="gender" defaultValue={state.profile.gender}>
+                      <select
+                        className="input"
+                        name="gender"
+                        defaultValue={state.profile.gender}
+                      >
                         {[
                           "Não informado",
                           "Mulher",
@@ -1256,22 +1296,24 @@ export default function App({ account }: { account: User }) {
                         ))}
                       </select>
                     </Field>
-                    <Field label="Parâmetro fisiológico da fórmula basal">
+                    <Field label="Coeficiente da fórmula basal">
                       <select
+                        className="input"
                         name="formulaSex"
                         defaultValue={state.profile.formulaSex}
                       >
-                        <option value="female">Coeficiente feminino</option>
-                        <option value="male">Coeficiente masculino</option>
+                        <option value="female">Feminino</option>
+                        <option value="male">Masculino</option>
                       </select>
+                      <span className="hint block">
+                        A fórmula Mifflin–St Jeor só tem coeficientes feminino e
+                        masculino, sem relação com identidade de gênero. É uma
+                        estimativa para adultos e pode não refletir o seu caso.
+                      </span>
                     </Field>
-                    <p className="form-note">
-                      A fórmula Mifflin–St Jeor utiliza coeficientes binários,
-                      independentes da identidade de gênero. Esta estimativa
-                      para adultos pode não representar sua situação individual.
-                    </p>
-                    <Field label="Nível habitual de atividade (incluindo exercícios)">
+                    <Field label="Nível de atividade (inclui exercícios)">
                       <select
+                        className="input"
                         name="activity"
                         defaultValue={state.profile.activity}
                       >
@@ -1281,44 +1323,41 @@ export default function App({ account }: { account: User }) {
                         <option value="1.725">Muito ativo</option>
                       </select>
                     </Field>
-                    <button className="primary">
-                      Salvar perfil <Check size={17} />
+                    <button className="btn-primary">
+                      <RiCheckLine className="size-5" /> Salvar perfil
                     </button>
                   </form>
                 </Panel>
-                <div className="stack">
+                <div className="grid content-start gap-4">
                   <Panel>
-                    <div className="panel-heading">
-                      <h2>Conta e backup</h2>
-                      <span className="badge">
-                        {supabase ? "Disponível" : "Modo local"}
+                    <CardHeader
+                      title="Conta e backup"
+                      text="Os registros ficam neste aparelho. Salve uma cópia na conta para usar em outro."
+                    >
+                      <span className="shrink-0 rounded-md bg-surface px-2 py-1 text-xs font-medium text-ink-500">
+                        {supabase ? "Nuvem" : "Só local"}
                       </span>
-                    </div>
-                    <p>
-                      Os registros ficam neste aparelho. Salve uma cópia na sua
-                      conta para transferir seus dados.
-                    </p>
+                    </CardHeader>
                     {!supabase ? (
-                      <div className="connection-note">
-                        A conexão com a nuvem ainda não foi configurada neste
-                        aplicativo.
+                      <div className="rounded-lg bg-surface p-3 text-sm text-ink-700">
+                        A conexão com a nuvem não está configurada neste app.
                       </div>
                     ) : user ? (
                       <>
-                        <p>
-                          <strong>{user}</strong>
+                        <p className="mb-3 truncate text-sm font-medium">
+                          {user}
                         </p>
-                        <div className="action-row">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             disabled={busy}
-                            className="primary"
+                            className="btn-primary flex-1"
                             onClick={() => cloud("save")}
                           >
-                            Salvar na conta
+                            <RiUpload2Line className="size-5" /> Salvar na conta
                           </button>
                           <button
                             disabled={busy}
-                            className="secondary"
+                            className="btn-secondary flex-1"
                             onClick={() => {
                               if (
                                 window.confirm(
@@ -1328,11 +1367,12 @@ export default function App({ account }: { account: User }) {
                                 void cloud("load");
                             }}
                           >
-                            Carregar da conta
+                            <RiDownload2Line className="size-5" /> Carregar
                           </button>
                           <button
-                            className="icon-button"
+                            className="btn-secondary"
                             aria-label="Sair da conta"
+                            title="Sair da conta"
                             onClick={async () => {
                               const result = await supabase?.auth.signOut({
                                 scope: "local",
@@ -1348,7 +1388,7 @@ export default function App({ account }: { account: User }) {
                               );
                             }}
                           >
-                            <LogOut size={18} />
+                            <RiLogoutBoxRLine className="size-5" />
                           </button>
                         </div>
                       </>
@@ -1359,20 +1399,19 @@ export default function App({ account }: { account: User }) {
                       onRecovered={() => {}}
                     />
                   </Panel>
-
                   <Panel>
-                    <h2>Seus dados são seus</h2>
-                    <p>
-                      Exporte uma cópia ou restaure seus registros de um arquivo
-                      Ritmo.
-                    </p>
-                    <div className="action-row">
-                      <button className="secondary" onClick={exportData}>
-                        <Download size={16} /> Exportar
+                    <CardHeader
+                      title="Arquivo de backup"
+                      text="Exporte seus registros ou restaure de um arquivo do Ritmo."
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      <button className="btn-secondary" onClick={exportData}>
+                        <RiDownload2Line className="size-5" /> Exportar
                       </button>
-                      <label className="secondary import-button">
-                        Importar
+                      <label className="btn-secondary relative">
+                        <RiUpload2Line className="size-5" /> Importar
                         <input
+                          className="absolute inset-0 cursor-pointer opacity-0"
                           type="file"
                           accept="application/json,.json"
                           onChange={async (e) => {
@@ -1401,7 +1440,7 @@ export default function App({ account }: { account: User }) {
                       </label>
                     </div>
                     <button
-                      className="danger-button"
+                      className="btn-ghost mt-4 text-brand-700"
                       onClick={() => {
                         if (
                           window.confirm(
@@ -1413,44 +1452,50 @@ export default function App({ account }: { account: User }) {
                         }
                       }}
                     >
-                      Apagar dados deste aparelho
+                      <RiDeleteBin6Line className="size-4" /> Apagar dados deste
+                      aparelho
                     </button>
                   </Panel>
                 </div>
               </div>
             </>
           )}
-          <footer>
-            <span>
-              <Activity size={14} /> ritmo · Sua saúde, no seu tempo.
-            </span>
-            <span>Estimativas para acompanhamento, não diagnóstico.</span>
+          <footer className="mt-10 border-t border-line pt-5 pb-2 text-xs text-ink-400">
+            Estimativas para acompanhamento, não diagnóstico.
           </footer>
         </div>
       </main>
       {notice && (
-        <div className="toast" role="status">
-          {notice}
-          <button aria-label="Fechar aviso" onClick={() => setNotice("")}>
-            <X size={16} />
+        <div
+          className="fixed inset-x-4 bottom-[calc(80px+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center gap-3 rounded-lg bg-ink-900 py-3 pr-2 pl-4 text-sm text-white md:bottom-6"
+          role="status"
+        >
+          <span className="flex-1">{notice}</span>
+          <button
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white"
+            aria-label="Fechar aviso"
+            onClick={() => setNotice("")}
+          >
+            <RiCloseLine className="size-5" />
           </button>
         </div>
       )}
       {modal && (
         <div
-          className="modal-backdrop"
+          className="fixed inset-0 z-40 flex items-end justify-center bg-ink-900/40 sm:items-center sm:p-4"
           onClick={(e) => {
             if (e.target === e.currentTarget) setModal("");
           }}
         >
           <section
-            className="modal"
+            id="record-dialog"
+            className="max-h-[calc(100dvh-24px-env(safe-area-inset-top))] w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-white px-5 pt-5 pb-[calc(20px+env(safe-area-inset-bottom))] shadow-sm sm:max-w-md sm:rounded-2xl sm:pb-5"
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
           >
-            <div className="panel-heading">
-              <h2 id="modal-title">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 id="modal-title" className="text-lg font-semibold">
                 {modal === "weight"
                   ? "Registrar peso"
                   : modal === "exercise"
@@ -1458,16 +1503,17 @@ export default function App({ account }: { account: User }) {
                     : "Registrar pressão"}
               </h2>
               <button
-                className="icon-button"
+                className="icon-btn -mr-2"
                 aria-label="Fechar"
                 onClick={() => setModal("")}
               >
-                <X />
+                <RiCloseLine className="size-6" />
               </button>
             </div>
-            <form onSubmit={submitRecord}>
+            <form className="space-y-4" onSubmit={submitRecord}>
               <Field label="Data">
                 <input
+                  className="input"
                   autoFocus
                   name="date"
                   type="date"
@@ -1477,29 +1523,29 @@ export default function App({ account }: { account: User }) {
                 />
               </Field>
               {modal === "weight" ? (
-                <>
-                  <Field label="Peso (kg)">
-                    <input
-                      name="value"
-                      type="number"
-                      min="20"
-                      max="400"
-                      step="0.1"
-                      required
-                      placeholder="Ex.: 78,5"
-                    />
-                  </Field>
-                  <p className="form-note">
-                    Um peso por dia. Um novo registro na mesma data substitui o
+                <Field label="Peso (kg)">
+                  <input
+                    className="input"
+                    name="value"
+                    type="number"
+                    min="20"
+                    max="400"
+                    step="0.1"
+                    required
+                    placeholder="Ex.: 78,5"
+                  />
+                  <span className="hint block">
+                    Um peso por dia. Registrar de novo na mesma data substitui o
                     anterior.
-                  </p>
-                </>
+                  </span>
+                </Field>
               ) : modal === "exercise" ? (
                 <ExerciseFields />
               ) : (
-                <div className="form-grid">
+                <div className="grid grid-cols-2 gap-3">
                   <Field label="Sistólica (mmHg)">
                     <input
+                      className="input"
                       name="systolic"
                       type="number"
                       min="50"
@@ -1510,6 +1556,7 @@ export default function App({ account }: { account: User }) {
                   </Field>
                   <Field label="Diastólica (mmHg)">
                     <input
+                      className="input"
                       name="diastolic"
                       type="number"
                       min="30"
@@ -1520,9 +1567,14 @@ export default function App({ account }: { account: User }) {
                   </Field>
                 </div>
               )}
-              <button className="primary full" disabled={busy}>
-                {busy ? "Enviando fotos…" : "Salvar registro"}{" "}
-                <Check size={17} />
+              <button className="btn-primary w-full" disabled={busy}>
+                {busy ? (
+                  "Enviando fotos…"
+                ) : (
+                  <>
+                    <RiCheckLine className="size-5" /> Salvar
+                  </>
+                )}
               </button>
             </form>
           </section>
@@ -1537,27 +1589,51 @@ function Stat({
   value,
   unit,
   detail,
-  color,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   unit: string;
   detail: string;
-  color: string;
 }) {
   return (
-    <Panel className="stat">
-      <div className="stat-label">
-        <span>{label}</span>
-        <span className={"icon-box " + color}>{icon}</span>
+    <Panel className="p-4">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm text-ink-500">{label}</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-[18px]">
+          {icon}
+        </span>
       </div>
-      <div className="stat-value">
+      <div className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
         {value}
-        <small>{unit}</small>
+        <small className="ml-1 text-sm font-normal tracking-normal text-ink-500">
+          {unit}
+        </small>
       </div>
-      <p>{detail}</p>
+      <p className="mt-1 text-[13px] text-ink-500">{detail}</p>
     </Panel>
+  );
+}
+function QuickAction({
+  icon,
+  title,
+  onClick,
+}: {
+  icon: ReactNode;
+  title: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium hover:bg-surface"
+      onClick={onClick}
+    >
+      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
+        {icon}
+      </span>
+      <span className="flex-1">{title}</span>
+      <RiArrowRightSLine className="size-5 text-ink-400" />
+    </button>
   );
 }
 function Empty({
@@ -1572,32 +1648,25 @@ function Empty({
   action: () => void;
 }) {
   return (
-    <div className="empty">
-      <span className="icon-box green">{icon}</span>
-      <strong>{title}</strong>
-      <p>{text}</p>
-      <button className="text-button" onClick={action}>
-        Adicionar primeiro peso <ArrowRight size={15} />
+    <div className="flex min-h-56 flex-col items-center justify-center gap-2 px-4 text-center">
+      <span className="mb-1 grid size-11 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
+        {icon}
+      </span>
+      <strong className="font-semibold">{title}</strong>
+      <p className="text-sm text-ink-500">{text}</p>
+      <button className="btn-ghost mt-1" onClick={action}>
+        <RiAddLine className="size-4" /> Registrar peso
       </button>
     </div>
   );
 }
-function PageTitle({
-  eyebrow,
-  title,
-  text,
-}: {
-  eyebrow: string;
-  title: string;
-  text: string;
-}) {
+function PageTitle({ title, text }: { title: string; text: string }) {
   return (
-    <div className="page-heading">
-      <div>
-        <div className="eyebrow">{eyebrow}</div>
-        <h1>{title}</h1>
-        <p>{text}</p>
-      </div>
+    <div className="mb-6">
+      <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
+        {title}
+      </h1>
+      <p className="mt-1 text-ink-500">{text}</p>
     </div>
   );
 }
