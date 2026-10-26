@@ -334,11 +334,7 @@ export default function AccountAccess({
           onClick={back}
         >
           <RiArrowLeftLine className="size-5" />
-          {user
-            ? "Cancelar"
-            : mode === "recover"
-              ? "Trocar e-mail"
-              : "Voltar"}
+          {user ? "Cancelar" : mode === "recover" ? "Trocar e-mail" : "Voltar"}
         </button>
         {step >= 0 && !user && (
           <ol

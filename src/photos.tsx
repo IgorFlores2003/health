@@ -96,8 +96,15 @@ export function Avatar({
 }) {
   const src = usePhotoUrls(path ? [path] : undefined)[path || ""];
   return (
-    <span className="avatar" style={{ width: size, height: size }}>
-      {src ? <img src={src} alt="" /> : name.slice(0, 1).toUpperCase() || "V"}
+    <span
+      className="grid shrink-0 place-items-center overflow-hidden rounded-full bg-brand-50 font-semibold text-brand-700"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.4) }}
+    >
+      {src ? (
+        <img src={src} alt="" className="size-full object-cover" />
+      ) : (
+        name.slice(0, 1).toUpperCase() || "V"
+      )}
     </span>
   );
 }
@@ -106,14 +113,25 @@ export function PhotoStrip({ paths }: { paths?: string[] }) {
   const map = usePhotoUrls(paths);
   if (!paths?.length) return null;
   return (
-    <span className="photo-strip">
+    <span className="mt-2 flex flex-wrap gap-1.5">
       {paths.map((p) =>
         map[p] ? (
-          <a key={p} href={map[p]} target="_blank" rel="noreferrer">
-            <img src={map[p]} alt="Foto do exercício" loading="lazy" />
+          <a
+            key={p}
+            href={map[p]}
+            target="_blank"
+            rel="noreferrer"
+            className="block rounded-lg"
+          >
+            <img
+              src={map[p]}
+              alt="Foto do exercício"
+              loading="lazy"
+              className="size-14 rounded-lg bg-surface object-cover"
+            />
           </a>
         ) : (
-          <span key={p} className="photo-placeholder" />
+          <span key={p} className="block size-14 rounded-lg bg-surface" />
         ),
       )}
     </span>

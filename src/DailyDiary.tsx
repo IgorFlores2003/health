@@ -6,7 +6,14 @@ import {
   type SetStateAction,
   type FormEvent,
 } from "react";
-import { Plus, Sparkles, Trash2, Pencil, Utensils, Check } from "lucide-react";
+import {
+  RiAddLine,
+  RiChat3Line,
+  RiCheckLine,
+  RiDeleteBin6Line,
+  RiPencilLine,
+  RiRestaurant2Line,
+} from "react-icons/ri";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import { today, validState, type State, type Food } from "./domain";
 import { supabase } from "./supabase";
@@ -125,18 +132,19 @@ export default function DailyDiary({
   }
   return (
     <>
-      <div className="page-heading">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="eyebrow">ALIMENTAÇÃO + MOVIMENTO</div>
-          <h1>O balanço do seu dia.</h1>
-          <p>
-            Registre o que comeu e como se movimentou. Entenda as estimativas
-            com a IA.
+          <h1 className="text-2xl font-semibold tracking-tight md:text-[28px]">
+            Diário do dia
+          </h1>
+          <p className="mt-1 text-sm text-ink-500">
+            Registre o que comeu e os exercícios para ver o balanço estimado.
           </p>
         </div>
-        <label className="diary-date">
-          Dia do registro
+        <label className="block sm:w-52">
+          <span className="label">Data</span>
           <input
+            className="input"
             aria-label="Dia do diário"
             type="date"
             max={today()}
@@ -151,9 +159,9 @@ export default function DailyDiary({
           />
         </label>
       </div>
-      <div className="stats energy-stats">
+      <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric
-          label="Consumo registrado"
+          label="Consumo"
           value={kcal(day.intake)}
           note={
             day.foodMissing
@@ -162,12 +170,12 @@ export default function DailyDiary({
           }
         />
         <Metric
-          label="Base diária estimada"
+          label="Base diária"
           value={kcal(day.baseline)}
-          note="Basal × 1,2 · rotina leve"
+          note="Basal × 1,2 (rotina leve)"
         />
         <Metric
-          label="Exercícios do dia"
+          label="Exercícios"
           value={kcal(day.active)}
           note={
             day.exerciseMissing
@@ -176,60 +184,65 @@ export default function DailyDiary({
           }
         />
         <Metric
-          label="Gasto total estimado"
+          label="Gasto total"
           value={kcal(day.expenditure)}
           note="Base diária + exercícios"
         />
       </div>
-      <section className="panel balance-panel">
-        <div>
-          <span className="eyebrow">BALANÇO ENERGÉTICO</span>
-          <h2>{balanceLabels[day.status]}</h2>
+      <section className="card mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0 space-y-2 text-sm text-ink-500">
+          <h2 className="text-base font-semibold text-ink-900">
+            {balanceLabels[day.status]}
+          </h2>
           <p>
             {day.complete
-              ? `Diferença estimada: ${kcal(Math.abs(day.balance!))}. Valores aproximados; próximo do equilíbrio significa diferença de até 100 kcal.`
-              : "Ainda não é possível concluir se o dia terminou em déficit. Registre todas as refeições, bebidas e exercícios e marque o dia como completo."}
+              ? `Diferença estimada: ${kcal(Math.abs(day.balance!))}. Valores aproximados; "próximo do equilíbrio" é uma diferença de até 100 kcal.`
+              : "Ainda não dá para dizer se houve déficit. Registre todas as refeições, bebidas e exercícios e marque o dia como completo."}
           </p>
           {!state.profileReviewed && (
-            <button className="text-button" onClick={onProfile}>
+            <button className="btn-ghost -ml-2" onClick={onProfile}>
               Revise e salve seu perfil para calcular o gasto
             </button>
           )}
-          {!day.weight && (
-            <p>Falta um registro de peso nessa data ou anterior.</p>
-          )}
+          {!day.weight && <p>Falta um registro de peso nessa data ou antes.</p>}
           {day.aiFoods > 0 && (
             <p>
-              {day.aiFoods} alimento(s) usam estimativas da IA. Preparo, marca e
-              ingredientes podem alterar as calorias.
+              {day.aiFoods} alimento(s) usam estimativa da IA. Preparo, marca e
+              ingredientes podem mudar as calorias.
             </p>
           )}
         </div>
-        <button className="primary" onClick={onAnalyze}>
-          <Sparkles size={17} /> Analisar meu dia
+        <button className="btn-primary shrink-0" onClick={onAnalyze}>
+          <RiChat3Line size={18} /> Analisar meu dia
         </button>
       </section>
-      <div className="diary-layout">
-        <section className="panel">
-          <div className="panel-heading">
+      <div className="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+        <section className="card min-w-0">
+          <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2>O que você comeu?</h2>
-              <p>Inclua preparo, marca, molhos e bebidas.</p>
+              <h2 className="text-base font-semibold">Alimentação</h2>
+              <p className="mt-0.5 text-sm text-ink-500">
+                Inclua preparo, marca, molhos e bebidas.
+              </p>
             </div>
             <button
-              className="secondary"
+              className="btn-secondary"
               onClick={() => open()}
               disabled={busy}
             >
-              <Plus size={16} /> Alimento
+              <RiAddLine size={18} /> Alimento
             </button>
           </div>
           {showFood && (
-            <form className="food-form" onSubmit={save}>
-              <fieldset disabled={busy}>
-                <label className="field">
-                  <span>Alimento e preparo</span>
+            <form
+              className="mb-4 rounded-lg border border-line bg-surface p-4"
+              onSubmit={save}
+            >
+              <fieldset disabled={busy} className="min-w-0 space-y-4">
+                <label className="block">
+                  <span className="label">Alimento e preparo</span>
                   <input
+                    className="input"
                     autoFocus
                     value={name}
                     onChange={(e) => {
@@ -245,10 +258,11 @@ export default function DailyDiary({
                     placeholder="Ex.: arroz branco cozido, sem óleo"
                   />
                 </label>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>Quantidade (gramas)</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block">
+                    <span className="label">Gramas</span>
                     <input
+                      className="input"
                       type="number"
                       min="0.1"
                       max="10000"
@@ -259,9 +273,10 @@ export default function DailyDiary({
                       placeholder="150"
                     />
                   </label>
-                  <label className="field">
-                    <span>Energia (kcal por 100 g)</span>
+                  <label className="block">
+                    <span className="label">kcal por 100 g</span>
                     <input
+                      className="input"
                       type="number"
                       min="0"
                       max="900"
@@ -272,28 +287,34 @@ export default function DailyDiary({
                         setSource("label");
                         setNote("");
                       }}
-                      placeholder="Do rótulo ou estimada"
+                      placeholder="Do rótulo"
                     />
                   </label>
                 </div>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={!name.trim() || !supabase}
-                  onClick={estimate}
-                >
-                  <Sparkles size={16} />
-                  {busy ? "Estimando…" : "Estimar calorias com IA"}
-                </button>
-                <p className="form-note">
-                  A IA recebe apenas a descrição do alimento. A estimativa por
-                  100 g precisa corresponder ao preparo informado. Prefira o
-                  rótulo quando disponível.
-                </p>
-                {note && <p className="connection-note">{note}</p>}
-                <p className="food-total">
+                <div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={!name.trim() || !supabase}
+                    onClick={estimate}
+                  >
+                    <RiChat3Line size={18} />
+                    {busy ? "Estimando…" : "Estimar com IA"}
+                  </button>
+                  <p className="hint">
+                    A IA recebe só a descrição do alimento, e a estimativa por
+                    100 g precisa bater com o preparo informado. Prefira o
+                    rótulo quando houver.
+                  </p>
+                </div>
+                {note && (
+                  <p className="rounded-lg border border-line bg-white p-3 text-sm text-ink-700">
+                    {note}
+                  </p>
+                )}
+                <p className="text-sm text-ink-700">
                   Nesta porção:{" "}
-                  <strong>
+                  <strong className="font-semibold text-ink-900 tabular-nums">
                     {per100 !== "" && grams !== ""
                       ? kcal(Math.round((Number(per100) * Number(grams)) / 100))
                       : "calorias pendentes"}
@@ -301,18 +322,21 @@ export default function DailyDiary({
                   {source === "ai" ? "· estimativa da IA" : ""}
                 </p>
                 {error && (
-                  <p role="alert" className="auth-error">
+                  <p
+                    role="alert"
+                    className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800"
+                  >
                     {error}
                   </p>
                 )}
-                <div className="action-row">
-                  <button className="primary">
+                <div className="flex flex-wrap gap-2">
+                  <button className="btn-primary">
                     {editing ? "Salvar alteração" : "Salvar alimento"}
-                    <Check size={16} />
+                    <RiCheckLine size={18} />
                   </button>
                   <button
                     type="button"
-                    className="secondary"
+                    className="btn-secondary"
                     onClick={() => setShowFood(false)}
                   >
                     Cancelar
@@ -322,26 +346,35 @@ export default function DailyDiary({
             </form>
           )}
           {!day.foods.length && !showFood && (
-            <div className="empty">
-              <span className="icon-box green">
-                <Utensils />
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-4 py-10 text-center">
+              <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
+                <RiRestaurant2Line size={20} />
               </span>
-              <strong>Adicione sua primeira refeição</strong>
-              <p>Nome + gramas. Use o rótulo ou peça uma estimativa à IA.</p>
-              <button className="text-button" onClick={() => open()}>
-                Registrar alimento <Plus size={15} />
+              <strong className="text-sm font-semibold">
+                Nenhum alimento registrado
+              </strong>
+              <p className="text-sm text-ink-500">
+                Informe nome e gramas. Use o rótulo ou peça uma estimativa à IA.
+              </p>
+              <button className="btn-ghost" onClick={() => open()}>
+                <RiAddLine size={18} /> Registrar alimento
               </button>
             </div>
           )}
-          <div className="record-list">
+          <div>
             {day.foods.map((food) => (
-              <div className="record" key={food.id}>
-                <div>
-                  <strong>{food.name}</strong>
-                  <small>
+              <div
+                className="flex items-center justify-between gap-2 border-b border-line py-3 last:border-b-0"
+                key={food.id}
+              >
+                <div className="min-w-0">
+                  <strong className="block truncate text-sm font-medium">
+                    {food.name}
+                  </strong>
+                  <small className="mt-0.5 block text-[13px] text-ink-500">
                     {food.grams} g ·{" "}
                     {foodCalories(food) === null
-                      ? "Calorias pendentes"
+                      ? "calorias pendentes"
                       : kcal(foodCalories(food))}{" "}
                     ·{" "}
                     {food.source === "ai"
@@ -351,17 +384,17 @@ export default function DailyDiary({
                         : "a preencher"}
                   </small>
                 </div>
-                <div className="action-icons">
+                <div className="flex shrink-0">
                   <button
-                    className="icon-button"
+                    className="icon-btn size-11"
                     aria-label={`Editar ${food.name}`}
                     onClick={() => open(food)}
                     disabled={busy}
                   >
-                    <Pencil size={15} />
+                    <RiPencilLine size={18} />
                   </button>
                   <button
-                    className="icon-button"
+                    className="icon-btn size-11 hover:text-brand-600"
                     aria-label={`Excluir ${food.name}`}
                     onClick={() => {
                       if (window.confirm("Excluir este alimento?"))
@@ -374,38 +407,45 @@ export default function DailyDiary({
                         }));
                     }}
                   >
-                    <Trash2 size={15} />
+                    <RiDeleteBin6Line size={18} />
                   </button>
                 </div>
               </div>
             ))}
           </div>
         </section>
-        <section className="panel">
-          <div className="panel-heading">
+        <section className="card min-w-0">
+          <div className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2>Como você se movimentou?</h2>
-              <p>Calorias informadas ou estimadas por atividade.</p>
+              <h2 className="text-base font-semibold">Exercícios</h2>
+              <p className="mt-0.5 text-sm text-ink-500">
+                Calorias informadas ou estimadas pela atividade.
+              </p>
             </div>
-            <button className="secondary" onClick={onExercise}>
-              <Plus size={16} /> Exercício
+            <button className="btn-secondary" onClick={onExercise}>
+              <RiAddLine size={18} /> Exercício
             </button>
           </div>
           {!day.exercises.length && (
-            <p className="empty-inline">
-              Nenhum exercício nesse dia. Dias de descanso também fazem parte.
+            <p className="py-6 text-sm text-ink-500">
+              Nenhum exercício nesse dia.
             </p>
           )}
-          <div className="record-list">
+          <div>
             {day.exercises.map((ex) => (
-              <div className="record" key={ex.id}>
-                <div>
-                  <strong>{ex.type}</strong>
-                  <small>
+              <div
+                className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0"
+                key={ex.id}
+              >
+                <div className="min-w-0">
+                  <strong className="block text-sm font-medium">
+                    {ex.type}
+                  </strong>
+                  <small className="mt-0.5 block text-[13px] text-ink-500">
                     {ex.minutes ? `${ex.minutes} min · ` : ""}
                     {ex.distanceKm ? `${ex.distanceKm} km · ` : ""}
                     {ex.calories === null
-                      ? "Calorias pendentes"
+                      ? "calorias pendentes"
                       : kcal(ex.calories)}{" "}
                     · {ex.source}
                   </small>
@@ -413,14 +453,14 @@ export default function DailyDiary({
                     paths={state.exercises.find((x) => x.id === ex.id)?.photos}
                   />
                   {ex.calories === null && (
-                    <small>
-                      Informe calorias ativas ou tipo compatível, peso e
-                      duração.
+                    <small className="mt-1 block text-[13px] text-brand-700">
+                      Informe as calorias ativas, ou um tipo compatível com peso
+                      e duração.
                     </small>
                   )}
                 </div>
                 <button
-                  className="icon-button"
+                  className="icon-btn size-11 hover:text-brand-600"
                   aria-label={`Excluir ${ex.type}`}
                   onClick={() => {
                     if (!window.confirm("Excluir este exercício?")) return;
@@ -434,17 +474,18 @@ export default function DailyDiary({
                     }));
                   }}
                 >
-                  <Trash2 size={15} />
+                  <RiDeleteBin6Line size={18} />
                 </button>
               </div>
             ))}
           </div>
         </section>
       </div>
-      <section className="panel diary-completion">
-        <label className="completion-check">
+      <section className="card space-y-3 text-sm text-ink-500">
+        <label className="flex cursor-pointer items-start gap-3 text-[15px] font-medium text-ink-900">
           <input
             type="checkbox"
+            className="mt-0.5 size-5 shrink-0 accent-brand-600"
             checked={day.completed}
             disabled={!day.foodCount}
             onChange={(e) =>
@@ -457,36 +498,42 @@ export default function DailyDiary({
             }
           />
           <span>
-            Já registrei todos os alimentos, bebidas e exercícios deste dia.
+            Registrei todos os alimentos, bebidas e exercícios do dia.
           </span>
         </label>
         <p>
           Qualquer alteração em alimentos ou exercícios reabre o dia. Sem esse
-          fechamento, a IA trata o saldo como parcial, não como confirmação de
-          déficit.
+          fechamento, a IA trata o saldo como parcial, e não como déficit
+          confirmado.
         </p>
-        <details>
-          <summary>Como calculamos e quais são os limites?</summary>
-          <p>
-            Consumo = gramas × kcal por 100 g ÷ 100. Base do dia = basal × 1,2,
-            assumindo rotina leve fora dos treinos. Exercícios estimados usam
-            valores MET e descontam o repouso. Calorias ativas informadas
-            substituem a estimativa do exercício, nunca são somadas a ela.
-          </p>
-          <p>
-            O fator habitual do perfil é usado apenas na simulação de meta, não
-            neste diário. Distância e duração estimam a velocidade em caminhada,
-            corrida e bicicleta em terreno plano. Outras condições podem mudar
-            bastante o gasto. Não são medições clínicas e não garantem
-            emagrecimento.
-          </p>
-          <a
-            href="https://pacompendium.com/adult-compendium/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            Referência dos exercícios: Compêndio de Atividades Físicas 2024
-          </a>
+        <details className="group">
+          <summary className="flex min-h-11 cursor-pointer items-center font-medium text-brand-700">
+            Como calculamos e quais são os limites
+          </summary>
+          <div className="space-y-3 pt-1">
+            <p>
+              Consumo = gramas × kcal por 100 g ÷ 100. Base do dia = basal ×
+              1,2, considerando rotina leve fora dos treinos. Exercícios
+              estimados usam valores MET e descontam o repouso. Calorias ativas
+              informadas substituem a estimativa do exercício, nunca são somadas
+              a ela.
+            </p>
+            <p>
+              O fator de atividade do perfil só entra na simulação de meta, não
+              neste diário. Distância e duração estimam a velocidade em
+              caminhada, corrida e bicicleta em terreno plano; outras condições
+              podem mudar bastante o gasto. Não são medições clínicas, não são
+              diagnóstico e não garantem emagrecimento.
+            </p>
+            <a
+              className="inline-block text-brand-700 underline underline-offset-2"
+              href="https://pacompendium.com/adult-compendium/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Referência: Compêndio de Atividades Físicas 2024
+            </a>
+          </div>
         </details>
       </section>
     </>
@@ -502,10 +549,10 @@ function Metric({
   note: string;
 }) {
   return (
-    <section className="panel stat">
-      <span className="stat-label">{label}</span>
-      <div className="energy-value">{value}</div>
-      <p>{note}</p>
+    <section className="card min-w-0 p-4">
+      <span className="text-sm text-ink-500">{label}</span>
+      <div className="mt-1 text-2xl font-semibold tabular-nums">{value}</div>
+      <p className="mt-1 text-[13px] leading-snug text-ink-500">{note}</p>
     </section>
   );
 }

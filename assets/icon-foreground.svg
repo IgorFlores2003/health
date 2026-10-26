@@ -1,8 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
   <!-- Camada da frente do ícone adaptativo: o desenho fica na zona segura central (66dp). -->
-  <circle cx="54" cy="54" r="30" fill="none" stroke="#a7bc85" stroke-opacity="0.28" stroke-width="1.4"/>
   <g transform="translate(29 29) scale(2.0833)" fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" stroke="#e4ecc8" stroke-width="2.3"/>
+    <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" stroke="#ffffff" stroke-width="2.4"/>
   </g>
-  <circle cx="81.5" cy="54" r="2.4" fill="#c4d3a4"/>
+  <circle cx="81.5" cy="54" r="2.4" fill="#ffc5c5"/>
 </svg>

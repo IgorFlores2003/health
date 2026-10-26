@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
-import { Activity, ShieldCheck } from "lucide-react";
+import { RiPulseLine, RiShieldCheckLine } from "react-icons/ri";
 import AccountAccess from "./AccountAccess";
 import App from "./App";
 import { supabase } from "./supabase";
@@ -99,63 +99,59 @@ export default function AuthGate() {
   if (allowed && verified && !recovery)
     return <App key={verified.id} account={verified} />;
   return (
-    <div className="auth-screen">
-      <section className="auth-story">
-        <div className="auth-brand">
-          <Activity size={30} />
-          <span>ritmo.</span>
+    <div className="flex min-h-dvh bg-white">
+      <aside className="hidden w-[40%] max-w-xl flex-col justify-between bg-brand-600 p-12 text-white lg:flex">
+        <div className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+          <RiPulseLine className="size-8" />
+          ritmo
         </div>
-        <div>
-          <span className="eyebrow">SUA SAÚDE, NO SEU TEMPO</span>
-          <h1>
-            Seu próximo passo
-            <br />
-            começa por aqui.
-          </h1>
-          <p>
-            Um espaço para acompanhar seu peso, seu movimento e suas pequenas
-            conquistas.
-          </p>
-        </div>
-        <div className="auth-private">
-          <ShieldCheck size={20} />
-          Uma conta só sua. Uma jornada no seu ritmo.
-        </div>
-      </section>
-      <section className="auth-entry">
-        <div className="auth-card">
-          <div className="auth-mobile-brand">
-            <Activity size={25} /> ritmo.
+        <p className="max-w-xs text-lg leading-relaxed text-brand-50">
+          Peso, alimentação, exercícios e pressão arterial em um só lugar.
+        </p>
+        <p className="flex items-center gap-2 text-sm text-brand-100">
+          <RiShieldCheckLine className="size-5" />
+          Seus registros ficam na sua conta.
+        </p>
+      </aside>
+      <main className="flex flex-1 justify-center px-5 pt-[calc(2rem+env(safe-area-inset-top))] pb-[calc(2rem+env(safe-area-inset-bottom))] sm:items-center">
+        <div className="w-full max-w-sm">
+          <div className="mb-10 flex items-center gap-2 text-2xl font-bold tracking-tight lg:hidden">
+            <RiPulseLine className="size-8 text-brand-600" />
+            ritmo
           </div>
           {checking ? (
-            <div className="auth-loading" role="status">
-              <span className="auth-spinner" />
+            <div
+              className="flex min-h-56 items-center justify-center gap-3 text-ink-500"
+              role="status"
+            >
+              <span className="size-5 animate-spin rounded-full border-2 border-line border-t-brand-600" />
               Verificando sua sessão…
             </div>
           ) : !supabase ? (
             <>
-              <h2>Acesso temporariamente indisponível</h2>
-              <p>
+              <h2 className="text-2xl font-bold tracking-tight">
+                Acesso indisponível
+              </h2>
+              <p className="mt-2 text-[15px] leading-relaxed text-ink-500">
                 A conexão do aplicativo ainda precisa ser configurada. Tente
                 novamente mais tarde.
               </p>
             </>
           ) : error ? (
             <>
-              <h2>Vamos confirmar seu acesso</h2>
-              <p role="alert" className="auth-error">
+              <h2 className="text-2xl font-bold tracking-tight">
+                Confirme seu acesso
+              </h2>
+              <p
+                role="alert"
+                className="mt-4 mb-6 rounded-lg bg-brand-50 p-3 text-sm leading-relaxed text-brand-800"
+              >
                 {error}
               </p>
-              <div className="action-row">
-                <button
-                  className="primary"
-                  onClick={() => setRetry((n) => n + 1)}
-                >
-                  Tentar novamente
-                </button>
+              <div className="flex flex-col gap-2">
                 {pendingEmail && (
                   <button
-                    className="secondary"
+                    className="btn-primary"
                     onClick={async () => {
                       const address = pendingEmail;
                       await exit();
@@ -166,7 +162,13 @@ export default function AuthGate() {
                   </button>
                 )}
                 <button
-                  className="secondary"
+                  className={pendingEmail ? "btn-secondary" : "btn-primary"}
+                  onClick={() => setRetry((n) => n + 1)}
+                >
+                  Tentar novamente
+                </button>
+                <button
+                  className="btn-ghost text-ink-700"
                   onClick={async () => {
                     await exit();
                     setPendingEmail("");
@@ -186,12 +188,8 @@ export default function AuthGate() {
               onRecovered={() => setRecovery(false)}
             />
           )}
-          <p className="auth-footnote">
-            Seus registros ficam disponíveis depois de entrar e confirmar seu
-            e-mail.
-          </p>
         </div>
-      </section>
+      </main>
     </div>
   );
 }
