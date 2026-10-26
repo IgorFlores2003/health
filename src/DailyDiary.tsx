@@ -17,6 +17,7 @@ import {
 } from "react-icons/ri";
 import { confirmDialog } from "./confirm";
 import MealPhoto from "./MealPhoto";
+import Sheet from "./Sheet";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import {
   durationLabel,
@@ -40,6 +41,7 @@ export default function DailyDiary({
   date,
   setDate,
   onExercise,
+  onPressure,
   onAnalyze,
   onProfile,
   onWeight,
@@ -49,13 +51,16 @@ export default function DailyDiary({
   date: string;
   setDate: (s: string) => void;
   onExercise: (id?: string) => void;
+  onPressure: (id?: string) => void;
   onAnalyze: () => void;
   onProfile: () => void;
   onWeight: () => void;
 }) {
   const day = dailyEnergy(state, date);
+  const pressures = state.pressures.filter((p) => p.date === date);
   const estimateId = useRef(0);
   const [showFood, setShowFood] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [grams, setGrams] = useState("");
@@ -227,30 +232,6 @@ export default function DailyDiary({
               </p>
             </div>
             <div className="contents">
-              <MealPhoto
-                disabled={busy || !supabase}
-                onAdd={(items, note) =>
-                  setState((s) => ({
-                    ...s,
-                    foods: [
-                      ...(s.foods ?? []),
-                      ...items.map((x) => ({
-                        id: crypto.randomUUID(),
-                        date,
-                        name: x.name,
-                        grams: x.grams,
-                        kcalPer100g: x.kcalPer100g,
-                        source: "ai" as const,
-                        note: ("Estimado pela foto do prato. " + note).slice(
-                          0,
-                          500,
-                        ),
-                      })),
-                    ],
-                    completedDays: reopenDay(s, date),
-                  }))
-                }
-              />
               <button
                 className="btn-secondary"
                 onClick={() => open()}
@@ -261,127 +242,172 @@ export default function DailyDiary({
             </div>
           </div>
           {showFood && (
-            <form
-              className="mb-4 rounded-lg border border-line bg-surface p-4"
-              onSubmit={save}
+            <Sheet
+              title={editing ? "Editar alimento" : "Registrar alimento"}
+              onClose={() => setShowFood(false)}
             >
-              <fieldset disabled={busy} className="min-w-0 space-y-4">
-                <label className="block">
-                  <span className="label">Alimento e preparo</span>
-                  <input
-                    className="input"
-                    autoFocus
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      if (source === "ai") {
-                        if (gramsFromAi) setGrams("");
-                        setGramsFromAi(false);
-                        setPer100("");
-                        setSource("pending");
-                        setNote("");
-                      }
+              {!editing && (
+                <>
+                  <MealPhoto
+                    disabled={busy || !supabase}
+                    onAdd={(items, note) => {
+                      setShowFood(false);
+                      setState((s) => ({
+                        ...s,
+                        foods: [
+                          ...(s.foods ?? []),
+                          ...items.map((x) => ({
+                            id: crypto.randomUUID(),
+                            date,
+                            name: x.name,
+                            grams: x.grams,
+                            kcalPer100g: x.kcalPer100g,
+                            source: "ai" as const,
+                            note: (
+                              "Estimado pela foto do prato. " + note
+                            ).slice(0, 500),
+                          })),
+                        ],
+                        completedDays: reopenDay(s, date),
+                      }));
                     }}
-                    maxLength={160}
-                    required
-                    placeholder="Ex.: arroz branco cozido, sem óleo"
+
+                    onReviewing={setReviewing}
                   />
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <label className="block">
-                    <span className="label">Gramas</span>
-                    <input
-                      className="input"
-                      type="number"
-                      min="0.1"
-                      max="10000"
-                      step="0.1"
-                      required
-                      value={grams}
-                      onChange={(e) => {
-                        setGrams(e.target.value);
-                        setGramsFromAi(false);
-                      }}
-                      placeholder="Ou deixe a IA estimar"
-                    />
-                    {gramsFromAi && (
-                      <span className="hint block">Peso médio estimado</span>
+                  {!reviewing && (
+                    <p className="my-5 flex items-center gap-3 text-xs font-medium tracking-wide text-ink-400 uppercase before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
+                      ou registre à mão
+                    </p>
+                  )}
+                </>
+              )}
+              {!reviewing && (
+                <form onSubmit={save}>
+                  <fieldset disabled={busy} className="min-w-0 space-y-4">
+                    <label className="block">
+                      <span className="label">Alimento e preparo</span>
+                      <input
+                        className="input"
+                        autoFocus
+                        value={name}
+                        onChange={(e) => {
+                          setName(e.target.value);
+                          if (source === "ai") {
+                            if (gramsFromAi) setGrams("");
+                            setGramsFromAi(false);
+                            setPer100("");
+                            setSource("pending");
+                            setNote("");
+                          }
+                        }}
+                        maxLength={160}
+                        required
+                        placeholder="Ex.: arroz branco cozido, sem óleo"
+                      />
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <label className="block">
+                        <span className="label">Gramas</span>
+                        <input
+                          className="input"
+                          type="number"
+                          min="0.1"
+                          max="10000"
+                          step="0.1"
+                          required
+                          value={grams}
+                          onChange={(e) => {
+                            setGrams(e.target.value);
+                            setGramsFromAi(false);
+                          }}
+                          placeholder="Ou deixe a IA estimar"
+                        />
+                        {gramsFromAi && (
+                          <span className="hint block">
+                            Peso médio estimado
+                          </span>
+                        )}
+                      </label>
+                      <label className="block">
+                        <span className="label">kcal por 100 g</span>
+                        <input
+                          className="input"
+                          type="number"
+                          min="0"
+                          max="900"
+                          step="0.1"
+                          value={per100}
+                          onChange={(e) => {
+                            setPer100(e.target.value);
+                            setSource("label");
+                            setNote("");
+                          }}
+                          placeholder="Do rótulo"
+                        />
+                      </label>
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={!name.trim() || !supabase}
+                        onClick={estimate}
+                      >
+                        <RiChat3Line size={18} />
+                        {busy ? "Estimando…" : "Estimar com IA"}
+                      </button>
+                      <p className="hint">
+                        Não pesou? Escreva a quantidade (ex.: "3 ovos cozidos",
+                        "2 fatias de pão de forma") e a IA estima o peso médio e
+                        as calorias. A IA recebe só a descrição. Prefira o
+                        rótulo e a balança quando houver.
+                      </p>
+                    </div>
+                    {note && (
+                      <p className="rounded-lg border border-line bg-white p-3 text-sm text-ink-700">
+                        {note}
+                      </p>
                     )}
-                  </label>
-                  <label className="block">
-                    <span className="label">kcal por 100 g</span>
-                    <input
-                      className="input"
-                      type="number"
-                      min="0"
-                      max="900"
-                      step="0.1"
-                      value={per100}
-                      onChange={(e) => {
-                        setPer100(e.target.value);
-                        setSource("label");
-                        setNote("");
-                      }}
-                      placeholder="Do rótulo"
-                    />
-                  </label>
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    disabled={!name.trim() || !supabase}
-                    onClick={estimate}
-                  >
-                    <RiChat3Line size={18} />
-                    {busy ? "Estimando…" : "Estimar com IA"}
-                  </button>
-                  <p className="hint">
-                    Não pesou? Escreva a quantidade (ex.: "3 ovos cozidos", "2
-                    fatias de pão de forma") e a IA estima o peso médio e as
-                    calorias. A IA recebe só a descrição. Prefira o rótulo e a
-                    balança quando houver.
-                  </p>
-                </div>
-                {note && (
-                  <p className="rounded-lg border border-line bg-white p-3 text-sm text-ink-700">
-                    {note}
-                  </p>
-                )}
-                <p className="text-sm text-ink-700">
-                  Nesta porção:{" "}
-                  <strong className="font-semibold text-ink-900 tabular-nums">
-                    {per100 !== "" && grams !== ""
-                      ? kcal(Math.round((Number(per100) * Number(grams)) / 100))
-                      : "calorias pendentes"}
-                  </strong>{" "}
-                  {source === "ai" ? "· estimativa da IA" : ""}
-                </p>
-                {error && (
-                  <p
-                    role="alert"
-                    className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800"
-                  >
-                    {error}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <button className="btn-primary">
-                    {editing ? "Salvar alteração" : "Salvar alimento"}
-                    <RiCheckLine size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    onClick={() => setShowFood(false)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </fieldset>
-            </form>
+                    <p className="text-sm text-ink-700">
+                      Nesta porção:{" "}
+                      <strong className="font-semibold text-ink-900 tabular-nums">
+                        {per100 !== "" && grams !== ""
+                          ? kcal(
+                              Math.round(
+                                (Number(per100) * Number(grams)) / 100,
+                              ),
+                            )
+                          : "calorias pendentes"}
+                      </strong>{" "}
+                      {source === "ai" ? "· estimativa da IA" : ""}
+                    </p>
+                    {error && (
+                      <p
+                        role="alert"
+                        className="rounded-lg bg-brand-50 p-3 text-sm text-brand-800"
+                      >
+                        {error}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap gap-2">
+                      <button className="btn-primary">
+                        {editing ? "Salvar alteração" : "Salvar alimento"}
+                        <RiCheckLine size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => setShowFood(false)}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </fieldset>
+                </form>
+              )}
+            </Sheet>
           )}
-          {!day.foods.length && !showFood && (
+          {!day.foods.length && (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-4 py-10 text-center">
               <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
                 <RiRestaurant2Line size={20} />
@@ -457,90 +483,164 @@ export default function DailyDiary({
             ))}
           </div>
         </section>
-        <section className="card min-w-0">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-semibold">Exercícios</h2>
-              <p className="mt-0.5 text-sm text-ink-500">
-                Calorias informadas ou estimadas pela atividade.
-              </p>
-            </div>
-            <button className="btn-secondary" onClick={() => onExercise()}>
-              <RiAddLine size={18} /> Exercício
-            </button>
-          </div>
-          {!day.exercises.length && (
-            <p className="py-6 text-sm text-ink-500">
-              Nenhum exercício nesse dia.
-            </p>
-          )}
-          <div>
-            {day.exercises.map((ex) => (
-              <div
-                className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0"
-                key={ex.id}
-              >
-                <div className="min-w-0">
-                  <strong className="block text-sm font-medium">
-                    {ex.type}
-                  </strong>
-                  <small className="mt-0.5 block text-[13px] text-ink-500">
-                    {ex.minutes ? `${durationLabel(ex.minutes)} · ` : ""}
-                    {ex.distanceKm ? `${ex.distanceKm} km · ` : ""}
-                    {ex.calories === null
-                      ? "calorias pendentes"
-                      : kcal(ex.calories)}{" "}
-                    · {ex.source}
-                  </small>
-                  <PhotoStrip
-                    paths={state.exercises.find((x) => x.id === ex.id)?.photos}
-                  />
-                  {ex.calories === null && (
-                    <small className="mt-1 block text-[13px] text-brand-700">
-                      Informe as calorias ativas, ou um tipo compatível com peso
-                      e duração.
-                    </small>
-                  )}
-                </div>
-                <div className="flex shrink-0">
-                  <button
-                    className="icon-btn size-11 hover:text-brand-600"
-                    aria-label={`Editar ${ex.type}`}
-                    onClick={() => onExercise(ex.id)}
-                  >
-                    <RiPencilLine size={18} />
-                  </button>
-                  <button
-                    className="icon-btn size-11 hover:text-brand-600"
-                    aria-label={`Excluir ${ex.type}`}
-                    onClick={async () => {
-                      if (
-                        !(await confirmDialog({
-                          title: "Excluir exercício?",
-                          message:
-                            "O exercício e as fotos dele serão apagados da sua conta.",
-                          confirmLabel: "Excluir",
-                          danger: true,
-                        }))
-                      )
-                        return;
-                      void removePhotos(
-                        state.exercises.find((x) => x.id === ex.id)?.photos,
-                      );
-                      setState((s) => ({
-                        ...s,
-                        exercises: s.exercises.filter((x) => x.id !== ex.id),
-                        completedDays: reopenDay(s, date),
-                      }));
-                    }}
-                  >
-                    <RiDeleteBin6Line size={18} />
-                  </button>
-                </div>
+        <div className="grid min-w-0 content-start gap-4">
+          <section className="card min-w-0">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Exercícios</h2>
+                <p className="mt-0.5 text-sm text-ink-500">
+                  Calorias informadas ou estimadas pela atividade.
+                </p>
               </div>
-            ))}
-          </div>
-        </section>
+              <button className="btn-secondary" onClick={() => onExercise()}>
+                <RiAddLine size={18} /> Exercício
+              </button>
+            </div>
+            {!day.exercises.length && (
+              <p className="py-6 text-sm text-ink-500">
+                Nenhum exercício nesse dia.
+              </p>
+            )}
+            <div>
+              {day.exercises.map((ex) => (
+                <div
+                  className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0"
+                  key={ex.id}
+                >
+                  <div className="min-w-0">
+                    <strong className="block text-sm font-medium">
+                      {ex.type}
+                    </strong>
+                    <small className="mt-0.5 block text-[13px] text-ink-500">
+                      {ex.minutes ? `${durationLabel(ex.minutes)} · ` : ""}
+                      {ex.distanceKm ? `${ex.distanceKm} km · ` : ""}
+                      {ex.calories === null
+                        ? "calorias pendentes"
+                        : kcal(ex.calories)}{" "}
+                      · {ex.source}
+                    </small>
+                    <PhotoStrip
+                      paths={
+                        state.exercises.find((x) => x.id === ex.id)?.photos
+                      }
+                    />
+                    {ex.calories === null && (
+                      <small className="mt-1 block text-[13px] text-brand-700">
+                        Informe as calorias ativas, ou um tipo compatível com
+                        peso e duração.
+                      </small>
+                    )}
+                  </div>
+                  <div className="flex shrink-0">
+                    <button
+                      className="icon-btn size-11 hover:text-brand-600"
+                      aria-label={`Editar ${ex.type}`}
+                      onClick={() => onExercise(ex.id)}
+                    >
+                      <RiPencilLine size={18} />
+                    </button>
+                    <button
+                      className="icon-btn size-11 hover:text-brand-600"
+                      aria-label={`Excluir ${ex.type}`}
+                      onClick={async () => {
+                        if (
+                          !(await confirmDialog({
+                            title: "Excluir exercício?",
+                            message:
+                              "O exercício e as fotos dele serão apagados da sua conta.",
+                            confirmLabel: "Excluir",
+                            danger: true,
+                          }))
+                        )
+                          return;
+                        void removePhotos(
+                          state.exercises.find((x) => x.id === ex.id)?.photos,
+                        );
+                        setState((s) => ({
+                          ...s,
+                          exercises: s.exercises.filter((x) => x.id !== ex.id),
+                          completedDays: reopenDay(s, date),
+                        }));
+                      }}
+                    >
+                      <RiDeleteBin6Line size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="card min-w-0">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold">Pressão arterial</h2>
+                <p className="mt-0.5 text-sm text-ink-500">
+                  Medições do dia, com a foto do aparelho se quiser.
+                </p>
+              </div>
+              <button className="btn-secondary" onClick={() => onPressure()}>
+                <RiAddLine size={18} /> Pressão
+              </button>
+            </div>
+            {!pressures.length && (
+              <p className="py-6 text-sm text-ink-500">
+                Nenhuma medição nesse dia.
+              </p>
+            )}
+            <div>
+              {pressures.map((p) => (
+                <div
+                  className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0"
+                  key={p.id}
+                >
+                  <div className="min-w-0">
+                    <strong className="block text-sm font-medium tabular-nums">
+                      {p.systolic}/{p.diastolic} mmHg
+                    </strong>
+                    {p.pulse && (
+                      <small className="mt-0.5 block text-[13px] text-ink-500">
+                        {p.pulse} bpm
+                      </small>
+                    )}
+                    <PhotoStrip paths={p.photos} />
+                  </div>
+                  <div className="flex shrink-0">
+                    <button
+                      className="icon-btn size-11 hover:text-brand-600"
+                      aria-label="Editar medição"
+                      onClick={() => onPressure(p.id)}
+                    >
+                      <RiPencilLine size={18} />
+                    </button>
+                    <button
+                      className="icon-btn size-11 hover:text-brand-600"
+                      aria-label="Excluir medição"
+                      onClick={async () => {
+                        if (
+                          !(await confirmDialog({
+                            title: "Excluir medição?",
+                            message:
+                              "A medição e as fotos dela serão apagadas da sua conta.",
+                            confirmLabel: "Excluir",
+                            danger: true,
+                          }))
+                        )
+                          return;
+                        void removePhotos(p.photos);
+                        setState((s) => ({
+                          ...s,
+                          pressures: s.pressures.filter((x) => x.id !== p.id),
+                        }));
+                      }}
+                    >
+                      <RiDeleteBin6Line size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
       </div>
       <section className="card space-y-3 text-sm text-ink-500">
         <label className="flex cursor-pointer items-start gap-3 text-[15px] font-medium text-ink-900">

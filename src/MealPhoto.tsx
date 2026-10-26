@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { RiCameraLine, RiCheckLine } from "react-icons/ri";
+import { useEffect, useState } from "react";
+import { RiCameraLine, RiCheckLine, RiSparkling2Line } from "react-icons/ri";
 import { readImage, type MealReading } from "./readImage";
 
 type Item = MealReading["items"][number] & { on: boolean };
@@ -12,11 +12,21 @@ const kcal = (n: number) => `${Math.round(n).toLocaleString("pt-BR")} kcal`;
 export default function MealPhoto({
   disabled,
   onAdd,
+  onReviewing,
 }: {
   disabled?: boolean;
   onAdd: (items: MealReading["items"], note: string) => void;
+  /** Avisa quando a revisão dos itens está aberta (o formulário manual some). */
+  onReviewing?: (open: boolean) => void;
 }) {
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState("");
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
   const [items, setItems] = useState<Item[] | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -25,6 +35,7 @@ export default function MealPhoto({
     setBusy(true);
     setError("");
     setItems(null);
+    setPreview(URL.createObjectURL(file));
     try {
       const r = await readImage("meal", file);
       if (!r.items?.length)
@@ -39,6 +50,7 @@ export default function MealPhoto({
       setBusy(false);
     }
   }
+  useEffect(() => onReviewing?.(items !== null), [items, onReviewing]);
   const set = (i: number, patch: Partial<Item>) =>
     setItems((list) => list!.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const chosen = (items ?? []).filter(
@@ -47,33 +59,68 @@ export default function MealPhoto({
   const total = chosen.reduce((s, x) => s + (x.grams * x.kcalPer100g) / 100, 0);
 
   return (
-    <>
-      <label
-        className={`btn-secondary relative overflow-hidden ${disabled || busy ? "pointer-events-none opacity-50" : ""}`}
-      >
-        <RiCameraLine size={18} />
-        {busy ? "Analisando…" : "Foto do prato"}
-        <input
-          className="absolute inset-0 cursor-pointer opacity-0"
-          type="file"
-          accept="image/*"
-          disabled={disabled || busy}
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void read(file);
-          }}
-        />
-      </label>
+    <div>
+      {!items && (
+        <div className="flex items-center gap-4 rounded-xl border border-dashed border-brand-300 bg-brand-50/50 p-4">
+          {preview && busy ? (
+            <img
+              src={preview}
+              alt=""
+              className="size-16 shrink-0 animate-pulse rounded-lg object-cover"
+            />
+          ) : (
+            <span className="grid size-12 shrink-0 place-items-center rounded-full bg-white text-brand-600 shadow-sm">
+              <RiCameraLine className="size-6" />
+            </span>
+          )}
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold">
+              {busy ? "Analisando a foto…" : "Foto do prato"}
+            </p>
+            <p className="mt-0.5 text-[13px] text-ink-500">
+              {busy
+                ? "A IA está identificando os alimentos e as porções."
+                : "A IA tenta identificar o que tem no prato e estima as porções. Você confirma antes de salvar."}
+            </p>
+          </div>
+          <label
+            className={`btn-primary relative shrink-0 overflow-hidden ${disabled || busy ? "pointer-events-none opacity-50" : ""}`}
+          >
+            <RiSparkling2Line size={18} />
+            <span className="hidden sm:inline">Tirar ou escolher</span>
+            <span className="sm:hidden">Foto</span>
+            <input
+              className="absolute inset-0 cursor-pointer opacity-0"
+              type="file"
+              accept="image/*"
+              disabled={disabled || busy}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void read(file);
+              }}
+            />
+          </label>
+        </div>
+      )}
       {(error || items) && (
-        <div className="order-last w-full basis-full rounded-lg border border-line bg-surface p-4">
+        <div className="mt-3 rounded-lg border border-line bg-surface p-4">
           {error ? (
             <p className="text-sm text-brand-800" role="alert">
               {error}
             </p>
           ) : (
             <>
-              <p className="text-sm font-semibold">O que a IA viu no prato</p>
+              <div className="flex items-center gap-3">
+                {preview && (
+                  <img
+                    src={preview}
+                    alt="Foto do prato"
+                    className="size-14 shrink-0 rounded-lg object-cover"
+                  />
+                )}
+                <p className="text-sm font-semibold">O que a IA viu no prato</p>
+              </div>
               <p className="mt-0.5 text-[13px] text-ink-500">
                 Desmarque o que não comeu e ajuste nomes e gramas antes de
                 adicionar.
@@ -156,6 +203,6 @@ export default function MealPhoto({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

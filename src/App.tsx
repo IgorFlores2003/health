@@ -1149,6 +1149,7 @@ export default function App({ account }: { account: User }) {
               date={diaryDate}
               setDate={setDiaryDate}
               onExercise={(id) => openRecord("exercise", id)}
+              onPressure={(id) => openRecord("pressure", id)}
               onProfile={() => setTab("settings")}
               onWeight={() => openRecord("weight")}
               onAnalyze={() => {
