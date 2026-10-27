@@ -11,7 +11,8 @@ import { allowReminders, remindersSupported } from "./reminders";
 import Choice from "./Choice";
 import NumberField from "./NumberField";
 
-const CUPS = [150, 200, 250, 300, 350, 500];
+// 190 ml = copo americano; 250 ml = copo de requeijão.
+const CUPS = [150, 190, 200, 250, 300, 350, 500];
 const MAX_ML = 5000;
 
 /** Quantidade de água em litros (máscara 0,250 L), guardada em ml. */

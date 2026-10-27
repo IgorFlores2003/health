@@ -24,7 +24,9 @@ import Choice from "./Choice";
 
 // Estimativas já feitas ficam no aparelho: o mesmo alimento descrito do
 // mesmo jeito volta na hora, sem chamar a IA de novo.
-const CACHE_KEY = "ritmo-food-estimates";
+// v2: estimativas feitas antes da tabela de medidas caseiras (copo
+// americano = 190 ml etc.) não são reaproveitadas.
+const CACHE_KEY = "ritmo-food-estimates-v2";
 const MAX_CACHED = 300;
 type Estimate = {
   kcalPer100g: number;
