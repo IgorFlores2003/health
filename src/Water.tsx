@@ -30,6 +30,15 @@ export function WaterCard({
   const drunk = waterOn(state, date);
   const last = (state.water ?? []).filter((w) => w.date === date).at(-1);
   const pct = goal ? Math.min(100, (drunk / goal) * 100) : 0;
+  const [custom, setCustom] = useState("");
+  const add = (amount: number) =>
+    setState((s) => ({
+      ...s,
+      water: [
+        ...(s.water ?? []),
+        { id: crypto.randomUUID(), date, ml: amount },
+      ],
+    }));
   const setCup = (cupMl: number) =>
     setState((s) => ({
       ...s,
@@ -85,15 +94,7 @@ export function WaterCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           className="btn-primary flex-1 sm:flex-none"
-          onClick={() =>
-            setState((s) => ({
-              ...s,
-              water: [
-                ...(s.water ?? []),
-                { id: crypto.randomUUID(), date, ml: h.cupMl },
-              ],
-            }))
-          }
+          onClick={() => add(h.cupMl)}
         >
           <RiAddLine className="size-5" /> Bebi {h.cupMl} ml
         </button>
@@ -111,6 +112,36 @@ export function WaterCard({
           </button>
         )}
       </div>
+      <form
+        className="mt-3 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const amount = Number(custom);
+          if (amount >= 1 && amount <= 5000) {
+            add(amount);
+            setCustom("");
+          }
+        }}
+      >
+        <label className="min-w-0 flex-1">
+          <span className="sr-only">Outra quantidade em ml</span>
+          <input
+            className="input"
+            type="number"
+            inputMode="decimal"
+            min="1"
+            max="5000"
+            step="any"
+            required
+            placeholder="Outro valor (ml)"
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+          />
+        </label>
+        <button className="btn-secondary shrink-0">
+          <RiAddLine className="size-5" /> Adicionar
+        </button>
+      </form>
       {goal && (
         <p className="mt-3 text-[13px] text-ink-500">
           Meta de 35 ml por kg de peso. Calor, exercício e algumas condições de

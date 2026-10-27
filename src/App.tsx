@@ -1,7 +1,8 @@
 import DailyDiary, { balanceLabels } from "./DailyDiary";
 import CalorieBudget from "./CalorieBudget";
 import ExerciseFields from "./ExerciseFields";
-import { dailyEnergy, reopenDay } from "./energy";
+import { dailyEnergy, foodCalories, reopenDay } from "./energy";
+import FoodSheet from "./FoodSheet";
 import type { User } from "@supabase/supabase-js";
 import { userStorageKey } from "./access";
 import AccountAccess from "./AccountAccess";
@@ -73,6 +74,7 @@ import {
   intakeTarget,
   today,
   validState,
+  type Food,
   type State,
 } from "./domain";
 import { supabase } from "./supabase";
@@ -351,6 +353,9 @@ export default function App({ account }: { account: User }) {
     }
   }, [tab]);
   const [modal, setModal] = useState("");
+  const [foodSheet, setFoodSheet] = useState<{
+    food?: Food;
+  } | null>(null);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem("ritmo-sidebar") === "collapsed";
@@ -375,7 +380,8 @@ export default function App({ account }: { account: User }) {
   const editItem = editing
     ? (state.weights.find((x) => x.id === editing) ??
       state.exercises.find((x) => x.id === editing) ??
-      state.pressures.find((x) => x.id === editing))
+      state.pressures.find((x) => x.id === editing) ??
+      state.water?.find((x) => x.id === editing))
     : undefined;
   const [notice, setNotice] = useState("");
   const [period, setPeriod] = useState("30");
@@ -539,7 +545,7 @@ export default function App({ account }: { account: User }) {
       next = {
         ...state,
         water: [
-          ...(state.water ?? []),
+          ...(state.water ?? []).filter((x) => x.id !== id),
           { id, date, ml: Number(f.get("ml")) },
         ],
       };
@@ -1247,7 +1253,7 @@ export default function App({ account }: { account: User }) {
             <>
               <PageTitle
                 title="Registros"
-                text="Peso, exercícios, pressão arterial e água."
+                text="Peso, exercícios, pressão arterial, alimentação e água."
               />
               <div className="mb-5">
                 <ReportCard state={state} onError={setNotice} />
@@ -1270,6 +1276,12 @@ export default function App({ account }: { account: User }) {
                   onClick={() => openRecord("pressure")}
                 >
                   <RiAddLine className="size-5" /> Pressão
+                </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => setFoodSheet({})}
+                >
+                  <RiAddLine className="size-5" /> Alimento
                 </button>
                 <button
                   className="btn-secondary"
@@ -1389,6 +1401,104 @@ export default function App({ account }: { account: User }) {
                   ),
                 )}
                 <Panel>
+                  <h2 className="text-base font-semibold">Alimentação</h2>
+                  {!state.foods?.length ? (
+                    <p className="py-8 text-sm text-ink-500">
+                      Nenhum registro ainda.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 divide-y divide-line">
+                      {[...new Set(state.foods.map((f) => f.date))]
+                        .sort()
+                        .reverse()
+                        .map((date) => {
+                          const items = state.foods!.filter(
+                            (f) => f.date === date,
+                          );
+                          const total = items.reduce(
+                            (t, f) => t + (foodCalories(f) ?? 0),
+                            0,
+                          );
+                          return (
+                            <li key={date} className="py-3">
+                              <strong className="block font-semibold tabular-nums">
+                                {total.toLocaleString("pt-BR", {
+                                  maximumFractionDigits: 1,
+                                })}{" "}
+                                kcal
+                              </strong>
+                              <small className="mt-0.5 block text-[13px] text-ink-500">
+                                {dateLabel(date)} {date.slice(0, 4)} ·{" "}
+                                {items.length} alimento
+                                {items.length === 1 ? "" : "s"}
+                              </small>
+                              <ul className="mt-2">
+                                {items.map((f) => {
+                                  const c = foodCalories(f);
+                                  return (
+                                    <li
+                                      key={f.id}
+                                      className="flex items-center justify-between gap-2"
+                                    >
+                                      <span className="min-w-0 text-[13px] text-ink-700">
+                                        <span className="block truncate">
+                                          {f.name}
+                                        </span>
+                                        <span className="text-ink-500 tabular-nums">
+                                          {fmt(f.grams)} g ·{" "}
+                                          {c === null
+                                            ? "calorias pendentes"
+                                            : `${c.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`}
+                                        </span>
+                                      </span>
+                                      <span className="-mr-2 flex shrink-0">
+                                        <button
+                                          className="icon-btn hover:text-brand-600"
+                                          aria-label={`Editar ${f.name}`}
+                                          onClick={() =>
+                                            setFoodSheet({ food: f })
+                                          }
+                                        >
+                                          <RiPencilLine className="size-[18px]" />
+                                        </button>
+                                        <button
+                                          className="icon-btn hover:text-brand-600"
+                                          aria-label={`Excluir ${f.name}`}
+                                          onClick={async () => {
+                                            if (
+                                              await confirmDialog({
+                                                title: "Excluir alimento?",
+                                                message: `"${f.name}" sai do diário de ${dateLabel(date)}.`,
+                                                confirmLabel: "Excluir",
+                                                danger: true,
+                                              })
+                                            )
+                                              setState((s) => ({
+                                                ...s,
+                                                foods: (s.foods ?? []).filter(
+                                                  (x) => x.id !== f.id,
+                                                ),
+                                                completedDays: reopenDay(
+                                                  s,
+                                                  date,
+                                                ),
+                                              }));
+                                          }}
+                                        >
+                                          <RiDeleteBin6Line className="size-[18px]" />
+                                        </button>
+                                      </span>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  )}
+                </Panel>
+                <Panel>
                   <h2 className="text-base font-semibold">Água</h2>
                   {!state.water?.length ? (
                     <p className="py-8 text-sm text-ink-500">
@@ -1411,15 +1521,23 @@ export default function App({ account }: { account: User }) {
                               <small className="mt-0.5 block text-[13px] text-ink-500">
                                 {dateLabel(date)} {date.slice(0, 4)} ·{" "}
                                 {items.length} registro
-                                {items.length === 1 ? "" : "s"}
+                                {items.length === 1 ? "" : "s"} · toque em um
+                                valor para editar
                               </small>
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 {items.map((w) => (
                                   <span
                                     key={w.id}
-                                    className="inline-flex items-center gap-0.5 rounded-full bg-surface py-0.5 pr-0.5 pl-2.5 text-[13px] text-ink-700 tabular-nums"
+                                    className="inline-flex items-center gap-0.5 rounded-full bg-surface py-0.5 pr-0.5 pl-1 text-[13px] text-ink-700 tabular-nums"
                                   >
-                                    {fmt(w.ml)} ml
+                                    <button
+                                      className="inline-flex min-h-7 items-center gap-1 rounded-full px-1.5 hover:bg-white hover:text-brand-700"
+                                      aria-label={`Editar ${w.ml} ml de ${dateLabel(date)}`}
+                                      onClick={() => openRecord("water", w.id)}
+                                    >
+                                      {fmt(w.ml)} ml
+                                      <RiPencilLine className="size-3.5 text-ink-400" />
+                                    </button>
                                     <button
                                       className="grid size-7 place-items-center rounded-full text-ink-400 hover:bg-white hover:text-brand-600"
                                       aria-label={`Excluir ${w.ml} ml de ${dateLabel(date)}`}
@@ -1748,7 +1866,8 @@ export default function App({ account }: { account: User }) {
                   <Panel>
                     <CardHeader title="Privacidade" />
                     <p className="text-sm leading-relaxed text-ink-500">
-                      Leia os {legal.terms} e a {legal.privacy}. Para acessar,
+                      Leia os {legal.terms}, a {legal.privacy} (LGPD) e as{" "}
+                      {legal.formulas} usadas nas estimativas. Para acessar,
                       corrigir ou excluir seus dados, ou revogar o
                       consentimento, use o contato indicado na política.
                     </p>
@@ -1881,6 +2000,16 @@ export default function App({ account }: { account: User }) {
           </footer>
         </div>
       </main>
+      {foodSheet && (
+        <FoodSheet
+          key={foodSheet.food?.id ?? "new"}
+          state={state}
+          setState={setState}
+          date={tab === "nutrition" ? diaryDate : today()}
+          food={foodSheet.food}
+          onClose={() => setFoodSheet(null)}
+        />
+      )}
       {notice && (
         <div
           className="fixed inset-x-4 bottom-[calc(80px+env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center gap-3 rounded-lg bg-ink-900 py-3 pr-2 pl-4 text-sm text-white md:bottom-6"
@@ -1960,7 +2089,11 @@ export default function App({ account }: { account: User }) {
                     max="5000"
                     step="any"
                     required
-                    defaultValue={state.hydration?.cupMl ?? 250}
+                    defaultValue={
+                      editItem && "ml" in editItem
+                        ? editItem.ml
+                        : (state.hydration?.cupMl ?? 250)
+                    }
                   />
                 </label>
               ) : modal === "weight" ? (

@@ -9,7 +9,12 @@ const CONTROLLER = "[NOME OU RAZÃO SOCIAL DO RESPONSÁVEL PELO APP, CPF/CNPJ]";
 const CONTACT = "[E-MAIL DO ENCARREGADO DE DADOS]";
 const UPDATED = "26 de outubro de 2026";
 
-export type LegalDoc = "terms" | "privacy";
+export type LegalDoc = "terms" | "privacy" | "formulas";
+const TITLES: Record<LegalDoc, string> = {
+  terms: "Termos de Uso",
+  privacy: "Política de Privacidade",
+  formulas: "Fórmulas e cálculos",
+};
 
 function H({ children }: { children: ReactNode }) {
   return <h3 className="mt-5 mb-1.5 font-semibold text-ink-900">{children}</h3>;
@@ -77,7 +82,7 @@ function Terms() {
   );
 }
 
-function Privacy() {
+function Privacy({ open }: { open: (d: LegalDoc) => void }) {
   return (
     <>
       <p>Última atualização: {UPDATED}.</p>
@@ -167,12 +172,119 @@ function Privacy() {
         servidor. Dados guardados no aparelho ficam no armazenamento do app,
         que não é criptografado: proteja o celular com senha.
       </p>
-      <H>8. Menores de idade</H>
+      <H>8. Cálculos automáticos</H>
+      <p>
+        As metas de calorias e de água, o gasto estimado e os relatórios são
+        calculados automaticamente a partir dos seus dados. Você tem direito a
+        saber como esses cálculos são feitos e a pedir revisão (art. 20 da
+        LGPD). Todas as fórmulas estão em{" "}
+        <button
+          type="button"
+          className="font-medium text-brand-700 underline underline-offset-2"
+          onClick={() => open("formulas")}
+        >
+          Fórmulas e cálculos
+        </button>
+        .
+      </p>
+      <H>9. Menores de idade</H>
       <p>O Ritmo não é destinado a menores de 18 anos.</p>
-      <H>9. Mudanças</H>
+      <H>10. Mudanças</H>
       <p>
         Avisaremos no app sobre mudanças relevantes nesta política e, quando a
         lei exigir, pediremos um novo consentimento.
+      </p>
+    </>
+  );
+}
+
+function F({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <div className="mt-2 rounded-lg bg-surface px-3 py-2">
+      <p className="font-medium text-ink-900">{name}</p>
+      <p className="mt-0.5">{children}</p>
+    </div>
+  );
+}
+
+/** Todas as fórmulas usadas pelo app (transparência, art. 20 da LGPD). */
+function Formulas() {
+  return (
+    <>
+      <p>
+        Estimativas populacionais para adultos, não medições nem diagnóstico.
+        Os valores podem não refletir o seu caso.
+      </p>
+      <H>Energia</H>
+      <F name="Basal (Mifflin–St Jeor)">
+        10 × peso (kg) + 6,25 × altura (cm) − 5 × idade + 5 (coeficiente
+        masculino) ou − 161 (feminino). Só para 18 a 100 anos, 20 a 400 kg e
+        100 a 250 cm.
+      </F>
+      <F name="Gasto habitual">
+        Basal × nível de atividade do perfil: pouco ativo 1,2; levemente ativo
+        1,375; moderadamente ativo 1,55; muito ativo 1,725.
+      </F>
+      <F name="Base do dia (rotina leve)">Basal × 1,2.</F>
+      <F name="Exercício estimado">
+        (MET − 1) × peso (kg) × duração (horas). O repouso é descontado
+        porque já está na base. MET pelo Compêndio de Atividades Físicas 2024,
+        pela velocidade (distância ÷ tempo) em caminhada, corrida e ciclismo,
+        ou pela intensidade; musculação 3,5 (6 se intensa), yoga 2,3, pilates
+        2,8. Calorias ativas informadas substituem a estimativa.
+      </F>
+      <F name="Gasto do dia">
+        O maior entre o gasto habitual e base do dia + exercícios registrados,
+        para um treino nunca contar duas vezes.
+      </F>
+      <F name="Calorias de um alimento">
+        Gramas × kcal por 100 g ÷ 100.
+      </F>
+      <F name="Saldo do dia">
+        Consumo − gasto do dia. Até ±100 kcal é “próximo do equilíbrio”; só é
+        classificado com o dia marcado como completo e sem itens pendentes.
+      </F>
+      <H>Meta de calorias</H>
+      <F name="Objetivo">
+        Peso desejado abaixo do atual = emagrecer; acima = ganhar peso; sem
+        peso desejado = manter.
+      </F>
+      <F name="Meta do dia">
+        Gasto do dia − 500 kcal (emagrecer), + 300 kcal (ganhar) ou + 0
+        (manter), arredondada a 10 kcal.
+      </F>
+      <F name="Mínimo seguro">
+        A meta nunca fica abaixo do maior entre o basal e 1.200 kcal
+        (coeficiente feminino) ou 1.500 kcal (masculino).
+      </F>
+      <F name="Prazo estimado">
+        |peso atual − peso desejado| × 7.700 kcal ÷ diferença diária entre a
+        meta e o gasto habitual. Só calculado com diferença entre 100 e 1.000
+        kcal/dia; não considera adaptação do metabolismo.
+      </F>
+      <F name="Progresso da meta">
+        (peso atual − peso inicial) ÷ (peso desejado − peso inicial) × 100,
+        limitado entre 0 e 100%.
+      </F>
+      <H>Água</H>
+      <F name="Meta de água">
+        35 ml × peso (kg), arredondada a 50 ml. Usa o último peso até a data.
+      </F>
+      <F name="Água do dia">Soma de todos os registros de água da data.</F>
+      <H>Relatório</H>
+      <F name="Classificação do dia">
+        Acima: consumo mais de 100 kcal acima da meta do dia. Baixo: consumo
+        abaixo de 80% do basal. Ótimo: os demais dias completos. Incompleto:
+        dia não marcado como completo ou com alimentos sem calorias.
+      </F>
+      <F name="Exercício por semana">
+        Minutos no período ÷ dias do período × 7, comparado à recomendação da
+        OMS de 150 a 300 minutos de atividade moderada.
+      </F>
+      <H>Pressão arterial</H>
+      <p>
+        O gráfico mostra linhas de referência em 140 e 90 mmHg. O app não
+        classifica nem interpreta suas medições.
       </p>
     </>
   );
@@ -185,13 +297,17 @@ export function LegalSheet({
   doc: LegalDoc;
   onClose: () => void;
 }) {
+  const [current, setCurrent] = useState(doc);
   return (
-    <Sheet
-      title={doc === "terms" ? "Termos de Uso" : "Política de Privacidade"}
-      onClose={onClose}
-    >
+    <Sheet key={current} title={TITLES[current]} onClose={onClose}>
       <div className="text-sm leading-relaxed text-ink-700">
-        {doc === "terms" ? <Terms /> : <Privacy />}
+        {current === "terms" ? (
+          <Terms />
+        ) : current === "privacy" ? (
+          <Privacy open={setCurrent} />
+        ) : (
+          <Formulas />
+        )}
       </div>
     </Sheet>
   );
@@ -212,6 +328,7 @@ export function useLegal() {
   return {
     terms: link("terms", "Termos de Uso"),
     privacy: link("privacy", "Política de Privacidade"),
+    formulas: link("formulas", "Fórmulas e cálculos"),
     sheet: doc && <LegalSheet doc={doc} onClose={() => setDoc(null)} />,
   };
 }
