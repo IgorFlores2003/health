@@ -10,6 +10,58 @@ import { waterOn, weightAtDate } from "./energy";
 import { allowReminders, remindersSupported } from "./reminders";
 
 export const CUPS = [150, 200, 250, 300, 350, 500];
+const MAX_ML = 5000;
+
+/**
+ * Campo de água em litros com máscara: os dígitos entram pela direita como
+ * mililitros (2 → 0,002 L, 250 → 0,250 L, 1500 → 1,500 L). Com name, envia
+ * o valor em ml num campo oculto (para formulários).
+ */
+export function LitersInput({
+  value,
+  onChange,
+  name,
+  label = "Quantidade",
+  className = "",
+}: {
+  value: number | null;
+  onChange: (ml: number | null) => void;
+  name?: string;
+  label?: string;
+  className?: string;
+}) {
+  return (
+    <label className={"block " + className}>
+      <span className="sr-only">{label} em litros</span>
+      <span className="relative block">
+        <input
+          className="input pr-10 tabular-nums"
+          inputMode="numeric"
+          autoComplete="off"
+          placeholder="0,000"
+          value={
+            value === null
+              ? ""
+              : (value / 1000).toLocaleString("pt-BR", {
+                  minimumFractionDigits: 3,
+                  maximumFractionDigits: 3,
+                })
+          }
+          onChange={(e) => {
+            const digits = e.target.value.replace(/\D/g, "").replace(/^0+/, "");
+            const ml = Number(digits);
+            if (!digits) onChange(null);
+            else if (ml <= MAX_ML) onChange(ml);
+          }}
+        />
+        <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-500">
+          L
+        </span>
+      </span>
+      {name && <input type="hidden" name={name} value={value ?? ""} />}
+    </label>
+  );
+}
 const ml = (n: number) =>
   n >= 1000
     ? `${(n / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L`
@@ -30,7 +82,7 @@ export function WaterCard({
   const drunk = waterOn(state, date);
   const last = (state.water ?? []).filter((w) => w.date === date).at(-1);
   const pct = goal ? Math.min(100, (drunk / goal) * 100) : 0;
-  const [custom, setCustom] = useState("");
+  const [custom, setCustom] = useState<number | null>(null);
   const add = (amount: number) =>
     setState((s) => ({
       ...s,
@@ -116,29 +168,19 @@ export function WaterCard({
         className="mt-3 flex gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          const amount = Number(custom);
-          if (amount >= 1 && amount <= 5000) {
-            add(amount);
-            setCustom("");
+          if (custom && custom <= MAX_ML) {
+            add(custom);
+            setCustom(null);
           }
         }}
       >
-        <label className="min-w-0 flex-1">
-          <span className="sr-only">Outra quantidade em ml</span>
-          <input
-            className="input"
-            type="number"
-            inputMode="decimal"
-            min="1"
-            max="5000"
-            step="any"
-            required
-            placeholder="Outro valor (ml)"
-            value={custom}
-            onChange={(e) => setCustom(e.target.value)}
-          />
-        </label>
-        <button className="btn-secondary shrink-0">
+        <LitersInput
+          className="min-w-0 flex-1"
+          label="Outra quantidade"
+          value={custom}
+          onChange={setCustom}
+        />
+        <button className="btn-secondary shrink-0" disabled={!custom}>
           <RiAddLine className="size-5" /> Adicionar
         </button>
       </form>

@@ -88,7 +88,7 @@ import AccentPicker from "./AccentPicker";
 import { applyAccent, DEFAULT_ACCENT, nearestPreset } from "./theme";
 import { setAppIcon } from "./appIcon";
 import RichText from "./RichText";
-import { HydrationSettings, WaterCard } from "./Water";
+import { HydrationSettings, LitersInput, WaterCard } from "./Water";
 import { CalorieChart, PressureChart, WaterChart } from "./Charts";
 import { syncWaterReminders } from "./reminders";
 import VoiceButton from "./VoiceButton";
@@ -385,6 +385,9 @@ export default function App({ account }: { account: User }) {
     : undefined;
   const [notice, setNotice] = useState("");
   const [period, setPeriod] = useState("30");
+  // Filtro de dias da aba Registros.
+  const [recPeriod, setRecPeriod] = useState("30");
+  const [recDay, setRecDay] = useState(today);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState("");
   const [question, setQuestion] = useState("");
@@ -515,6 +518,19 @@ export default function App({ account }: { account: User }) {
         .reduce((s, x) => s + x.minutes, 0),
     };
   });
+  const recFrom = (() => {
+    const d = new Date();
+    d.setDate(d.getDate() - (Number(recPeriod) - 1));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
+  const inRecords = (date: string) =>
+    recPeriod === "all"
+      ? true
+      : recPeriod === "day"
+        ? date === recDay
+        : date >= recFrom;
+  const recFoods = (state.foods ?? []).filter((f) => inRecords(f.date));
+  const recWater = (state.water ?? []).filter((w) => inRecords(w.date));
   async function submitRecord(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
@@ -819,10 +835,10 @@ export default function App({ account }: { account: User }) {
             className="flex items-center gap-2 px-2 text-xl font-bold tracking-tight"
             href="#"
             onClick={() => setTab("overview")}
-            aria-label="ritmo, início"
+            aria-label="Ritmo, início"
           >
             <RiPulseLine className="size-6 text-brand-600" />
-            {!collapsed && "ritmo"}
+            {!collapsed && "Ritmo"}
           </a>
           <button
             className="icon-btn"
@@ -1258,6 +1274,44 @@ export default function App({ account }: { account: User }) {
               <div className="mb-5">
                 <ReportCard state={state} onError={setNotice} />
               </div>
+              <div className="mb-4 flex flex-wrap items-end gap-3">
+                <div
+                  className="flex flex-wrap rounded-lg border border-line p-0.5"
+                  role="radiogroup"
+                  aria-label="Dias dos registros"
+                >
+                  {[
+                    ["1", "Hoje"],
+                    ["7", "7 dias"],
+                    ["30", "30 dias"],
+                    ["90", "90 dias"],
+                    ["all", "Tudo"],
+                    ["day", "Escolher dia"],
+                  ].map(([id, label]) => (
+                    <button
+                      key={id}
+                      role="radio"
+                      aria-checked={recPeriod === id}
+                      className={`min-h-9 rounded-md px-3 text-sm font-medium ${recPeriod === id ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-surface"}`}
+                      onClick={() => setRecPeriod(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {recPeriod === "day" && (
+                  <input
+                    className="input w-auto"
+                    type="date"
+                    aria-label="Dia dos registros"
+                    max={today()}
+                    value={recDay}
+                    onChange={(e) =>
+                      e.target.value && setRecDay(e.target.value)
+                    }
+                  />
+                )}
+              </div>
               <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <button
                   className="btn-primary"
@@ -1297,13 +1351,17 @@ export default function App({ account }: { account: User }) {
                       <h2 className="text-base font-semibold">
                         {["Peso", "Exercícios", "Pressão arterial"][i]}
                       </h2>
-                      {!state[kind].length ? (
+                      {!state[kind].some((x) => inRecords(x.date)) ? (
                         <p className="py-8 text-sm text-ink-500">
-                          Nenhum registro ainda.
+                          Nenhum registro nesse período.
                         </p>
                       ) : (
                         <ul className="mt-2 divide-y divide-line">
-                          {byDate(state[kind] as { id: string; date: string }[])
+                          {byDate(
+                            (state[kind] as { id: string; date: string }[]).filter(
+                              (x) => inRecords(x.date),
+                            ),
+                          )
                             .reverse()
                             .map((item) => {
                               const w = state.weights.find(
@@ -1402,17 +1460,17 @@ export default function App({ account }: { account: User }) {
                 )}
                 <Panel>
                   <h2 className="text-base font-semibold">Alimentação</h2>
-                  {!state.foods?.length ? (
+                  {!recFoods.length ? (
                     <p className="py-8 text-sm text-ink-500">
-                      Nenhum registro ainda.
+                      Nenhum registro nesse período.
                     </p>
                   ) : (
                     <ul className="mt-2 divide-y divide-line">
-                      {[...new Set(state.foods.map((f) => f.date))]
+                      {[...new Set(recFoods.map((f) => f.date))]
                         .sort()
                         .reverse()
                         .map((date) => {
-                          const items = state.foods!.filter(
+                          const items = recFoods.filter(
                             (f) => f.date === date,
                           );
                           const total = items.reduce(
@@ -1500,17 +1558,17 @@ export default function App({ account }: { account: User }) {
                 </Panel>
                 <Panel>
                   <h2 className="text-base font-semibold">Água</h2>
-                  {!state.water?.length ? (
+                  {!recWater.length ? (
                     <p className="py-8 text-sm text-ink-500">
-                      Nenhum registro ainda.
+                      Nenhum registro nesse período.
                     </p>
                   ) : (
                     <ul className="mt-2 divide-y divide-line">
-                      {[...new Set(state.water.map((w) => w.date))]
+                      {[...new Set(recWater.map((w) => w.date))]
                         .sort()
                         .reverse()
                         .map((date) => {
-                          const items = state.water!.filter(
+                          const items = recWater.filter(
                             (w) => w.date === date,
                           );
                           return (
@@ -2078,24 +2136,16 @@ export default function App({ account }: { account: User }) {
                 />
               </Field>
               {modal === "water" ? (
-                <label className="block">
-                  <span className="label">Quantidade (ml)</span>
-                  <input
-                    className="input"
-                    name="ml"
-                    type="number"
-                    inputMode="numeric"
-                    min="1"
-                    max="5000"
-                    step="any"
-                    required
-                    defaultValue={
+                <div>
+                  <span className="label">Quantidade (litros)</span>
+                  <WaterAmount
+                    initial={
                       editItem && "ml" in editItem
                         ? editItem.ml
                         : (state.hydration?.cupMl ?? 250)
                     }
                   />
-                </label>
+                </div>
               ) : modal === "weight" ? (
                 <WeightFields
                   initial={
@@ -2220,4 +2270,9 @@ function PageTitle({ title, text }: { title: string; text: string }) {
       <p className="mt-1 text-ink-500">{text}</p>
     </div>
   );
+}
+/** Quantidade de água do formulário de registro (envia ml em name="ml"). */
+function WaterAmount({ initial }: { initial: number }) {
+  const [ml, setMl] = useState<number | null>(initial);
+  return <LitersInput name="ml" label="Quantidade" value={ml} onChange={setMl} />;
 }

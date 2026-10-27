@@ -91,7 +91,7 @@ export default function Onboarding({
     <div className="min-h-dvh bg-surface px-4 pt-[calc(env(safe-area-inset-top)+24px)] pb-[calc(env(safe-area-inset-bottom)+24px)]">
       <div className="mx-auto max-w-lg">
         <div className="mb-6 flex items-center gap-2 font-semibold text-brand-600">
-          <RiPulseLine className="size-6" /> ritmo
+          <RiPulseLine className="size-6" /> Ritmo
         </div>
         <div className="mb-5">
           <div className="mb-3 flex gap-1.5" aria-hidden>

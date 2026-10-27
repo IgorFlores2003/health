@@ -109,7 +109,7 @@ export default function AuthGate() {
       <aside className="hidden w-[40%] max-w-xl flex-col justify-between bg-brand-600 p-12 text-white lg:flex">
         <div className="flex items-center gap-2 text-2xl font-bold tracking-tight">
           <RiPulseLine className="size-8" />
-          ritmo
+          Ritmo
         </div>
         <p className="max-w-xs text-lg leading-relaxed text-brand-50">
           Peso, alimentação, exercícios e pressão arterial em um só lugar.
@@ -123,7 +123,7 @@ export default function AuthGate() {
         <div className="w-full max-w-sm">
           <div className="mb-10 flex items-center gap-2 text-2xl font-bold tracking-tight lg:hidden">
             <RiPulseLine className="size-8 text-brand-600" />
-            ritmo
+            Ritmo
           </div>
           {checking ? (
             <div

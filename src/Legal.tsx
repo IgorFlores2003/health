@@ -3,10 +3,10 @@ import Sheet from "./Sheet";
 
 /** Versão dos termos aceita no cadastro (gravada nos metadados da conta). */
 export const TERMS_VERSION = "2026-10-26";
-// Preencha antes de publicar: quem é o controlador dos dados e o contato do
-// encarregado (DPO), exigidos pela LGPD (art. 9º e art. 41).
-const CONTROLLER = "[NOME OU RAZÃO SOCIAL DO RESPONSÁVEL PELO APP, CPF/CNPJ]";
-const CONTACT = "[E-MAIL DO ENCARREGADO DE DADOS]";
+// Controlador dos dados e contato do encarregado (DPO), exigidos pela LGPD
+// (art. 9º e art. 41).
+const CONTROLLER = "Igor Flores Bento";
+const CONTACT = "igorfb2003@gmail.com";
 const UPDATED = "26 de outubro de 2026";
 
 export type LegalDoc = "terms" | "privacy" | "formulas";
