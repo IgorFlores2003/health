@@ -186,9 +186,15 @@ export function useCloudSync(
     const visible = () => document.visibilityState === "visible" && sync();
     window.addEventListener("online", online);
     document.addEventListener("visibilitychange", visible);
+    // Com o app aberto na tela, confere a conta a cada 30 s (o que foi
+    // feito no outro aparelho aparece sem precisar sair e voltar).
+    const poll = setInterval(() => {
+      if (document.visibilityState === "visible") void sync();
+    }, 30000);
     return () => {
       window.removeEventListener("online", online);
       document.removeEventListener("visibilitychange", visible);
+      clearInterval(poll);
     };
   }, [sync]);
 
