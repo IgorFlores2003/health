@@ -9,14 +9,32 @@ import {
   weightAtDate,
 } from "./energy";
 import Celebration, { type CelebrationKind } from "./Celebration";
+import { BirthDateField, BirthdayCard } from "./Birthday";
+import MascotCard from "./Mascot";
+import Community from "./Community";
+import { dayGoals, medals, progressLevel } from "./gamification";
+import { syncGoals } from "./otterApi";
+import { autoPost, saveProfile as saveSocialProfile } from "./social";
 import FoodSheet from "./FoodSheet";
 import CameraCapture from "./CameraCapture";
 import type { User } from "@supabase/supabase-js";
 import { userStorageKey } from "./access";
 import AccountAccess from "./AccountAccess";
-import { Avatar, downloadPhoto, removePhotos, uploadPhoto } from "./photos";
+import {
+  Avatar,
+  downloadPhoto,
+  originalOf,
+  removePhotos,
+  uploadPhoto,
+} from "./photos";
 import PhotoEditor from "./PhotoEditor";
-import { useEffect, useState, useRef, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useRef,
+  type FormEvent,
+} from "react";
 import type { IconType } from "react-icons";
 import {
   RiAddLine,
@@ -29,6 +47,8 @@ import {
   RiImageLine,
   RiChat3Fill,
   RiChat3Line,
+  RiGroupFill,
+  RiGroupLine,
   RiCheckLine,
   RiCloseLine,
   RiFileList3Fill,
@@ -64,12 +84,18 @@ import {
 } from "recharts";
 import {
   basal,
+  ageOn,
   byDate,
   dateKey,
+  isBirthday,
+  profileAge,
   waterGoal,
   currentWeight,
   initial,
   num,
+  daysAgo,
+  durationLabel,
+  lastDays,
   MAX_PHOTOS,
   minimumIntake,
   parseDuration,
@@ -158,6 +184,13 @@ const tabs: {
     active: RiFileList3Fill,
   },
   {
+    id: "community",
+    label: "Amigos",
+    short: "Amigos",
+    icon: RiGroupLine,
+    active: RiGroupFill,
+  },
+  {
     id: "videos",
     label: "Vídeos",
     short: "Vídeos",
@@ -167,7 +200,7 @@ const tabs: {
   {
     id: "insights",
     label: "Assistente",
-    short: "Assistente",
+    short: "IA",
     icon: RiChat3Line,
     active: RiChat3Fill,
   },
@@ -288,6 +321,95 @@ export default function App({ account }: { account: User }) {
       setNotice("Você chegou à meta de calorias de hoje.");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goals.day, goals.water, goals.calories, goals.weight, sync.status]);
+  // Comunidade: texto vindo de "Compartilhar" numa medalha.
+  const [draft, setDraft] = useState("");
+  const clearDraft = useCallback(() => setDraft(""), []);
+  function shareToFriends(text: string) {
+    setDraft(text);
+    setTab("community");
+  }
+  // Perfil social (nome, foto, nível, medalhas) acompanha o do app.
+  const level = progressLevel(state).level;
+  const earned = medals(state).filter((m) => m.earned);
+  const earnedKey = earned.map((m) => m.id).join();
+  useEffect(() => {
+    if (sync.status === "loading" || !state.profileReviewed) return;
+    saveSocialProfile(account.id, {
+      name: state.profile.name,
+      photo: state.profile.photo,
+      level,
+      medals: earned.length,
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    account.id,
+    state.profile.name,
+    state.profile.photo,
+    level,
+    earnedKey,
+    sync.status,
+  ]);
+  // Atividades novas viram posts para os amigos (exercícios dos últimos 2
+  // dias e medalhas). Na primeira vez neste aparelho, o histórico não é
+  // publicado.
+  useEffect(() => {
+    if (sync.status === "loading") return;
+    const key = `ritmo-shared-${account.id}`;
+    const items = [
+      ...state.exercises
+        .filter((e) => e.date >= daysAgo(1))
+        .map((e) => ({
+          id: `exercise:${e.id}`,
+          kind: "activity" as const,
+          text: `🏃 ${e.type}: ${durationLabel(e.minutes)}${e.distanceKm ? ` · ${num(e.distanceKm)} km` : ""}`,
+        })),
+      ...earned.map((m) => ({
+        id: `medal:${account.id}:${m.id}`,
+        kind: "medal" as const,
+        text: `${m.icon} Conquistei a medalha "${m.title}": ${m.text}`,
+      })),
+    ];
+    let seen: string[] | null = null;
+    try {
+      seen = JSON.parse(localStorage.getItem(key) || "null");
+      localStorage.setItem(
+        key,
+        JSON.stringify([
+          ...new Set([...(seen ?? []), ...items.map((i) => i.id)]),
+        ]),
+      );
+    } catch {
+      return;
+    }
+    if (!seen || state.shareActivity === false) return;
+    for (const item of items.filter((i) => !seen!.includes(i.id)))
+      void autoPost(item.id, item.text, item.kind).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.exercises, earnedKey, sync.status]);
+  // Lontra da dupla: envia só se cumpriu as metas dos últimos 7 dias.
+  const goalsKey = JSON.stringify(lastDays(7).map((d) => dayGoals(state, d)));
+  useEffect(() => {
+    if (sync.status === "loading") return;
+    const id = setTimeout(
+      () => void syncGoals(JSON.parse(goalsKey)).catch(() => undefined),
+      2000,
+    );
+    return () => clearTimeout(id);
+  }, [goalsKey, sync.status]);
+  // Aniversário: bolo, confete e música uma vez por ano neste aparelho.
+  const [birthday, setBirthday] = useState(false);
+  useEffect(() => {
+    if (sync.status === "loading" || !isBirthday(state.profile)) return;
+    const key = `ritmo-birthday-${account.id}-${today().slice(0, 4)}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, "1");
+    } catch {
+      /* sem armazenamento: mostra mesmo assim */
+    }
+    setBirthday(true);
+    setCelebration("confetti");
+  }, [state.profile, sync.status, account.id]);
   useEffect(() => {
     applyAccent(state.accent);
     try {
@@ -591,7 +713,8 @@ export default function App({ account }: { account: User }) {
         ...(state.profile.photo ? { photo: state.profile.photo } : {}),
         name: String(f.get("name")),
         height: Number(f.get("height")),
-        age: Number(f.get("age")),
+        birthDate: String(f.get("birthDate")),
+        age: ageOn(String(f.get("birthDate")), today()),
         gender: String(f.get("gender")),
         formulaSex: String(f.get("formulaSex")) as "female" | "male",
         activity: Number(f.get("activity")),
@@ -604,15 +727,20 @@ export default function App({ account }: { account: User }) {
     setState(next);
     setNotice("Perfil atualizado.");
   }
-  async function changePhoto(file: File | null) {
+  /** Salva a foto editada e a original (para editar de novo sem perder nada). */
+  async function changePhoto(file: File | null, original?: Blob) {
     setBusy(true);
     try {
       const previous = state.profile.photo;
       const photo = file
         ? await uploadPhoto(account.id, "profile", file)
         : undefined;
+      if (photo && original)
+        await uploadPhoto(account.id, "profile", original, originalOf(photo));
       setState((s) => ({ ...s, profile: { ...s.profile, photo } }));
-      void removePhotos(previous ? [previous] : undefined);
+      void removePhotos(
+        previous ? [previous, originalOf(previous)] : undefined,
+      );
       setNotice(
         file ? "Foto de perfil atualizada." : "Foto de perfil removida.",
       );
@@ -641,11 +769,14 @@ export default function App({ account }: { account: User }) {
           question,
           day: {
             date: diaryDate,
+            // Sem nome, foto nem data de nascimento: só a idade.
             profile: {
               ...state.profile,
               name: "",
               gender: "Não informado",
               photo: undefined,
+              birthDate: undefined,
+              age: profileAge(state.profile),
             },
             profileReviewed: state.profileReviewed === true,
             weights: state.weights
@@ -863,6 +994,13 @@ export default function App({ account }: { account: User }) {
                 >
                   <RiAddLine className="size-5" /> Registrar peso
                 </button>
+              </div>
+              <div className="mb-4">
+                <MascotCard
+                  state={state}
+                  date={today()}
+                  onShare={(text) => shareToFriends(text)}
+                />
               </div>
               <div className="mb-4 grid gap-4 lg:grid-cols-2">
                 <CalorieBudget
@@ -1158,6 +1296,19 @@ export default function App({ account }: { account: User }) {
             </>
           )}
           {tab === "videos" && <Videos />}
+          {tab === "community" && (
+            <Community
+              userId={account.id}
+              draft={draft}
+              onDraftUsed={clearDraft}
+              onNotice={setNotice}
+              myGoals={lastDays(7).map((d) => dayGoals(state, d))}
+              shareActivity={state.shareActivity !== false}
+              onShareActivity={(on) =>
+                setState((s) => ({ ...s, shareActivity: on }))
+              }
+            />
+          )}
           {tab === "nutrition" && (
             <DailyDiary
               state={state}
@@ -1341,8 +1492,12 @@ export default function App({ account }: { account: User }) {
                           disabled={busy}
                           onClick={async () => {
                             try {
+                              const path = state.profile.photo!;
+                              // Abre a original; fotos antigas só têm a editada.
                               setEditingPhoto(
-                                await downloadPhoto(state.profile.photo!),
+                                await downloadPhoto(originalOf(path)).catch(
+                                  () => downloadPhoto(path),
+                                ),
                               );
                             } catch (e) {
                               setNotice(
@@ -1401,16 +1556,7 @@ export default function App({ account }: { account: User }) {
                           placeholder="0,00"
                         />
                       </Field>
-                      <Field label="Idade">
-                        <NumberField
-                          name="age"
-                          unit="anos"
-                          min={18}
-                          max={100}
-                          required
-                          defaultValue={state.profile.age}
-                        />
-                      </Field>
+                      <BirthDateField initial={state.profile.birthDate} />
                     </div>
                     <Field label="Gênero">
                       <select
@@ -1676,11 +1822,12 @@ export default function App({ account }: { account: User }) {
       </main>
       {editingPhoto && (
         <PhotoEditor
+          round
           source={editingPhoto}
           onClose={() => setEditingPhoto(null)}
           onSave={(file) => {
             setEditingPhoto(null);
-            void changePhoto(file);
+            void changePhoto(file, editingPhoto);
           }}
         />
       )}
@@ -1702,6 +1849,13 @@ export default function App({ account }: { account: User }) {
           date={tab === "nutrition" ? diaryDate : today()}
           food={foodSheet.food}
           onClose={() => setFoodSheet(null)}
+        />
+      )}
+      {birthday && (
+        <BirthdayCard
+          name={firstName}
+          age={profileAge(state.profile)}
+          onClose={() => setBirthday(false)}
         />
       )}
       {celebration && (

@@ -24,6 +24,39 @@
   --color-ink-400: #a1a1aa;
   --color-line: #ececef;
   --color-surface: #fafafa;
+  /* Lontra na academia (Otter.tsx). */
+  --animate-lift: lift 1.4s ease-in-out infinite;
+  --animate-breathe: breathe 1.4s ease-in-out infinite;
+  --animate-breathe-slow: breathe 3.2s ease-in-out infinite;
+  @keyframes lift {
+    0%,
+    100% {
+      transform: translateY(26px);
+    }
+    50% {
+      transform: translateY(0);
+    }
+  }
+  @keyframes breathe {
+    0%,
+    100% {
+      transform: scaleY(1);
+    }
+    50% {
+      transform: scaleY(1.03);
+    }
+  }
+  /* Rit, o mascote, flutuando de leve (Mascot.tsx). */
+  --animate-rit: rit 3s ease-in-out infinite;
+  @keyframes rit {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-4px);
+    }
+  }
   /* Foguete ao bater a meta de peso (Celebration.tsx). */
   --animate-rocket: rocket 2.6s cubic-bezier(0.5, 0, 0.75, 0) forwards;
   @keyframes rocket {

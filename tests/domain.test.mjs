@@ -159,3 +159,21 @@ test("drinks are recognized by name when the AI does not say", async () => {
   ])
     assert.equal(looksLiquid(n), false, n);
 });
+test("age comes from the birth date and turns on the birthday", async () => {
+  const { ageOn, isBirthday, basal } = await import("../src/domain.ts");
+  assert.equal(ageOn("2003-10-27", "2026-10-26"), 22);
+  assert.equal(ageOn("2003-10-27", "2026-10-27"), 23);
+  assert.equal(ageOn("2004-02-29", "2026-02-28"), 21);
+  assert.equal(ageOn("2004-02-29", "2026-03-01"), 22);
+  const p = { ...initial.profile, birthDate: "1990-10-26" };
+  assert.equal(isBirthday(p, "2026-10-26"), true);
+  assert.equal(isBirthday(p, "2026-10-27"), false);
+  assert.equal(isBirthday(initial.profile, "2026-10-26"), false);
+  // Com data de nascimento, o basal ignora a idade antiga digitada.
+  const born = { ...initial.profile, height: 180, formulaSex: "male", age: 99 };
+  const thirty = new Date().getFullYear() - 30;
+  assert.equal(
+    basal(80, { ...born, birthDate: `${thirty}-01-01` }),
+    10 * 80 + 6.25 * 180 - 5 * 30 + 5,
+  );
+});

@@ -56,6 +56,7 @@ export function mergeStates(base: State, local: State, remote: State): State {
     intake: pick("intake"),
     accent: pick("accent"),
     hydration: pick("hydration"),
+    shareActivity: pick("shareActivity"),
     weights: [],
     exercises: [],
     pressures: [],

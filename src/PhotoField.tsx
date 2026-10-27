@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RiCloseLine, RiImageAddLine, RiSparkling2Line } from "react-icons/ri";
+import {
+  RiCloseLine,
+  RiCropLine,
+  RiImageAddLine,
+  RiSparkling2Line,
+} from "react-icons/ri";
+import PhotoEditor from "./PhotoEditor";
 import { confirmDialog } from "./confirm";
 import { usePhotoUrls } from "./photos";
 
@@ -26,6 +32,7 @@ export default function PhotoField({
   const [files, setFiles] = useState<File[]>([]);
   const [kept, setKept] = useState(saved);
   const [reading, setReading] = useState(false);
+  const [editing, setEditing] = useState<number | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean }>();
   const savedUrls = usePhotoUrls(kept);
   const previews = useMemo(
@@ -88,6 +95,7 @@ export default function PhotoField({
     ...files.map((f, i) => ({
       key: `${f.name}-${f.lastModified}-${i}`,
       src: previews[i],
+      edit: () => setEditing(i),
       remove: () => {
         setFiles((list) => list.filter((_, j) => j !== i));
         setMessage(undefined);
@@ -120,6 +128,17 @@ export default function PhotoField({
                 />
               ) : (
                 <span className="block size-full animate-pulse rounded-lg bg-surface" />
+              )}
+              {"edit" in t && (
+                <button
+                  type="button"
+                  aria-label="Enquadrar foto"
+                  title="Enquadrar"
+                  className="absolute -right-1.5 -bottom-1.5 grid size-7 place-items-center rounded-full bg-ink-900 text-white shadow ring-2 ring-white hover:bg-brand-700"
+                  onClick={t.edit}
+                >
+                  <RiCropLine className="size-4" />
+                </button>
               )}
               <button
                 type="button"
@@ -170,7 +189,21 @@ export default function PhotoField({
           {message.text}
         </p>
       )}
-      <p className="hint">{hint}</p>
+      <p className="hint">
+        {hint}
+        {files.length > 0 && " Toque no ícone de recorte para enquadrar."}
+      </p>
+      {editing !== null && files[editing] && (
+        <PhotoEditor
+          source={files[editing]}
+          onClose={() => setEditing(null)}
+          onSave={(file) => {
+            const i = editing;
+            setFiles((list) => list.map((f, j) => (j === i ? file : f)));
+            setEditing(null);
+          }}
+        />
+      )}
     </div>
   );
 }

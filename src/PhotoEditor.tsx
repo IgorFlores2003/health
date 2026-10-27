@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { RiAnticlockwiseLine, RiRefreshLine } from "react-icons/ri";
+import Choice from "./Choice";
 import Sheet from "./Sheet";
 
-const VIEW = 288; // lado da área de edição na tela (px CSS)
-const OUT = 800; // lado da foto salva (px)
+const VIEW = 288; // maior lado da área de edição na tela (px CSS)
+const MIN_ZOOM = 0.5;
+type Aspect = "original" | "1" | "4/3" | "3/4";
 type Edit = {
+  aspect: Aspect;
   zoom: number;
   x: number; // deslocamento em px da área de edição
   y: number;
@@ -13,6 +16,7 @@ type Edit = {
   contrast: number; // %
 };
 const START: Edit = {
+  aspect: "original",
   zoom: 1,
   x: 0,
   y: 0,
@@ -21,36 +25,55 @@ const START: Edit = {
   contrast: 100,
 };
 
-/** Desenha a foto editada num quadrado de lado `size`. */
+/** Lados da foto já girada. */
+function turned(img: HTMLImageElement, turn: number) {
+  return turn % 2 ? [img.height, img.width] : [img.width, img.height];
+}
+/** Moldura (largura, altura) com maior lado `long`, no formato escolhido. */
+function frame(img: HTMLImageElement, e: Edit, long: number) {
+  const [w, h] = turned(img, e.turn);
+  const ratio =
+    e.aspect === "original"
+      ? w / h
+      : e.aspect === "1"
+        ? 1
+        : e.aspect === "4/3"
+          ? 4 / 3
+          : 3 / 4;
+  return ratio >= 1 ? [long, long / ratio] : [long * ratio, long];
+}
+
+/** Desenha a foto editada numa moldura cujo maior lado é `long`. */
 function draw(
   ctx: CanvasRenderingContext2D,
   img: HTMLImageElement,
   e: Edit,
-  size: number,
+  long: number,
 ) {
-  const k = size / VIEW;
-  const sideways = e.turn % 2 === 1;
-  const w = sideways ? img.height : img.width;
-  const h = sideways ? img.width : img.height;
-  const scale = (size / Math.min(w, h)) * e.zoom;
-  ctx.clearRect(0, 0, size, size);
+  const [fw, fh] = frame(img, e, long);
+  const [w, h] = turned(img, e.turn);
+  const k = long / VIEW;
+  const scale = Math.max(fw / w, fh / h) * e.zoom;
+  // Com zoom abaixo de 1× sobra espaço: fundo branco.
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, fw, fh);
   ctx.save();
   ctx.filter = `brightness(${e.brightness}%) contrast(${e.contrast}%)`;
-  ctx.translate(size / 2 + e.x * k, size / 2 + e.y * k);
+  ctx.translate(fw / 2 + e.x * k, fh / 2 + e.y * k);
   ctx.rotate((e.turn * Math.PI) / 2);
   ctx.scale(scale, scale);
   ctx.drawImage(img, -img.width / 2, -img.height / 2);
   ctx.restore();
 }
 
-/** Mantém a foto cobrindo o quadrado (sem bordas vazias ao arrastar). */
+/** Mantém a foto cobrindo a moldura (sem bordas vazias ao arrastar). */
 function clamp(img: HTMLImageElement, e: Edit): Edit {
-  const sideways = e.turn % 2 === 1;
-  const w = sideways ? img.height : img.width;
-  const h = sideways ? img.width : img.height;
-  const scale = (VIEW / Math.min(w, h)) * e.zoom;
-  const maxX = (w * scale - VIEW) / 2;
-  const maxY = (h * scale - VIEW) / 2;
+  const [fw, fh] = frame(img, e, VIEW);
+  const [w, h] = turned(img, e.turn);
+  const scale = Math.max(fw / w, fh / h) * e.zoom;
+  // Maior que a moldura: não deixa borda vazia; menor: não sai da moldura.
+  const maxX = Math.abs(w * scale - fw) / 2;
+  const maxY = Math.abs(h * scale - fh) / 2;
   return {
     ...e,
     x: Math.max(-maxX, Math.min(maxX, e.x)),
@@ -59,22 +82,29 @@ function clamp(img: HTMLImageElement, e: Edit): Edit {
 }
 
 /**
- * Editor da foto de perfil: arrastar para centralizar no círculo, zoom
- * (barra, pinça ou rodinha), girar, brilho e contraste. Salva um JPEG
- * quadrado com o enquadramento mostrado.
+ * Editor de foto: arrastar para enquadrar, zoom (barra, pinça ou rodinha),
+ * girar, brilho e contraste. No perfil (`round`) a moldura é um círculo;
+ * nos registros dá para escolher o formato. Salva um JPEG com o
+ * enquadramento mostrado.
  */
 export default function PhotoEditor({
   source,
+  round = false,
   onSave,
   onClose,
 }: {
   source: Blob;
+  /** Foto de perfil: moldura redonda, quadrada, 800 px. */
+  round?: boolean;
   onSave: (file: File) => void;
   onClose: () => void;
 }) {
+  const OUT = round ? 800 : 1600;
   const canvas = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
-  const [edit, setEdit] = useState(START);
+  const [edit, setEdit] = useState<Edit>(
+    round ? { ...START, aspect: "1" } : START,
+  );
   const [error, setError] = useState("");
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const pinch = useRef<{ dist: number; zoom: number } | null>(null);
@@ -92,7 +122,9 @@ export default function PhotoEditor({
     const c = canvas.current;
     if (!c || !img) return;
     const dpr = window.devicePixelRatio || 1;
-    c.width = c.height = VIEW * dpr;
+    const [fw, fh] = frame(img, edit, VIEW * dpr);
+    c.width = fw;
+    c.height = fh;
     draw(c.getContext("2d")!, img, edit, VIEW * dpr);
   }, [img, edit]);
 
@@ -120,7 +152,7 @@ export default function PhotoEditor({
       update({
         zoom: Math.min(
           4,
-          Math.max(1, (pinch.current.zoom * dist) / pinch.current.dist),
+          Math.max(MIN_ZOOM, (pinch.current.zoom * dist) / pinch.current.dist),
         ),
       });
     } else
@@ -137,11 +169,11 @@ export default function PhotoEditor({
   function save() {
     if (!img) return;
     const out = document.createElement("canvas");
-    out.width = out.height = OUT;
+    [out.width, out.height] = frame(img, edit, OUT).map(Math.round);
     draw(out.getContext("2d")!, img, edit, OUT);
     out.toBlob(
       (blob) =>
-        blob && onSave(new File([blob], "perfil.jpg", { type: "image/jpeg" })),
+        blob && onSave(new File([blob], "foto.jpg", { type: "image/jpeg" })),
       "image/jpeg",
       0.9,
     );
@@ -183,14 +215,33 @@ export default function PhotoEditor({
         </p>
       ) : (
         <>
+          {!round && img && (
+            <Choice
+              className="mb-4"
+              label="Formato"
+              value={edit.aspect}
+              onChange={(aspect) => update({ aspect, x: 0, y: 0 })}
+              options={[
+                { id: "original", label: "Original" },
+                { id: "1", label: "Quadrado" },
+                { id: "4/3", label: "4:3" },
+                { id: "3/4", label: "3:4" },
+              ]}
+            />
+          )}
           <div
             className="relative mx-auto overflow-hidden rounded-xl bg-ink-900"
-            style={{ width: VIEW, height: VIEW }}
+            style={
+              img
+                ? (([w, h]) => ({ width: w, height: h }))(
+                    frame(img, edit, VIEW),
+                  )
+                : { width: VIEW, height: VIEW }
+            }
           >
             <canvas
               ref={canvas}
               className="size-full cursor-grab touch-none active:cursor-grabbing"
-              style={{ width: VIEW, height: VIEW }}
               aria-label="Arraste para centralizar a foto"
               onPointerDown={down}
               onPointerMove={move}
@@ -198,18 +249,23 @@ export default function PhotoEditor({
               onPointerCancel={up}
               onWheel={(e) =>
                 update({
-                  zoom: Math.min(4, Math.max(1, edit.zoom - e.deltaY / 500)),
+                  zoom: Math.min(
+                    4,
+                    Math.max(MIN_ZOOM, edit.zoom - e.deltaY / 500),
+                  ),
                 })
               }
             />
             {/* Fora do círculo fica escurecido: é o que sai no avatar. */}
-            <span className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_999px_rgb(0_0_0/0.45)]" />
+            {round && (
+              <span className="pointer-events-none absolute inset-0 rounded-full shadow-[0_0_0_999px_rgb(0_0_0/0.45)]" />
+            )}
           </div>
           <p className="mt-2 text-center text-[13px] text-ink-500">
             Arraste para centralizar. Use dois dedos ou a rodinha para o zoom.
           </p>
           <div className="mt-4 space-y-3">
-            {slider("Zoom", "zoom", 1, 4, 0.01)}
+            {slider("Zoom", "zoom", MIN_ZOOM, 4, 0.01)}
             {slider("Brilho", "brightness", 50, 150, 1)}
             {slider("Contraste", "contrast", 50, 150, 1)}
           </div>
@@ -225,7 +281,9 @@ export default function PhotoEditor({
               <button
                 type="button"
                 className="btn-ghost"
-                onClick={() => setEdit(START)}
+                onClick={() =>
+                  setEdit(round ? { ...START, aspect: "1" } : START)
+                }
               >
                 <RiRefreshLine className="size-5" /> Restaurar
               </button>

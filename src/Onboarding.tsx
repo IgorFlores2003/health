@@ -1,7 +1,8 @@
 import NumberField from "./NumberField";
 import { useState, type FormEvent } from "react";
 import { RiArrowRightLine, RiPulseLine } from "react-icons/ri";
-import { today, type State } from "./domain";
+import { ageOn, today, type State } from "./domain";
+import { BirthDateField } from "./Birthday";
 
 const activities = [
   {
@@ -75,7 +76,8 @@ export default function Onboarding({
       profile: {
         ...p,
         name: String(f.get("name")).trim(),
-        age: Number(f.get("age")),
+        birthDate: String(f.get("birthDate")),
+        age: ageOn(String(f.get("birthDate")), today()),
         height: Number(f.get("height")),
         gender,
         formulaSex,
@@ -123,18 +125,7 @@ export default function Onboarding({
             />
           </label>
           <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className="label">Idade</span>
-              <NumberField
-                name="age"
-                unit="anos"
-                min={18}
-                max={100}
-                required
-                defaultValue={state.profileReviewed ? p.age : undefined}
-                placeholder="30"
-              />
-            </label>
+            <BirthDateField initial={p.birthDate} />
             <label className="block">
               <span className="label">Peso</span>
               <NumberField

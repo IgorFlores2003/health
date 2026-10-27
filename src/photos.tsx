@@ -7,7 +7,7 @@ const URL_TTL = 60 * 60;
 const urls = new Map<string, { url: string; expires: number }>();
 
 /** Reduz a foto no aparelho antes do envio (fotos de celular passam de 5 MB). */
-async function compress(file: File): Promise<Blob> {
+async function compress(file: Blob): Promise<Blob> {
   if (!file.type.startsWith("image/"))
     throw Error("Escolha um arquivo de imagem.");
   const bitmap = await createImageBitmap(file);
@@ -42,19 +42,26 @@ export async function uploadPhoto(
   userId: string,
   folder:
     | "profile"
+    | "posts"
     | `exercises/${string}`
     | `pressures/${string}`
     | `weights/${string}`,
-  file: File,
+  file: Blob,
+  /** Caminho fixo (ex.: a original de uma foto editada). */
+  at?: string,
 ) {
   if (!supabase) throw Error("Conecte-se para enviar fotos.");
-  const path = `${userId}/${folder}/${crypto.randomUUID()}.jpg`;
+  const path = at ?? `${userId}/${folder}/${crypto.randomUUID()}.jpg`;
   const { error } = await supabase.storage
     .from(BUCKET)
     .upload(path, await compress(file), { contentType: "image/jpeg" });
   if (error) throw Error("Não foi possível enviar a foto. Tente novamente.");
   return path;
 }
+
+/** Onde fica a foto original (sem edição) de uma foto de perfil editada. */
+export const originalOf = (path: string) =>
+  path.replace(/\.jpg$/, "-original.jpg");
 
 /** Baixa uma foto salva (ex.: para editar a foto de perfil). */
 export async function downloadPhoto(path: string) {

@@ -61,7 +61,15 @@ function Terms() {
         para preencher campos ou responder perguntas. Só envie conteúdo seu e
         evite incluir dados de outras pessoas.
       </p>
-      <H>6. Conteúdo educativo</H>
+      <H>6. Amigos e comunidade</H>
+      <p>
+        Amizades só são criadas por convite com o código de amigo e precisam ser
+        aceitas. Seja respeitoso: é proibido publicar conteúdo ofensivo,
+        discriminatório, sexual, enganoso ou que exponha outras pessoas sem
+        autorização. Use a opção Denunciar; conteúdos e contas que violarem
+        estas regras podem ser removidos. Você é responsável pelo que publica.
+      </p>
+      <H>6.1 Conteúdo educativo</H>
       <p>
         Os vídeos da aba Vídeos trazem informação geral e não substituem a
         orientação de um profissional de saúde.
@@ -108,8 +116,12 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
           descartados em seguida; não ficam guardados pelo Ritmo.
         </li>
         <li>
-          Preferências do aparelho (tela aberta, lembretes de água) ficam só no
-          aparelho.
+          Preferências do aparelho (tela aberta, lembretes de água, tema) ficam
+          só no aparelho.
+        </li>
+        <li>
+          Comunidade: código de amigo, amizades, dupla da lontra, posts, fotos
+          de posts, comentários, curtidas e denúncias.
         </li>
       </ul>
       <H>2. Para que usamos</H>
@@ -140,6 +152,16 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
           Google (Gemini API): recebe apenas o conteúdo necessário a cada pedido
           de IA (a foto, o áudio, a descrição do alimento ou a pergunta com o
           resumo numérico do dia). Nome e e-mail não são enviados.
+        </li>
+        <li>
+          Seus amigos (pessoas que você adicionou e aceitaram): veem seu nome,
+          foto de perfil, nível, número de medalhas, seus posts, comentários e
+          curtidas e, se a opção estiver ligada, os exercícios registrados e as
+          medalhas novas. Quem você escolher como dupla da lontra vê apenas se
+          você cumpriu as metas do dia (água, calorias e exercício), sem os
+          valores. Peso, pressão e alimentação nunca são mostrados a eles. Você
+          pode desligar o compartilhamento automático, apagar posts e desfazer
+          amizades a qualquer momento.
         </li>
         <li>Autoridades, quando houver obrigação legal ou ordem judicial.</li>
       </ul>

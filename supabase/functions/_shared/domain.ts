@@ -5,6 +5,8 @@ export type Profile = {
   gender: string;
   formulaSex: "female" | "male";
   activity: number;
+  /** Data de nascimento (AAAA-MM-DD); com ela a idade é calculada sozinha. */
+  birthDate?: string;
   /** Caminho no bucket de Storage; a imagem nunca fica no snapshot. */
   photo?: string;
 };
@@ -83,6 +85,8 @@ export type State = {
   pressures: Pressure[];
   goal: number;
   intake: number;
+  /** Publicar exercícios e medalhas para os amigos (padrão: sim). */
+  shareActivity?: boolean;
   /** Cor do app escolhida em Perfil (#rrggbb). */
   accent?: string;
 };
@@ -118,21 +122,34 @@ export function daysAgo(n: number) {
 /** Últimos n dias até hoje, do mais antigo ao mais recente. */
 export const lastDays = (n: number) =>
   Array.from({ length: n }, (_, i) => daysAgo(n - 1 - i));
+/** Idade completa na data (AAAA-MM-DD) para quem nasceu em `birth`. */
+export function ageOn(birth: string, date: string) {
+  const [by, bm, bd] = birth.split("-").map(Number);
+  const [y, m, d] = date.split("-").map(Number);
+  return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
+}
+/** Idade usada nas fórmulas: pela data de nascimento, se houver. */
+export const profileAge = (p: Profile) =>
+  p.birthDate ? ageOn(p.birthDate, today()) : p.age;
+/** Hoje é o aniversário (mesmo dia e mês)? */
+export const isBirthday = (p: Profile, date = today()) =>
+  !!p.birthDate && p.birthDate.slice(5) === date.slice(5);
 export function basal(weight: number, p: Profile) {
+  const age = profileAge(p);
   if (
     !Number.isFinite(weight) ||
     weight < 20 ||
     weight > 400 ||
     p.height < 100 ||
     p.height > 250 ||
-    p.age < 18 ||
-    p.age > 100
+    age < 18 ||
+    age > 100
   )
     return null;
   return (
     10 * weight +
     6.25 * p.height -
-    5 * p.age +
+    5 * age +
     (p.formulaSex === "male" ? 5 : -161)
   );
 }
@@ -328,11 +345,15 @@ export function validState(v: unknown): v is State {
     typeof p.name === "string" &&
     typeof p.gender === "string" &&
     (p.photo === undefined || isPhotoPath(p.photo)) &&
+    (p.birthDate === undefined ||
+      (typeof p.birthDate === "string" &&
+        /^\d{4}-\d{2}-\d{2}$/.test(p.birthDate))) &&
     n(p.height, 100, 250) &&
     n(p.age, 18, 100) &&
     ["male", "female"].includes(p.formulaSex) &&
     [1.2, 1.375, 1.55, 1.725].includes(p.activity) &&
     n(s.goal, 0, 400) &&
+    (s.shareActivity === undefined || typeof s.shareActivity === "boolean") &&
     (s.accent === undefined ||
       (typeof s.accent === "string" && /^#[0-9a-f]{6}$/i.test(s.accent))) &&
     n(s.intake, 0, 10000) &&
