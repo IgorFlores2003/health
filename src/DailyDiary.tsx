@@ -35,7 +35,9 @@ export const balanceLabels = {
   near_balance: "Próximo do equilíbrio",
 };
 const kcal = (n: number | null) =>
-  n === null ? "—" : `${n.toLocaleString("pt-BR")} kcal`;
+  n === null
+    ? "—"
+    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`;
 export default function DailyDiary({
   state,
   setState,
@@ -315,7 +317,7 @@ export default function DailyDiary({
                           type="number"
                           min="0.1"
                           max="10000"
-                          step="0.1"
+                          step="any"
                           required
                           value={grams}
                           onChange={(e) => {
@@ -337,7 +339,7 @@ export default function DailyDiary({
                           type="number"
                           min="0"
                           max="900"
-                          step="0.1"
+                          step="any"
                           value={per100}
                           onChange={(e) => {
                             setPer100(e.target.value);
@@ -374,11 +376,7 @@ export default function DailyDiary({
                       Nesta porção:{" "}
                       <strong className="font-semibold text-ink-900 tabular-nums">
                         {per100 !== "" && grams !== ""
-                          ? kcal(
-                              Math.round(
-                                (Number(per100) * Number(grams)) / 100,
-                              ),
-                            )
+                          ? kcal((Number(per100) * Number(grams)) / 100)
                           : "calorias pendentes"}
                       </strong>{" "}
                       {source === "ai" ? "· estimativa da IA" : ""}

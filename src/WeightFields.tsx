@@ -34,7 +34,7 @@ export default function WeightFields({ initial }: { initial?: Weight }) {
           inputMode="decimal"
           min="20"
           max="400"
-          step="0.1"
+          step="any"
           required
           defaultValue={initial?.value}
           placeholder="Ex.: 78,5"

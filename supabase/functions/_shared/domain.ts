@@ -191,22 +191,29 @@ export function projection(
 export const MAX_EXERCISE_PHOTOS = 6;
 /** Limite de fotos por registro na hora de escolher. */
 export const MAX_PHOTOS = 5;
-/** "01:05" → 65 minutos; null se o texto não for hh:mm válido. */
+/**
+ * "01:05:20" (ou "01:05") → minutos, com os segundos como fração
+ * (65,333…); null se o texto não for hh:mm:ss / hh:mm válido.
+ */
 export function parseDuration(text: string) {
-  const m = /^(\d{1,2}):([0-5]\d)$/.exec(text.trim());
-  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  const m = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(text.trim());
+  return m
+    ? Number(m[1]) * 60 + Number(m[2]) + Number(m[3] ?? 0) / 60
+    : null;
 }
-/** 65 → "01:05" (formato do campo de duração). */
+const two = (n: number) => String(n).padStart(2, "0");
+/** Minutos → "hh:mm:ss" exato (formato do campo de duração). */
 export function formatDuration(minutes: number) {
-  const m = Math.round(minutes);
-  return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  const s = Math.round(minutes * 60);
+  return `${two(Math.floor(s / 3600))}:${two(Math.floor(s / 60) % 60)}:${two(s % 60)}`;
 }
-/** 34 → "34 min", 65 → "1h05" (para listas). */
+/** 34 → "34 min", 59,67 → "59 min 40 s", 65 → "1h05" (para listas). */
 export function durationLabel(minutes: number) {
-  const m = Math.round(minutes);
-  return m < 60
-    ? `${m} min`
-    : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
+  const s = Math.round(minutes * 60);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor(s / 60) % 60;
+  const sec = s % 60 ? ` ${s % 60} s` : "";
+  return h ? `${h}h${two(m)}${sec}` : `${m} min${sec}`;
 }
 export const EXERCISE_TYPES = [
   "Caminhada",

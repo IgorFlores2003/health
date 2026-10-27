@@ -56,11 +56,10 @@ function Terms() {
         para preencher campos ou responder perguntas. Só envie conteúdo seu e
         evite incluir dados de outras pessoas.
       </p>
-      <H>6. Conteúdo de terceiros</H>
+      <H>6. Conteúdo educativo</H>
       <p>
-        A aba de vídeos exibe vídeos públicos do YouTube produzidos por
-        terceiros. O conteúdo é de responsabilidade dos autores, e o YouTube
-        tem termos e política de privacidade próprios.
+        Os vídeos da aba Vídeos trazem informação geral e não substituem a
+        orientação de um profissional de saúde.
       </p>
       <H>7. Disponibilidade e responsabilidade</H>
       <p>
@@ -136,10 +135,6 @@ function Privacy() {
           Google (Gemini API): recebe apenas o conteúdo necessário a cada
           pedido de IA (a foto, o áudio, a descrição do alimento ou a pergunta
           com o resumo numérico do dia). Nome e e-mail não são enviados.
-        </li>
-        <li>
-          YouTube: ao assistir a um vídeo educativo, o player do YouTube é
-          carregado no modo de privacidade aprimorada.
         </li>
         <li>Autoridades, quando houver obrigação legal ou ordem judicial.</li>
       </ul>

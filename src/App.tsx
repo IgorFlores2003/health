@@ -535,7 +535,15 @@ export default function App({ account }: { account: User }) {
     // Editar = substituir o registro de mesmo id.
     const id = editItem?.id ?? crypto.randomUUID();
     let next: State;
-    if (modal === "weight") {
+    if (modal === "water") {
+      next = {
+        ...state,
+        water: [
+          ...(state.water ?? []),
+          { id, date, ml: Number(f.get("ml")) },
+        ],
+      };
+    } else if (modal === "weight") {
       const value = Number(f.get("value"));
       next = {
         ...state,
@@ -564,8 +572,14 @@ export default function App({ account }: { account: User }) {
       const minutes = duration ? parseDuration(duration) : 0;
       const manualKcal =
         f.get("activeCalories") !== null && f.get("activeCalories") !== "";
-      if (minutes === null || minutes > 600 || (!manualKcal && minutes < 1)) {
-        setNotice("Informe a duração em horas e minutos, entre 00:01 e 10:00.");
+      if (
+        minutes === null ||
+        minutes > 600 ||
+        (!manualKcal && minutes * 60 < 1)
+      ) {
+        setNotice(
+          "Informe a duração em horas, minutos e segundos, entre 00:00:01 e 10:00:00.",
+        );
         return;
       }
       next = {
@@ -600,7 +614,9 @@ export default function App({ account }: { account: User }) {
     }
     if (!validState(next)) {
       setNotice(
-        "Confira os valores, a duração ou as calorias do exercício. Na pressão, a sistólica deve ser maior que a diastólica.",
+        modal === "water"
+          ? "Informe entre 1 e 5.000 ml."
+          : "Confira os valores, a duração ou as calorias do exercício. Na pressão, a sistólica deve ser maior que a diastólica.",
       );
       return;
     }
@@ -1231,7 +1247,7 @@ export default function App({ account }: { account: User }) {
             <>
               <PageTitle
                 title="Registros"
-                text="Peso, exercícios e pressão arterial."
+                text="Peso, exercícios, pressão arterial e água."
               />
               <div className="mb-5">
                 <ReportCard state={state} onError={setNotice} />
@@ -1255,8 +1271,14 @@ export default function App({ account }: { account: User }) {
                 >
                   <RiAddLine className="size-5" /> Pressão
                 </button>
+                <button
+                  className="btn-secondary"
+                  onClick={() => openRecord("water")}
+                >
+                  <RiAddLine className="size-5" /> Água
+                </button>
               </div>
-              <div className="grid gap-4 lg:grid-cols-3">
+              <div className="grid gap-4 lg:grid-cols-2">
                 {(["weights", "exercises", "pressures"] as const).map(
                   (kind, i) => (
                     <Panel key={kind}>
@@ -1366,6 +1388,69 @@ export default function App({ account }: { account: User }) {
                     </Panel>
                   ),
                 )}
+                <Panel>
+                  <h2 className="text-base font-semibold">Água</h2>
+                  {!state.water?.length ? (
+                    <p className="py-8 text-sm text-ink-500">
+                      Nenhum registro ainda.
+                    </p>
+                  ) : (
+                    <ul className="mt-2 divide-y divide-line">
+                      {[...new Set(state.water.map((w) => w.date))]
+                        .sort()
+                        .reverse()
+                        .map((date) => {
+                          const items = state.water!.filter(
+                            (w) => w.date === date,
+                          );
+                          return (
+                            <li key={date} className="py-3">
+                              <strong className="block font-semibold tabular-nums">
+                                {fmt(items.reduce((t, w) => t + w.ml, 0))} ml
+                              </strong>
+                              <small className="mt-0.5 block text-[13px] text-ink-500">
+                                {dateLabel(date)} {date.slice(0, 4)} ·{" "}
+                                {items.length} registro
+                                {items.length === 1 ? "" : "s"}
+                              </small>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {items.map((w) => (
+                                  <span
+                                    key={w.id}
+                                    className="inline-flex items-center gap-0.5 rounded-full bg-surface py-0.5 pr-0.5 pl-2.5 text-[13px] text-ink-700 tabular-nums"
+                                  >
+                                    {fmt(w.ml)} ml
+                                    <button
+                                      className="grid size-7 place-items-center rounded-full text-ink-400 hover:bg-white hover:text-brand-600"
+                                      aria-label={`Excluir ${w.ml} ml de ${dateLabel(date)}`}
+                                      onClick={async () => {
+                                        if (
+                                          await confirmDialog({
+                                            title: "Excluir registro de água?",
+                                            message: `${fmt(w.ml)} ml de ${dateLabel(date)} saem do histórico.`,
+                                            confirmLabel: "Excluir",
+                                            danger: true,
+                                          })
+                                        )
+                                          setState((s) => ({
+                                            ...s,
+                                            water: (s.water ?? []).filter(
+                                              (x) => x.id !== w.id,
+                                            ),
+                                          }));
+                                      }}
+                                    >
+                                      <RiCloseLine className="size-4" />
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                            </li>
+                          );
+                        })}
+                    </ul>
+                  )}
+                </Panel>
               </div>
             </>
           )}
@@ -1832,7 +1917,9 @@ export default function App({ account }: { account: User }) {
                   ? "peso"
                   : modal === "exercise"
                     ? "exercício"
-                    : "pressão"}
+                    : modal === "water"
+                      ? "água"
+                      : "pressão"}
               </h2>
               <button
                 className="icon-btn -mr-2"
@@ -1861,7 +1948,22 @@ export default function App({ account }: { account: User }) {
                   required
                 />
               </Field>
-              {modal === "weight" ? (
+              {modal === "water" ? (
+                <label className="block">
+                  <span className="label">Quantidade (ml)</span>
+                  <input
+                    className="input"
+                    name="ml"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="5000"
+                    step="any"
+                    required
+                    defaultValue={state.hydration?.cupMl ?? 250}
+                  />
+                </label>
+              ) : modal === "weight" ? (
                 <WeightFields
                   initial={
                     editItem && "value" in editItem ? editItem : undefined

@@ -9,12 +9,12 @@ import PhotoField from "./PhotoField";
 import { fill, readImage, type ExerciseReading } from "./readImage";
 import { readAudio } from "./voice";
 import VoiceButton from "./VoiceButton";
-/** Máscara do campo hh:mm: os dígitos entram pela direita (3 → 00:03, 34 → 00:34, 134 → 01:34). */
+/** Máscara do campo hh:mm:ss: os dígitos entram pela direita (3420 → 00:34:20). */
 function maskDuration(value: string) {
-  const digits = value.replace(/\D/g, "").replace(/^0+/, "").slice(-4);
+  const digits = value.replace(/\D/g, "").replace(/^0+/, "").slice(-6);
   if (!digits) return "";
-  const padded = digits.padStart(4, "0");
-  return `${padded.slice(0, 2)}:${padded.slice(2)}`;
+  const padded = digits.padStart(6, "0");
+  return `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4)}`;
 }
 export default function ExerciseFields({ initial }: { initial?: Exercise }) {
   const [manual, setManual] = useState(initial?.activeCalories !== undefined);
@@ -89,7 +89,7 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
             type="number"
             min="0"
             max="10000"
-            step="1"
+            step="any"
             required
             defaultValue={initial?.activeCalories}
             placeholder="Ex.: 250"
@@ -98,18 +98,18 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       )}
       <label className="block">
         <span className="label">
-          Duração (hh:mm){manual ? " · opcional" : ""}
+          Duração (hh:mm:ss){manual ? " · opcional" : ""}
         </span>
         <input
           className="input tabular-nums"
           name="duration"
           inputMode="numeric"
           autoComplete="off"
-          pattern="\d{2}:[0-5]\d"
-          title="Use horas e minutos, como 00:34 ou 01:05"
+          pattern="\d{2}:[0-5]\d:[0-5]\d"
+          title="Use horas, minutos e segundos, como 00:34:20 ou 01:05:00"
           required={!manual}
           defaultValue={initial?.minutes ? formatDuration(initial.minutes) : ""}
-          placeholder="00:30"
+          placeholder="00:30:00"
           onChange={(e) => {
             e.currentTarget.value = maskDuration(e.currentTarget.value);
           }}
@@ -125,7 +125,7 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
             inputMode="decimal"
             min="0.01"
             max="1000"
-            step="0.01"
+            step="any"
             defaultValue={initial?.distanceKm}
             placeholder="Opcional"
           />
@@ -139,7 +139,7 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
             inputMode="numeric"
             min="0"
             max="10000"
-            step="1"
+            step="any"
             defaultValue={initial?.elevationM}
             placeholder="Opcional"
           />

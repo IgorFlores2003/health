@@ -74,15 +74,19 @@ test("blood pressure records keep the monitor photo path", () => {
     false,
   );
 });
-test("exercise duration uses hh:mm and keeps elevation and pulse", async () => {
+test("exercise duration keeps exact seconds, elevation and pulse elevation and pulse", async () => {
   const { parseDuration, formatDuration, durationLabel } =
     await import("../src/domain.ts");
   assert.equal(parseDuration("00:34"), 34);
   assert.equal(parseDuration("01:05"), 65);
   assert.equal(parseDuration("1:60"), null);
   assert.equal(parseDuration("34"), null);
-  assert.equal(formatDuration(59.7), "01:00");
+  assert.equal(parseDuration("00:59:40") * 60, 3580);
+  assert.equal(parseDuration("00:59:60"), null);
+  assert.equal(formatDuration(3580 / 60), "00:59:40");
+  assert.equal(formatDuration(65), "01:05:00");
   assert.equal(durationLabel(34), "34 min");
+  assert.equal(durationLabel(3580 / 60), "59 min 40 s");
   assert.equal(durationLabel(65), "1h05");
   const base = { ...initial, profile: { ...initial.profile } };
   const ex = {

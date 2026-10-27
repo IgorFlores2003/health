@@ -10,7 +10,7 @@ import {
 export const foodCalories = (food: Food) =>
   food.kcalPer100g === null
     ? null
-    : Math.round((food.grams * food.kcalPer100g) / 100);
+    : (food.grams * food.kcalPer100g) / 100;
 export function weightAtDate(state: State, date: string) {
   return byDate(state.weights.filter((w) => w.date <= date)).at(-1)?.value ?? 0;
 }
@@ -100,7 +100,7 @@ export function exerciseMet(ex: Exercise): number | null {
 export function exerciseEnergy(ex: Exercise, weight: number) {
   if (ex.activeCalories !== undefined)
     return {
-      calories: Math.round(ex.activeCalories),
+      calories: ex.activeCalories,
       source: "informado" as const,
       met: null,
     };
