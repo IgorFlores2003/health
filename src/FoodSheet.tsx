@@ -4,7 +4,13 @@ import { RiChat3Line, RiCheckLine } from "react-icons/ri";
 import MealPhoto from "./MealPhoto";
 import Sheet from "./Sheet";
 import { reopenDay } from "./energy";
-import { today, validState, type Food, type State } from "./domain";
+import {
+  foodUnit,
+  today,
+  validState,
+  type Food,
+  type State,
+} from "./domain";
 import { supabase } from "./supabase";
 
 const kcal = (n: number | null) =>
@@ -16,7 +22,12 @@ const kcal = (n: number | null) =>
 // mesmo jeito volta na hora, sem chamar a IA de novo.
 const CACHE_KEY = "ritmo-food-estimates";
 const MAX_CACHED = 300;
-type Estimate = { kcalPer100g: number; portionGrams: number | null; note: string };
+type Estimate = {
+  kcalPer100g: number;
+  portionGrams: number | null;
+  liquid?: boolean;
+  note: string;
+};
 const cacheKey = (name: string) =>
   name.trim().toLowerCase().replace(/\s+/g, " ");
 function readCache(): Record<string, Estimate> {
@@ -71,6 +82,7 @@ export default function FoodSheet({
   const [name, setName] = useState(food?.name ?? "");
   const [grams, setGrams] = useState(food ? String(food.grams) : "");
   const [gramsFromAi, setGramsFromAi] = useState(false);
+  const [unit, setUnit] = useState<"g" | "ml">(food ? foodUnit(food) : "g");
   const [per100, setPer100] = useState(
     food?.kcalPer100g == null ? "" : String(food.kcalPer100g),
   );
@@ -113,6 +125,7 @@ export default function FoodSheet({
         throw Error();
       setPer100(String(data.kcalPer100g));
       setSource("ai");
+      if (typeof data.liquid === "boolean") setUnit(data.liquid ? "ml" : "g");
       // Sem balança: usa o peso médio das unidades descritas ("3 ovos"),
       // sem sobrescrever gramas que a pessoa pesou.
       if (
@@ -145,6 +158,7 @@ export default function FoodSheet({
       name: name.trim(),
       grams: Number(grams),
       kcalPer100g: per100.trim() === "" ? null : Number(per100),
+      unit,
       source:
         per100.trim() === "" ? "pending" : source === "ai" ? "ai" : "label",
       note,
@@ -190,6 +204,7 @@ export default function FoodSheet({
                       name: x.name,
                       grams: x.grams,
                       kcalPer100g: x.kcalPer100g,
+                      unit: x.liquid ? ("ml" as const) : ("g" as const),
                       source: "ai" as const,
                       note: (
                         "Estimado pela foto do prato. " + note
@@ -244,11 +259,34 @@ export default function FoodSheet({
                   placeholder="Ex.: arroz branco cozido, sem óleo"
                 />
               </label>
+              <div
+                className="flex rounded-lg border border-line p-0.5"
+                role="radiogroup"
+                aria-label="Tipo de alimento"
+              >
+                {(
+                  [
+                    ["g", "Sólido (g)"],
+                    ["ml", "Líquido (ml)"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    role="radio"
+                    aria-checked={unit === id}
+                    className={`min-h-9 flex-1 rounded-md px-3 text-sm font-medium ${unit === id ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-surface"}`}
+                    onClick={() => setUnit(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className="label">Quantidade</span>
                   <NumberField
-                    unit="g"
+                    unit={unit}
                     min={0.1}
                     max={10000}
                     required
@@ -261,12 +299,12 @@ export default function FoodSheet({
                   />
                   {gramsFromAi && (
                     <span className="hint block">
-                      Peso médio estimado
+                      {unit === "ml" ? "Volume médio estimado" : "Peso médio estimado"}
                     </span>
                   )}
                 </label>
                 <label className="block">
-                  <span className="label">Calorias por 100 g</span>
+                  <span className="label">Calorias por 100 {unit}</span>
                   <NumberField
                     unit="kcal"
                     decimals={1}
@@ -294,8 +332,8 @@ export default function FoodSheet({
                 </button>
                 <p className="hint">
                   Não pesou? Escreva a quantidade (ex.: "3 ovos cozidos",
-                  "2 fatias de pão de forma") e a IA estima o peso médio e
-                  as calorias. A IA recebe só a descrição. Prefira o
+                  "1 copo de suco de laranja") e a IA estima a quantidade
+                  média, se é sólido ou líquido, e as calorias. A IA recebe só a descrição. Prefira o
                   rótulo e a balança quando houver.
                 </p>
               </div>

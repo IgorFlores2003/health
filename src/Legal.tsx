@@ -238,7 +238,8 @@ function Formulas() {
         para um treino nunca contar duas vezes.
       </F>
       <F name="Calorias de um alimento">
-        Gramas × kcal por 100 g ÷ 100.
+        Quantidade × kcal por 100 ÷ 100. Sólidos em gramas (kcal por 100 g);
+        líquidos em ml (kcal por 100 ml).
       </F>
       <F name="Saldo do dia">
         Consumo − gasto do dia. Até ±100 kcal é “próximo do equilíbrio”; só é
@@ -268,7 +269,7 @@ function Formulas() {
       </F>
       <H>Água</H>
       <F name="Meta de água">
-        35 ml × peso (kg), arredondada a 50 ml. Usa o último peso até a data.
+        35 ml × peso (kg), sem arredondar. Usa o último peso até a data.
       </F>
       <F name="Água do dia">Soma de todos os registros de água da data.</F>
       <H>Relatório</H>

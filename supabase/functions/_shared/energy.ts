@@ -109,7 +109,7 @@ export function exerciseEnergy(ex: Exercise, weight: number) {
     return { calories: null, source: "pendente" as const, met };
   // Net exercise expenditure: rest is already included in the daily baseline.
   return {
-    calories: Math.round(((met - 1) * weight * ex.minutes) / 60),
+    calories: ((met - 1) * weight * ex.minutes) / 60,
     source: "estimado" as const,
     met,
   };
@@ -119,10 +119,10 @@ export function dailyEnergy(state: State, date: string) {
   const exercises = state.exercises.filter((e) => e.date === date);
   const weight = weightAtDate(state, date);
   const bmr = state.profileReviewed ? basal(weight, state.profile) : null;
-  const baseline = bmr === null ? null : Math.round(bmr * 1.2);
+  const baseline = bmr === null ? null : bmr * 1.2;
   // Gasto pelo nível de atividade do perfil (já inclui treinos habituais).
   const habitual =
-    bmr === null ? null : Math.round(bmr * state.profile.activity);
+    bmr === null ? null : bmr * state.profile.activity;
   const foodMissing = foods.filter((f) => foodCalories(f) === null).length;
   const exerciseValues = exercises.map((e) => ({
     ...e,

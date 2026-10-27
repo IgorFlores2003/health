@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { durationLabel, type State } from "./domain";
+import { durationLabel, foodUnit, type State } from "./domain";
 import { foodCalories } from "./energy";
 import type { Report, ReportDay } from "./report";
 import { palette, toRgb } from "./theme";
@@ -246,7 +246,7 @@ export function buildReportPdf(state: State, r: Report) {
         return [
           date(f.date),
           f.name,
-          `${br(f.grams)} g`,
+          `${br(f.grams)} ${foodUnit(f)}`,
           kcal === null ? "pendente" : br(Math.round(kcal)),
           f.source === "ai" ? "IA" : f.source === "label" ? "rótulo" : "-",
         ];

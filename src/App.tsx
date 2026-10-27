@@ -65,6 +65,7 @@ import {
   byDate,
   currentWeight,
   durationLabel,
+  foodUnit,
   initial,
   MAX_PHOTOS,
   minimumIntake,
@@ -1546,7 +1547,7 @@ export default function App({ account }: { account: User }) {
                                           {f.name}
                                         </span>
                                         <span className="text-ink-500 tabular-nums">
-                                          {fmt(f.grams)} g ·{" "}
+                                          {fmt(f.grams)} {foodUnit(f)} ·{" "}
                                           {c === null
                                             ? "calorias pendentes"
                                             : `${c.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`}

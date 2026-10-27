@@ -67,10 +67,11 @@ test("backup rejects corrupted records and pressure inversion", () => {
   );
   assert.equal(validState({}), false);
 });
-test("water goal is 35 ml/kg rounded to 50 ml", async () => {
+test("water goal is exactly 35 ml/kg", async () => {
   const { waterGoal } = await import("../src/domain.ts");
   assert.equal(waterGoal(80), 2800);
-  assert.equal(waterGoal(63), 2200);
+  assert.equal(waterGoal(63), 2205);
+  assert.equal(waterGoal(78.5), 2747.5);
   assert.equal(waterGoal(0), null);
 });
 test("intake target loses, gains or maintains, never below the safe minimum", async () => {
@@ -109,4 +110,23 @@ test("water entries and hydration settings are validated", () => {
     validState({ ...base, hydration: { ...hydration, startHour: 23 } }),
     false,
   );
+});
+test("liquid foods keep ml and old foods default to grams", async () => {
+  const { foodUnit } = await import("../src/domain.ts");
+  const { foodCalories } = await import("../src/energy.ts");
+  const juice = {
+    id: "j",
+    date: "2026-10-26",
+    name: "Suco de laranja",
+    grams: 250,
+    kcalPer100g: 45,
+    source: "ai",
+    unit: "ml",
+  };
+  assert.equal(validState({ ...initial, foods: [juice] }), true);
+  assert.equal(foodUnit(juice), "ml");
+  assert.equal(foodCalories(juice), 112.5);
+  const { unit: _u, ...old } = juice;
+  assert.equal(foodUnit(old), "g");
+  assert.equal(validState({ ...initial, foods: [{ ...juice, unit: "l" }] }), false);
 });

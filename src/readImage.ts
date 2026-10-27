@@ -13,7 +13,13 @@ export type ExerciseReading = {
 };
 export type ScaleReading = { weight: number | null; note: string };
 export type MealReading = {
-  items: { name: string; grams: number; kcalPer100g: number }[];
+  /** liquid: quantidade em ml e kcal por 100 ml. */
+  items: {
+    name: string;
+    grams: number;
+    kcalPer100g: number;
+    liquid?: boolean;
+  }[];
   note: string;
 };
 export type PressureReading = {

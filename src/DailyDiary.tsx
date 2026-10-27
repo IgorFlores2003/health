@@ -21,6 +21,7 @@ import { WaterCard } from "./Water";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import {
   durationLabel,
+  foodUnit,
   today,
   validState,
   type State,
@@ -181,7 +182,7 @@ export default function DailyDiary({
                     {food.name}
                   </strong>
                   <small className="mt-0.5 block text-[13px] text-ink-500">
-                    {food.grams} g ·{" "}
+                    {food.grams.toLocaleString("pt-BR")} {foodUnit(food)} ·{" "}
                     {foodCalories(food) === null
                       ? "calorias pendentes"
                       : kcal(foodCalories(food))}{" "}

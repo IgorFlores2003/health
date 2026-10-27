@@ -56,4 +56,4 @@ Teste de entrega: registrar 150 g de alimento com 130 kcal/100 g deve produzir 1
 
 ## Água
 
-Meta = 35 ml × peso (kg), arredondada a 50 ml (`waterGoal`). Cada toque em "Bebi" grava um registro `{ date, ml }` em `state.water` com o copo escolhido (`state.hydration.cupMl`). Os lembretes (`src/reminders.ts`) são notificações locais do Capacitor, repetidas todo dia nos horários entre o início e o fim configurados; só funcionam no app Android.
+Meta = 35 ml × peso (kg), sem arredondar (`waterGoal`). Cada toque em "Bebi" grava um registro `{ date, ml }` em `state.water` com o copo escolhido (`state.hydration.cupMl`). Os lembretes (`src/reminders.ts`) são notificações locais do Capacitor, repetidas todo dia nos horários entre o início e o fim configurados; só funcionam no app Android.

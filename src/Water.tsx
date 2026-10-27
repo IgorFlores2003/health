@@ -64,8 +64,8 @@ export function LitersInput({
 }
 const ml = (n: number) =>
   n >= 1000
-    ? `${(n / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} L`
-    : `${n} ml`;
+    ? `${(n / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 4 })} L`
+    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ml`;
 
 /** Água do dia: meta por peso, botão do copo e desfazer. */
 export function WaterCard({

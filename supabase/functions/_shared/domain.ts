@@ -42,8 +42,12 @@ export type Food = {
   id: string;
   date: string;
   name: string;
+  /** Quantidade: gramas, ou ml quando unit = "ml" (líquidos). */
   grams: number;
+  /** kcal por 100 g, ou por 100 ml nos líquidos. */
   kcalPer100g: number | null;
+  /** Unidade da quantidade; sem ela, gramas (registros antigos). */
+  unit?: "g" | "ml";
   source: "label" | "ai" | "pending";
   note?: string;
 };
@@ -116,17 +120,24 @@ export function basal(weight: number, p: Profile) {
     p.age > 100
   )
     return null;
-  return Math.round(
+  return (
     10 * weight +
-      6.25 * p.height -
-      5 * p.age +
-      (p.formulaSex === "male" ? 5 : -161),
+    6.25 * p.height -
+    5 * p.age +
+    (p.formulaSex === "male" ? 5 : -161)
   );
 }
-/** Meta de água: 35 ml por kg, arredondada a 50 ml. */
+/**
+ * Número em pt-BR para a tela. Os cálculos guardam o valor exato; aqui só
+ * se corta o ruído do ponto flutuante (2.136,0000000000002) em até 2 casas.
+ */
+export const num = (n: number) =>
+  n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+/** Meta de água: 35 ml por kg, sem arredondar. */
 export function waterGoal(weight: number) {
   if (!Number.isFinite(weight) || weight < 20 || weight > 400) return null;
-  return Math.round((weight * 35) / 50) * 50;
+  // Em ml inteiros para evitar 2.204,9999 do ponto flutuante (63 × 35).
+  return Math.round(weight * 35 * 1000) / 1000;
 }
 /**
  * Menor meta de consumo aceita: nunca abaixo do basal estimado, nem abaixo
@@ -151,7 +162,7 @@ export const GOAL_ADJUST: Record<GoalDirection, number> = {
 };
 /**
  * Meta de consumo do dia, sempre calculada pelo app: gasto estimado do dia
- * mais o ajuste do objetivo, arredondada a 10 kcal e nunca abaixo de
+ * mais o ajuste do objetivo, sem arredondar e nunca abaixo de
  * minimumIntake.
  */
 export function intakeTarget(
@@ -169,7 +180,7 @@ export function intakeTarget(
     floor,
     /** O ajuste para perder bateu no mínimo seguro. */
     limited: raw < floor,
-    target: Math.round(Math.max(raw, floor) / 10) * 10,
+    target: Math.max(raw, floor),
   };
 }
 /**
@@ -185,7 +196,7 @@ export function projection(
   if (goal <= 0 || goal === weight || intake <= 0) return null;
   const needed = goal > weight ? intake - expenditure : expenditure - intake;
   if (needed < 100 || needed > 1000) return null;
-  return Math.ceil((Math.abs(weight - goal) * 7700) / needed);
+  return (Math.abs(weight - goal) * 7700) / needed;
 }
 /** Limite aceito ao validar dados já salvos (registros antigos podiam ter 6). */
 export const MAX_EXERCISE_PHOTOS = 6;
@@ -236,6 +247,8 @@ export function isPhotoPath(v: unknown): v is string {
     )
   );
 }
+/** Unidade da quantidade de um alimento ("g" ou "ml"). */
+export const foodUnit = (f: { unit?: "g" | "ml" }) => f.unit ?? "g";
 export const byDate = <T extends { date: string }>(items: T[]) =>
   [...items].sort((a, b) => a.date.localeCompare(b.date));
 export const currentWeight = (s: State) => byDate(s.weights).at(-1)?.value ?? 0;
@@ -282,6 +295,7 @@ export function validState(v: unknown): v is State {
             n(x.grams, 0.1, 10000) &&
             (x.kcalPer100g === null || n(x.kcalPer100g, 0, 900)) &&
             ["label", "ai", "pending"].includes(x.source) &&
+            (x.unit === undefined || x.unit === "g" || x.unit === "ml") &&
             (x.source === "pending") === (x.kcalPer100g === null) &&
             (x.note === undefined ||
               (typeof x.note === "string" && x.note.length <= 500)),

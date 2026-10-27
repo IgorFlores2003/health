@@ -174,10 +174,10 @@ export default function MealPhoto({
                       />
                       <NumberField
                         className="w-28"
-                        unit="g"
+                        unit={x.liquid ? "ml" : "g"}
                         min={1}
                         max={3000}
-                        aria-label="Gramas"
+                        aria-label={x.liquid ? "Mililitros" : "Gramas"}
                         value={x.grams || null}
                         onChange={(v) => set(i, { grams: v ?? 0 })}
                         placeholder="0"
@@ -209,9 +209,10 @@ export default function MealPhoto({
                     disabled={!chosen.length}
                     onClick={() => {
                       onAdd(
-                        chosen.map(({ name, grams, kcalPer100g }) => ({
+                        chosen.map(({ name, grams, kcalPer100g, liquid }) => ({
                           name: name.trim(),
                           grams,
+                          liquid,
                           kcalPer100g,
                         })),
                         note,
