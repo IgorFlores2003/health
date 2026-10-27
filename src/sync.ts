@@ -107,7 +107,18 @@ export function useCloudSync(
         });
         return setStatus("saved");
       }
-      if (!validState(local)) return setStatus("offline");
+      // Dados deste aparelho que não passam na validação não podem subir:
+      // em vez de travar em silêncio, fica com a cópia da conta.
+      if (!validState(local)) {
+        if (!remote) return setStatus("offline");
+        adopt(remote.payload);
+        update({
+          dirty: false,
+          syncedAt: remote.updated_at,
+          base: remote.payload,
+        });
+        return setStatus("saved");
+      }
       let next = local;
       if (remote && remote.updated_at !== meta.current.syncedAt)
         next = mergeStates(
@@ -199,5 +210,24 @@ export function useCloudSync(
     return () => clearTimeout(id);
   }, [state, sync, update]);
 
-  return { status, syncNow: sync };
+  /**
+   * Descarta o que só existe neste aparelho e usa a cópia da conta (para
+   * quando os aparelhos ficaram diferentes).
+   */
+  const useAccountCopy = useCallback(async () => {
+    const db = supabase;
+    if (!db) return false;
+    const { data, error } = await db
+      .from("health_snapshots")
+      .select("payload, updated_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error || !data || !validState(data.payload)) return false;
+    adopt(data.payload);
+    update({ dirty: false, syncedAt: data.updated_at, base: data.payload });
+    setStatus("saved");
+    return true;
+  }, [userId, adopt, update]);
+
+  return { status, syncNow: sync, useAccountCopy };
 }

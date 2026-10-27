@@ -62,6 +62,7 @@ import {
   RiImageLine,
   RiChat3Fill,
   RiChat3Line,
+  RiRefreshLine,
   RiLogoutBoxRLine,
   RiMenuLine,
   RiNotification3Fill,
@@ -2072,6 +2073,48 @@ export default function App({ account }: { account: User }) {
                       recovery={false}
                       onRecovered={() => {}}
                     />
+                    <div className="mt-4 rounded-lg bg-surface p-3 text-sm">
+                      <p className="font-medium">
+                        Celular e computador diferentes?
+                      </p>
+                      <p className="mt-0.5 text-ink-500">
+                        Sincronize agora. Se continuar diferente, use os dados
+                        da conta: o que só existe neste aparelho é descartado.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          className="btn-secondary min-h-9 px-3 text-sm"
+                          onClick={() =>
+                            void sync
+                              .syncNow()
+                              .then(() => setNotice("Sincronizado."))
+                          }
+                        >
+                          <RiRefreshLine className="size-4" /> Sincronizar agora
+                        </button>
+                        <button
+                          className="btn-ghost min-h-9 px-3 text-sm"
+                          onClick={async () => {
+                            if (
+                              !(await confirmDialog({
+                                title: "Usar os dados da conta?",
+                                message:
+                                  "Este aparelho passa a mostrar exatamente o que está salvo na conta. Alterações feitas só aqui e não enviadas serão descartadas.",
+                                confirmLabel: "Usar os da conta",
+                              }))
+                            )
+                              return;
+                            setNotice(
+                              (await sync.useAccountCopy())
+                                ? "Pronto: este aparelho está igual à conta."
+                                : "Não foi possível baixar da conta. Confira a internet.",
+                            );
+                          }}
+                        >
+                          Usar os dados da conta neste aparelho
+                        </button>
+                      </div>
+                    </div>
                     <button
                       className="btn-ghost mt-3 -ml-2 text-brand-700"
                       onClick={signOut}
