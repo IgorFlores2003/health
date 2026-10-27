@@ -11,7 +11,7 @@ function inline(text: string): ReactNode[] {
           {part.slice(2, -2)}
         </strong>
       ) : (
-        part.replace(/(^|\s)\*(\S[^*]*?)\*(?=\s|$|[.,;:!?])/g, "$1$2")
+        part.replace(/\*/g, "")
       ),
     );
 }

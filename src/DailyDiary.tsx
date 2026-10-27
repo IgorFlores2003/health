@@ -18,6 +18,7 @@ import {
 import { confirmDialog } from "./confirm";
 import MealPhoto from "./MealPhoto";
 import Sheet from "./Sheet";
+import { WaterCard } from "./Water";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import {
   durationLabel,
@@ -187,13 +188,14 @@ export default function DailyDiary({
           />
         </label>
       </div>
-      <div className="mb-4">
+      <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <CalorieBudget
           state={state}
           date={date}
           onProfile={onProfile}
           onWeight={onWeight}
         />
+        <WaterCard state={state} setState={setState} date={date} />
       </div>
       <section className="card mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-2 text-sm text-ink-500">

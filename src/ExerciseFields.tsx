@@ -6,7 +6,9 @@ import {
   type Exercise,
 } from "./domain";
 import PhotoField from "./PhotoField";
-import { fill, readImage } from "./readImage";
+import { fill, readImage, type ExerciseReading } from "./readImage";
+import { readAudio } from "./voice";
+import VoiceButton from "./VoiceButton";
 /** Máscara do campo hh:mm: os dígitos entram pela direita (3 → 00:03, 34 → 00:34, 134 → 01:34). */
 function maskDuration(value: string) {
   const digits = value.replace(/\D/g, "").replace(/^0+/, "").slice(-4);
@@ -24,8 +26,7 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       pending.current = null;
     }
   }, [manual]);
-  async function onRead(file: File, form: HTMLFormElement | null) {
-    const r = await readImage("exercise", file);
+  function apply(r: ExerciseReading, form: HTMLFormElement | null, empty: string) {
     const found = [
       fill(form, "type", r.type),
       fill(form, "date", r.date),
@@ -39,12 +40,25 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       else setManual(true);
     }
     if (!found && r.activeCalories === null)
-      throw Error("Não encontramos dados de treino na imagem. Preencha à mão.");
-    return `${r.note || "Dados lidos da imagem."} Confira os campos antes de salvar.`;
+      throw Error(empty);
+    return `${r.note || "Dados preenchidos."} Confira os campos antes de salvar.`;
   }
   // "contents": os campos entram direto no grid de 2 colunas do modal.
   return (
     <div className="contents">
+      <div className="md:col-span-2">
+        <VoiceButton
+          label="Descrever o treino"
+          hint='Ex.: "corri 5 km em 32 minutos ontem". A IA preenche os campos; você confere antes de salvar.'
+          onAudio={async (audio, form) =>
+            apply(
+              await readAudio("exercise", audio),
+              form,
+              "Não entendemos o treino. Tente de novo ou preencha à mão.",
+            )
+          }
+        />
+      </div>
       <label className="block">
         <span className="label">Tipo de exercício</span>
         <select name="type" className="input" defaultValue={initial?.type}>
@@ -148,7 +162,13 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
           label="Fotos · opcional"
           max={MAX_PHOTOS}
           hint={`Até ${MAX_PHOTOS} fotos, como o print do Strava ou do relógio. Com "Preencher com a IA", a primeira imagem é enviada ao Gemini para ler tipo, data, duração, distância e elevação; corte o print se não quiser enviar nome ou mapa.`}
-          onRead={onRead}
+          onRead={async (file, form) =>
+            apply(
+              await readImage("exercise", file),
+              form,
+              "Não encontramos dados de treino na imagem. Preencha à mão.",
+            )
+          }
           saved={initial?.photos}
         />
       </div>

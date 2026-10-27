@@ -74,8 +74,8 @@ export default function CalorieBudget({
           <Row
             label={
               b.source === "goal"
-                ? "Meta de consumo (aba Meta)"
-                : "Gasto estimado sem exercícios"
+                ? "Meta de consumo (definida por você)"
+                : "Meta de consumo (automática)"
             }
             value={kcal(b.target)}
           />
@@ -139,10 +139,15 @@ function Notes({
       `${b.foodMissing} alimento(s) sem calorias não entraram na conta.`,
     b.exerciseMissing > 0 &&
       `${b.exerciseMissing} exercício(s) sem calorias não foram somados.`,
-    b.belowBasal &&
-      "Sua meta de consumo está abaixo do gasto basal estimado. Revise com um profissional de saúde.",
-    b.source === "maintenance" &&
-      "Sem meta de consumo definida, usamos o gasto estimado para manter o peso.",
+    b.raised &&
+      `Sua meta de consumo está abaixo do mínimo seguro (${kcal(b.floor)}), então usamos o mínimo. Para comer menos que isso, só com acompanhamento profissional.`,
+    b.source === "auto" &&
+      {
+        floor:
+          "Meta automática: o mínimo seguro para você (nunca abaixo do basal).",
+        loss: "Meta automática: gasto estimado menos 500 kcal, para perder peso sem passar do mínimo seguro.",
+        maintain: "Meta automática: gasto estimado para manter o peso.",
+      }[b.autoReason],
   ].filter(Boolean) as string[];
   return (
     <div className="mt-4 space-y-1 text-[13px] leading-relaxed text-ink-500">

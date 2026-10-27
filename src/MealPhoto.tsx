@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { RiCameraLine, RiCheckLine, RiSparkling2Line } from "react-icons/ri";
 import { readImage, type MealReading } from "./readImage";
+import { readAudio } from "./voice";
+import VoiceButton from "./VoiceButton";
 
 type Item = MealReading["items"][number] & { on: boolean };
 const kcal = (n: number) => `${Math.round(n).toLocaleString("pt-BR")} kcal`;
@@ -32,20 +34,23 @@ export default function MealPhoto({
   const [error, setError] = useState("");
 
   async function read(file: File) {
+    setPreview(URL.createObjectURL(file));
+    await review(
+      () => readImage("meal", file),
+      "Não reconhecemos alimentos na foto. Tente outra foto, de cima e com boa luz, ou registre à mão.",
+    );
+  }
+  async function review(load: () => Promise<MealReading>, empty: string) {
     setBusy(true);
     setError("");
     setItems(null);
-    setPreview(URL.createObjectURL(file));
     try {
-      const r = await readImage("meal", file);
-      if (!r.items?.length)
-        throw Error(
-          "Não reconhecemos alimentos na foto. Tente outra foto, de cima e com boa luz, ou registre à mão.",
-        );
+      const r = await load();
+      if (!r.items?.length) throw Error(empty);
       setItems(r.items.map((x) => ({ ...x, on: true })));
       setNote(r.note);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Não foi possível ler a foto.");
+      setError(e instanceof Error ? e.message : "Não foi possível ler.");
     } finally {
       setBusy(false);
     }
@@ -75,7 +80,11 @@ export default function MealPhoto({
           )}
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">
-              {busy ? "Analisando a foto…" : "Foto do prato"}
+              {busy
+                ? preview
+                  ? "Analisando a foto…"
+                  : "Entendendo o áudio…"
+                : "Foto do prato"}
             </p>
             <p className="mt-0.5 text-[13px] text-ink-500">
               {busy
@@ -103,6 +112,22 @@ export default function MealPhoto({
           </label>
         </div>
       )}
+      {!items && (
+        <div className="mt-3">
+          <VoiceButton
+            label="Falar o que comeu"
+            hint='Ex.: "2 ovos mexidos, 1 pão francês e café com leite". A IA estima porções e calorias; você confere antes de adicionar.'
+            disabled={disabled || busy}
+            onAudio={async (audio) => {
+              setPreview("");
+              await review(
+                () => readAudio("meal", audio),
+                "Não entendemos os alimentos. Tente de novo ou registre à mão.",
+              );
+            }}
+          />
+        </div>
+      )}
       {(error || items) && (
         <div className="mt-3 rounded-lg border border-line bg-surface p-4">
           {error ? (
@@ -119,7 +144,9 @@ export default function MealPhoto({
                     className="size-14 shrink-0 rounded-lg object-cover"
                   />
                 )}
-                <p className="text-sm font-semibold">O que a IA viu no prato</p>
+                <p className="text-sm font-semibold">
+                  {preview ? "O que a IA viu no prato" : "O que a IA entendeu"}
+                </p>
               </div>
               <p className="mt-0.5 text-[13px] text-ink-500">
                 Desmarque o que não comeu e ajuste nomes e gramas antes de

@@ -37,6 +37,8 @@ import {
   RiLogoutBoxRLine,
   RiFocus3Line,
   RiPencilLine,
+  RiPlayCircleFill,
+  RiPlayCircleLine,
   RiPulseLine,
   RiSideBarFill,
   RiSideBarLine,
@@ -64,8 +66,10 @@ import {
   durationLabel,
   initial,
   MAX_PHOTOS,
+  minimumIntake,
   parseDuration,
   projection,
+  suggestedIntake,
   today,
   validState,
   type State,
@@ -81,6 +85,13 @@ import AccentPicker from "./AccentPicker";
 import { applyAccent, DEFAULT_ACCENT, nearestPreset } from "./theme";
 import { setAppIcon } from "./appIcon";
 import RichText from "./RichText";
+import { HydrationSettings, WaterCard } from "./Water";
+import { CalorieChart, PressureChart, WaterChart } from "./Charts";
+import { syncWaterReminders } from "./reminders";
+import VoiceButton from "./VoiceButton";
+import { readAudio } from "./voice";
+import Videos from "./Videos";
+import { useLegal } from "./Legal";
 function readLocal(localKey: string): State {
   try {
     const s = JSON.parse(localStorage.getItem(localKey) || "null");
@@ -122,6 +133,13 @@ const tabs: {
     short: "Registros",
     icon: RiFileList3Line,
     active: RiFileList3Fill,
+  },
+  {
+    id: "videos",
+    label: "Vídeos",
+    short: "Vídeos",
+    icon: RiPlayCircleLine,
+    active: RiPlayCircleFill,
   },
   {
     id: "insights",
@@ -386,6 +404,15 @@ export default function App({ account }: { account: User }) {
     },
     [],
   );
+  // Reagenda os lembretes de água quando a configuração muda.
+  const hydrationKey = JSON.stringify(state.hydration ?? null);
+  useEffect(() => {
+    syncWaterReminders(state.hydration).catch(() =>
+      setNotice("Não foi possível agendar os lembretes de água."),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrationKey]);
+  const legal = useLegal();
   const aiRequest = useRef(0);
   useEffect(() => {
     aiRequest.current += 1;
@@ -437,7 +464,16 @@ export default function App({ account }: { account: User }) {
   const bmr = basal(weight, state.profile);
   const expenditure = bmr ? Math.round(bmr * state.profile.activity) : 0;
   const day = dailyEnergy(state, diaryDate);
-  const days = projection(weight, state.goal, expenditure, state.intake);
+  const autoIntake = suggestedIntake(weight, state.goal, state.profile);
+  const intakeFloor = minimumIntake(bmr, state.profile);
+  const [manualIntake, setManualIntake] = useState(state.intake > 0);
+  useEffect(() => setManualIntake(state.intake > 0), [state.intake]);
+  const days = projection(
+    weight,
+    state.goal,
+    expenditure,
+    state.intake || autoIntake || 0,
+  );
   const sorted = byDate(state.weights);
   const first = sorted[0]?.value || 0;
   const difference = weight - first;
@@ -887,7 +923,7 @@ export default function App({ account }: { account: User }) {
                   <RiAddLine className="size-5" /> Registrar peso
                 </button>
               </div>
-              <div className="mb-4">
+              <div className="mb-4 grid gap-4 lg:grid-cols-2">
                 <CalorieBudget
                   compact
                   state={state}
@@ -910,6 +946,7 @@ export default function App({ account }: { account: User }) {
                     </button>
                   </div>
                 </CalorieBudget>
+                <WaterCard state={state} setState={setState} date={today()} />
               </div>
               <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                 <Stat
@@ -1140,8 +1177,40 @@ export default function App({ account }: { account: User }) {
                   />
                 </Panel>
               </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <Panel>
+                  <CardHeader
+                    title="Calorias"
+                    text="Consumido e disponível, últimos 14 dias"
+                  />
+                  <CalorieChart state={state} days={14} />
+                </Panel>
+                <Panel>
+                  <CardHeader title="Água" text="Últimos 7 dias" />
+                  <WaterChart state={state} days={7} />
+                </Panel>
+                <Panel className="lg:col-span-2">
+                  <CardHeader
+                    title="Pressão arterial"
+                    text="Linhas tracejadas em 140 e 90 mmHg, referência de pressão alta"
+                  >
+                    <select
+                      aria-label="Período do gráfico de pressão"
+                      className="input min-h-9 w-auto py-1 text-sm md:text-sm"
+                      value={period}
+                      onChange={(e) => setPeriod(e.target.value)}
+                    >
+                      <option value="30">30 dias</option>
+                      <option value="90">90 dias</option>
+                      <option value="365">1 ano</option>
+                    </select>
+                  </CardHeader>
+                  <PressureChart state={state} days={Number(period)} />
+                </Panel>
+              </div>
             </>
           )}
+          {tab === "videos" && <Videos />}
           {tab === "nutrition" && (
             <DailyDiary
               state={state}
@@ -1365,6 +1434,19 @@ export default function App({ account }: { account: User }) {
                   </div>
                 )}
                 <form onSubmit={ask}>
+                  <div className="mb-3">
+                    <VoiceButton
+                      label="Perguntar por áudio"
+                      disabled={!supabase || !user || busy}
+                      onAudio={async (audio) => {
+                        const { text } = await readAudio("question", audio);
+                        if (!text)
+                          throw Error("Não entendemos o áudio. Tente de novo.");
+                        setQuestion(text);
+                        return "Confira o texto e toque em Enviar pergunta.";
+                      }}
+                    />
+                  </div>
                   <Field label="Sua pergunta">
                     <textarea
                       className="input min-h-28 py-2.5"
@@ -1379,6 +1461,7 @@ export default function App({ account }: { account: User }) {
                     Enviamos ao Gemini a pergunta e um resumo do dia: peso,
                     meta, dados do perfil usados no cálculo, alimentos e
                     exercícios. Nome, fotos e pressão arterial não são enviados.
+                    O áudio é usado só para transcrever a pergunta.
                     O assistente não faz diagnóstico nem prescreve tratamento.
                   </p>
                   <button
@@ -1566,6 +1649,28 @@ export default function App({ account }: { account: User }) {
                       }
                     />
                   </Panel>
+                  <Panel>
+                    <CardHeader
+                      title="Água"
+                      text="Copo padrão e lembretes no celular."
+                    />
+                    <HydrationSettings
+                      value={state.hydration}
+                      onChange={(hydration) =>
+                        setState((s) => ({ ...s, hydration }))
+                      }
+                      onNotice={setNotice}
+                    />
+                  </Panel>
+                  <Panel>
+                    <CardHeader title="Privacidade" />
+                    <p className="text-sm leading-relaxed text-ink-500">
+                      Leia os {legal.terms} e a {legal.privacy}. Para acessar,
+                      corrigir ou excluir seus dados, ou revogar o
+                      consentimento, use o contato indicado na política.
+                    </p>
+                    {legal.sheet}
+                  </Panel>
                 </div>
               </div>
               <div id="meta" className="mt-10 mb-4 scroll-mt-20">
@@ -1585,10 +1690,16 @@ export default function App({ account }: { account: User }) {
                       e.preventDefault();
                       const f = new FormData(e.currentTarget);
                       const goal = Number(f.get("goal"));
-                      const intake = Number(f.get("intake"));
+                      const intake = manualIntake ? Number(f.get("intake")) : 0;
                       if (!weight || goal >= weight) {
                         setNotice(
                           "Registre seu peso e escolha uma meta abaixo do peso atual.",
+                        );
+                        return;
+                      }
+                      if (manualIntake && intake < intakeFloor) {
+                        setNotice(
+                          `A meta de consumo não pode ficar abaixo de ${fmt(intakeFloor)} kcal, o mínimo seguro para você.`,
                         );
                         return;
                       }
@@ -1608,23 +1719,43 @@ export default function App({ account }: { account: User }) {
                         defaultValue={state.goal || ""}
                       />
                     </Field>
-                    <Field label="Meta de consumo diário (kcal)">
-                      <input
+                    <Field label="Meta de consumo diário">
+                      <select
                         className="input"
-                        name="intake"
-                        type="number"
-                        min="1"
-                        max="10000"
-                        required
-                        defaultValue={state.intake || ""}
-                      />
-                      <span className="hint block">
-                        Vira o limite de "Calorias do dia" (mais os exercícios)
-                        e entra na simulação de prazo. Use um valor combinado
-                        com seu profissional de saúde; o app não prescreve
-                        dietas.
-                      </span>
+                        value={manualIntake ? "manual" : "auto"}
+                        onChange={(e) =>
+                          setManualIntake(e.target.value === "manual")
+                        }
+                      >
+                        <option value="auto">
+                          Automática
+                          {autoIntake ? ` · ${fmt(autoIntake)} kcal` : ""}
+                        </option>
+                        <option value="manual">Definir um valor</option>
+                      </select>
                     </Field>
+                    {manualIntake && (
+                      <Field label="Meta de consumo diário (kcal)">
+                        <input
+                          className="input"
+                          name="intake"
+                          type="number"
+                          min={intakeFloor}
+                          max="10000"
+                          required
+                          defaultValue={state.intake || autoIntake || ""}
+                        />
+                      </Field>
+                    )}
+                    <p className="hint">
+                      {manualIntake
+                        ? "Use um valor combinado com seu profissional de saúde."
+                        : "Calculada pelo seu perfil: gasto estimado (basal × 1,2), menos 500 kcal se a meta for perder peso."}{" "}
+                      Nunca fica abaixo de {fmt(intakeFloor)} kcal: o seu basal
+                      ou 1.200 kcal (coeficiente feminino) / 1.500 kcal
+                      (masculino), o que for maior. Vira o limite de "Calorias
+                      do dia" (mais os exercícios). O app não prescreve dietas.
+                    </p>
                     <button className="btn-primary" type="submit">
                       <RiCheckLine className="size-5" /> Salvar meta
                     </button>

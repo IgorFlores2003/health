@@ -65,3 +65,45 @@ test("backup rejects corrupted records and pressure inversion", () => {
   );
   assert.equal(validState({}), false);
 });
+test("water goal is 35 ml/kg rounded to 50 ml", async () => {
+  const { waterGoal } = await import("../src/domain.ts");
+  assert.equal(waterGoal(80), 2800);
+  assert.equal(waterGoal(63), 2200);
+  assert.equal(waterGoal(0), null);
+});
+test("automatic intake never goes below the safe minimum", async () => {
+  const { suggestedIntake, minimumIntake } = await import("../src/domain.ts");
+  const woman = {
+    ...initial.profile,
+    height: 155,
+    age: 60,
+    formulaSex: "female",
+  };
+  // basal 50 kg: 500 + 968,75 − 300 − 161 = 1008 → mínimo 1.200 kcal
+  assert.equal(minimumIntake(basal(50, woman), woman), 1200);
+  assert.equal(suggestedIntake(50, 45, woman), 1200);
+  const man = { ...initial.profile, height: 180, age: 30, formulaSex: "male" };
+  // 1780 × 1,2 = 2136 → 2140 para manter; perder: 1636 < basal → 1780
+  assert.equal(suggestedIntake(80, 0, man), 2140);
+  assert.equal(suggestedIntake(80, 70, man), 1780);
+});
+test("water entries and hydration settings are validated", () => {
+  const base = { ...initial, water: [{ id: "a", date: "2026-10-26", ml: 250 }] };
+  assert.equal(validState(base), true);
+  assert.equal(
+    validState({ ...base, water: [{ id: "a", date: "2026-10-26", ml: 0 }] }),
+    false,
+  );
+  const hydration = {
+    cupMl: 300,
+    reminders: true,
+    everyMinutes: 60,
+    startHour: 8,
+    endHour: 22,
+  };
+  assert.equal(validState({ ...base, hydration }), true);
+  assert.equal(
+    validState({ ...base, hydration: { ...hydration, startHour: 23 } }),
+    false,
+  );
+});

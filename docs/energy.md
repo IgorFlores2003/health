@@ -36,11 +36,11 @@ A estimativa de rotina leve pode subestimar trabalhos fisicamente ativos e não 
 
 Card no Início e no Diário (`dailyBudget` em `supabase/functions/_shared/energy.ts`):
 
-- Meta base = meta de consumo diário da aba Meta (`state.intake`) ou, sem ela, a base diária (Mifflin–St Jeor × 1,2, manutenção).
+- Meta base = meta de consumo diário definida na aba Meta (`state.intake`) ou, com `intake = 0`, a meta automática (`suggestedIntake` em `domain.ts`): base diária (Mifflin–St Jeor × 1,2), menos 500 kcal quando a meta de peso está abaixo do peso atual.
+- Mínimo seguro (`minimumIntake`): a meta nunca fica abaixo do basal nem de 1.200 kcal (coeficiente feminino) / 1.500 kcal (masculino). A aba Meta recusa valores menores; metas antigas abaixo do mínimo são elevadas até ele e o card avisa.
 - Disponível = meta base + calorias ativas dos exercícios do dia.
 - Restante = disponível − consumo registrado. Valor negativo aparece como "acima do disponível".
 - Alimentos e exercícios sem calorias não entram na conta e são avisados.
-- Se a meta de consumo for menor que o gasto basal estimado, o card recomenda revisar com um profissional.
 - Sem perfil salvo ou sem peso até a data, não há cálculo.
 
 ## Persistência e compatibilidade
@@ -54,3 +54,7 @@ O app envia o dia selecionado com perfil numérico (sem nome/gênero), último p
 Publique a atualização com `npm run ai:deploy` depois de autenticar e vincular a CLI. A função precisa dos secrets GEMINI_API_KEY e GEMINI_MODEL. Sem isso, os registros, cálculos locais e dados de rótulos funcionam, mas as duas operações de IA mostram indisponibilidade. O cadastro de alimentos sem kcal é permitido como pendente.
 
 Teste de entrega: registrar 150 g de alimento com 130 kcal/100 g deve produzir 195 kcal; caminhada de 5 km em 60 minutos para 80 kg produz estimativa de 224 kcal ativas; um valor informado de 250 kcal deve substituí-la. Reabra o dia ao editar/excluir alimento ou exercício. Revise a análise em outro dia para confirmar que os registros não se misturam.
+
+## Água
+
+Meta = 35 ml × peso (kg), arredondada a 50 ml (`waterGoal`). Cada toque em "Bebi" grava um registro `{ date, ml }` em `state.water` com o copo escolhido (`state.hydration.cupMl`). Os lembretes (`src/reminders.ts`) são notificações locais do Capacitor, repetidas todo dia nos horários entre o início e o fim configurados; só funcionam no app Android.

@@ -47,8 +47,30 @@ export type Food = {
   source: "label" | "ai" | "pending";
   note?: string;
 };
+export type Water = {
+  id: string;
+  date: string;
+  ml: number;
+};
+/** Copo padrão e lembretes de água (agendados no aparelho). */
+export type Hydration = {
+  cupMl: number;
+  reminders: boolean;
+  everyMinutes: number;
+  startHour: number;
+  endHour: number;
+};
+export const defaultHydration: Hydration = {
+  cupMl: 250,
+  reminders: false,
+  everyMinutes: 90,
+  startHour: 8,
+  endHour: 22,
+};
 export type State = {
   foods?: Food[];
+  water?: Water[];
+  hydration?: Hydration;
   completedDays?: string[];
   profileReviewed?: boolean;
   profile: Profile;
@@ -62,6 +84,7 @@ export type State = {
 };
 export const initial: State = {
   foods: [],
+  water: [],
   completedDays: [],
   profileReviewed: false,
   profile: {
@@ -99,6 +122,32 @@ export function basal(weight: number, p: Profile) {
       5 * p.age +
       (p.formulaSex === "male" ? 5 : -161),
   );
+}
+/** Meta de água: 35 ml por kg, arredondada a 50 ml. */
+export function waterGoal(weight: number) {
+  if (!Number.isFinite(weight) || weight < 20 || weight > 400) return null;
+  return Math.round((weight * 35) / 50) * 50;
+}
+/**
+ * Menor meta de consumo aceita: nunca abaixo do basal estimado, nem abaixo
+ * de 1.200 kcal (coeficiente feminino) ou 1.500 kcal (masculino), limites
+ * usuais abaixo dos quais dietas só com acompanhamento profissional.
+ */
+export function minimumIntake(bmr: number | null, p: Profile) {
+  const floor = p.formulaSex === "male" ? 1500 : 1200;
+  return Math.max(floor, bmr ?? 0);
+}
+/**
+ * Meta de consumo automática: base diária (basal × 1,2, rotina leve; os
+ * exercícios do dia somam depois), menos 500 kcal quando a meta de peso é
+ * perder; nunca abaixo de minimumIntake.
+ */
+export function suggestedIntake(weight: number, goal: number, p: Profile) {
+  const bmr = basal(weight, p);
+  if (bmr === null) return null;
+  const baseline = Math.round(bmr * 1.2);
+  const target = goal > 0 && goal < weight ? baseline - 500 : baseline;
+  return Math.round(Math.max(target, minimumIntake(bmr, p)) / 10) * 10;
 }
 export function projection(
   weight: number,
@@ -181,6 +230,19 @@ export function validState(v: unknown): v is State {
         s.completedDays.every(
           (d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
         ))) &&
+    (s.water === undefined ||
+      (Array.isArray(s.water) &&
+        s.water.every((x) => base(x) && n(x.ml, 1, 5000)))) &&
+    (s.hydration === undefined ||
+      (!!s.hydration &&
+        n(s.hydration.cupMl, 50, 2000) &&
+        typeof s.hydration.reminders === "boolean" &&
+        n(s.hydration.everyMinutes, 15, 480) &&
+        Number.isInteger(s.hydration.startHour) &&
+        Number.isInteger(s.hydration.endHour) &&
+        n(s.hydration.startHour, 0, 23) &&
+        n(s.hydration.endHour, 1, 24) &&
+        s.hydration.startHour < s.hydration.endHour)) &&
     (s.foods === undefined ||
       (Array.isArray(s.foods) &&
         s.foods.every(

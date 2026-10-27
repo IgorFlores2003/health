@@ -1,6 +1,8 @@
 import {
   basal,
   byDate,
+  minimumIntake,
+  suggestedIntake,
   type State,
   type Exercise,
   type Food,
@@ -175,8 +177,9 @@ export function reopenDay(state: State, date: string) {
 }
 /**
  * Quanto ainda dá para comer no dia.
- * Meta base = consumo diário definido na aba Meta ou, sem ele, a base diária
- * estimada (manutenção). Exercícios do dia somam ao que está disponível.
+ * Meta base = consumo diário definido na aba Meta ou, sem ele, a meta
+ * automática (suggestedIntake). Nunca abaixo do mínimo seguro
+ * (minimumIntake). Exercícios do dia somam ao que está disponível.
  */
 export function dailyBudget(state: State, date: string) {
   const day = dailyEnergy(state, date);
@@ -188,17 +191,37 @@ export function dailyBudget(state: State, date: string) {
         ? ("profile" as const)
         : ("weight" as const),
     };
+  const floor = minimumIntake(day.bmr, state.profile);
   const goal = state.intake > 0 ? state.intake : null;
-  const target = goal ?? day.baseline;
+  const target =
+    goal === null
+      ? suggestedIntake(day.weight, state.goal, state.profile)!
+      : Math.max(goal, floor);
   const available = target + day.active;
+  const losing = state.goal > 0 && state.goal < day.weight;
   return {
     ...day,
     ready: true as const,
-    source: goal ? ("goal" as const) : ("maintenance" as const),
+    source: goal ? ("goal" as const) : ("auto" as const),
     target,
+    floor,
     available,
     consumed: day.intake,
     remaining: available - day.intake,
-    belowBasal: goal !== null && day.bmr !== null && goal < day.bmr,
+    /** Por que a meta automática tem esse valor. */
+    autoReason:
+      target <= floor + 10
+        ? ("floor" as const)
+        : losing
+          ? ("loss" as const)
+          : ("maintain" as const),
+    /** A meta manual estava abaixo do mínimo e foi elevada até ele. */
+    raised: goal !== null && goal < floor,
   };
+}
+/** Água bebida no dia, em ml. */
+export function waterOn(state: State, date: string) {
+  return (state.water ?? [])
+    .filter((w) => w.date === date)
+    .reduce((sum, w) => sum + w.ml, 0);
 }

@@ -10,6 +10,7 @@ import {
 } from "react-icons/ri";
 import { supabase } from "./supabase";
 import { authError, passwordError } from "./auth";
+import { TERMS_VERSION, useLegal } from "./Legal";
 type Mode = "login" | "signup" | "confirm" | "forgot" | "recover" | "password";
 export default function AccountAccess({
   user,
@@ -34,6 +35,8 @@ export default function AccountAccess({
   const [confirmation, setConfirmation] = useState("");
   const [token, setToken] = useState("");
   const [name, setName] = useState("");
+  const [accepted, setAccepted] = useState(false);
+  const legal = useLegal();
   const [busy, setBusy] = useState(false);
   const inFlight = useRef(false);
   const [message, setMessage] = useState("");
@@ -73,6 +76,12 @@ export default function AccountAccess({
     if (!supabase || inFlight.current) return;
     setError("");
     setMessage("");
+    if (mode === "signup" && !accepted) {
+      setError(
+        "Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.",
+      );
+      return;
+    }
     if (mode === "signup" || mode === "password") {
       const problem = passwordError(password, confirmation);
       if (problem) {
@@ -109,7 +118,13 @@ export default function AccountAccess({
         const { data, error } = await supabase.auth.signUp({
           email: address,
           password,
-          options: { data: { display_name: name.trim() } },
+          options: {
+            data: {
+              display_name: name.trim(),
+              terms_version: TERMS_VERSION,
+              terms_accepted_at: new Date().toISOString(),
+            },
+          },
         });
         if (error) throw error;
         setPassword("");
@@ -481,10 +496,29 @@ export default function AccountAccess({
             </div>
           )}
           {mode === "signup" && confirmationField}
+          {mode === "signup" && (
+            <label className="mb-4 flex cursor-pointer items-start gap-3 text-sm leading-relaxed text-ink-700">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-5 shrink-0 accent-brand-600"
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                required
+              />
+              <span>
+                Tenho 18 anos ou mais, li e aceito os {legal.terms} e a{" "}
+                {legal.privacy}, e consinto com o tratamento dos meus dados de
+                saúde (peso, pressão, alimentação, água e exercícios) para as
+                finalidades descritas, inclusive por fornecedores fora do
+                Brasil.
+              </span>
+            </label>
+          )}
           {notices}
           {submitButton}
         </fieldset>
       </form>
+      {legal.sheet}
       {mode === "login" && (
         <div className="mt-4 flex justify-center">
           <button
