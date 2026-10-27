@@ -16,7 +16,7 @@ import { supabase } from "./supabase";
 const kcal = (n: number | null) =>
   n === null
     ? "—"
-    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`;
+    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 
 // Estimativas já feitas ficam no aparelho: o mesmo alimento descrito do
 // mesmo jeito volta na hora, sem chamar a IA de novo.

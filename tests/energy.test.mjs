@@ -71,8 +71,8 @@ test("daily expenditure: the larger of profile activity and light baseline + exe
       { ...state, profile: { ...state.profile, activity: 1.725 } },
       date,
     ).expenditure,
-    // 1780 × 1,725 = 3071: o fator do perfil já cobre o exercício do dia.
-    3071,
+    // 1780 × 1,725 = 3070,5: o fator do perfil já cobre o exercício do dia.
+    1780 * 1.725,
   );
 });
 test("partial, absent or unquantified records do not imply a deficit", () => {
@@ -156,18 +156,18 @@ test("daily budget: automatic target from activity, exercises and goal", () => {
     weights: [{ id: "w", date: "2026-10-25", value: 80 }],
   };
   const date = "2026-10-26";
-  // basal 1780 × 1,2 = 2136 → manter: 2140
+  // basal 1780 × 1,2 = 2136 → manter, sem arredondar
   let b = dailyBudget(base, date);
   assert.equal(b.ready && b.direction, "maintain");
-  assert.equal(b.ready && b.available, 2140);
+  assert.equal(b.ready && b.available, 1780 * 1.2);
   // Nível de atividade do perfil: 1780 × 1,55 = 2759
   const active = { ...base, profile: { ...base.profile, activity: 1.55 } };
   b = dailyBudget({ ...active, goal: 70 }, date);
   assert.equal(b.ready && b.spendSource, "profile");
-  assert.equal(b.ready && b.available, 2260);
+  assert.equal(b.ready && b.available, 1780 * 1.55 - 500);
   b = dailyBudget({ ...active, goal: 90 }, date);
   assert.equal(b.ready && b.direction, "gain");
-  assert.equal(b.ready && b.available, 3060);
+  assert.equal(b.ready && b.available, 1780 * 1.55 + 300);
   // Perder com rotina leve: 2136 − 500 < basal → fica no basal.
   b = dailyBudget({ ...base, goal: 70 }, date);
   assert.equal(b.ready && b.available, 1780);
@@ -200,9 +200,9 @@ test("daily budget: automatic target from activity, exercises and goal", () => {
     date,
   );
   assert.equal(b.ready && b.spendSource, "exercises");
-  assert.equal(b.ready && b.available, 2440);
+  assert.equal(b.ready && b.available, 1780 * 1.2 + 300);
   assert.equal(b.ready && b.consumed, 195);
-  assert.equal(b.ready && b.remaining, 2245);
+  assert.equal(b.ready && b.remaining, 1780 * 1.2 + 300 - 195);
   // Sem perfil salvo não há como calcular.
   b = dailyBudget({ ...base, profileReviewed: false }, date);
   assert.equal(b.ready, false);

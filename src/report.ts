@@ -1,5 +1,5 @@
 import { dailyBudget, foodCalories } from "./energy.ts";
-import { byDate, type State } from "./domain.ts";
+import { byDate, num, type State } from "./domain.ts";
 
 /**
  * otimo: dia completo, dentro do disponível e sem comer muito pouco.
@@ -41,19 +41,19 @@ export function analyzePeriod(state: State, from: string, to: string) {
     .map((date) => {
       const b = dailyBudget(state, date);
       const top = b.foods
-        .map((f) => ({ name: f.name, kcal: Math.round(foodCalories(f) ?? 0) }))
+        .map((f) => ({ name: f.name, kcal: foodCalories(f) ?? 0 }))
         .sort((a, c) => c.kcal - a.kcal)
         .slice(0, 3);
       if (!b.ready || !b.completed || b.foodMissing > 0)
         return {
           date,
           verdict: "incompleto" as const,
-          consumed: Math.round(b.intake),
-          available: b.ready ? Math.round(b.available) : null,
+          consumed: b.intake,
+          available: b.ready ? b.available : null,
           difference: null,
           top,
         };
-      const difference = Math.round(b.consumed - b.available);
+      const difference = b.consumed - b.available;
       const verdict: Verdict =
         difference > TOLERANCE
           ? "acima"
@@ -63,8 +63,8 @@ export function analyzePeriod(state: State, from: string, to: string) {
       return {
         date,
         verdict,
-        consumed: Math.round(b.consumed),
-        available: Math.round(b.available),
+        consumed: b.consumed,
+        available: b.available,
         difference,
         top,
       };
@@ -82,7 +82,7 @@ export function analyzePeriod(state: State, from: string, to: string) {
         86400000,
     ) + 1;
   const minutes = exercises.reduce((s, x) => s + x.minutes, 0);
-  const weeklyMinutes = Math.round((minutes / spanDays) * 7);
+  const weeklyMinutes = (minutes / spanDays) * 7;
   const firstWeight = weights[0]?.value ?? null;
   const lastWeight = weights.at(-1)?.value ?? null;
   const highPressure = pressures.filter(
@@ -105,7 +105,7 @@ export function analyzePeriod(state: State, from: string, to: string) {
     );
   if (over.length)
     tips.push(
-      `Em ${over.length} dia(s) o consumo passou do disponível, em média ${Math.round(avg(over.map((d) => d.difference!))!)} kcal acima.${heavyFoods.length ? ` O que mais pesou nesses dias: ${heavyFoods.join(", ")}. Vale rever porções ou trocas para esses itens.` : ""}`,
+      `Em ${over.length} dia(s) o consumo passou do disponível, em média ${num(avg(over.map((d) => d.difference!))!)} kcal acima.${heavyFoods.length ? ` O que mais pesou nesses dias: ${heavyFoods.join(", ")}. Vale rever porções ou trocas para esses itens.` : ""}`,
     );
   if (low.length)
     tips.push(
@@ -117,7 +117,7 @@ export function analyzePeriod(state: State, from: string, to: string) {
     );
   else if (weeklyMinutes < 150)
     tips.push(
-      `Média de ${weeklyMinutes} min de exercício por semana. A recomendação da OMS para adultos é de 150 a 300 min de atividade moderada.`,
+      `Média de ${num(weeklyMinutes)} min de exercício por semana. A recomendação da OMS para adultos é de 150 a 300 min de atividade moderada.`,
     );
   if (weights.length < Math.max(1, Math.floor(spanDays / 7)))
     tips.push(
@@ -150,17 +150,14 @@ export function analyzePeriod(state: State, from: string, to: string) {
       last: lastWeight,
       change:
         firstWeight !== null && lastWeight !== null
-          ? Math.round((lastWeight - firstWeight) * 10) / 10
+          ? lastWeight - firstWeight
           : null,
     },
     exercise: {
       count: exercises.length,
       minutes,
       weeklyMinutes,
-      km:
-        Math.round(
-          exercises.reduce((s, x) => s + (x.distanceKm ?? 0), 0) * 100,
-        ) / 100,
+      km: exercises.reduce((s, x) => s + (x.distanceKm ?? 0), 0),
       elevation: exercises.reduce((s, x) => s + (x.elevationM ?? 0), 0),
       activeDays: new Set(exercises.map((x) => x.date)).size,
     },

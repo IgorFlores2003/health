@@ -7,7 +7,7 @@ import VoiceButton from "./VoiceButton";
 
 type Item = MealReading["items"][number] & { on: boolean };
 const kcal = (n: number) =>
-  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`;
+  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 
 /**
  * Foto do prato → a IA sugere os itens com porção e kcal/100 g; a pessoa

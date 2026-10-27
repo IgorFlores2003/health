@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { RiFireLine } from "react-icons/ri";
 import { dailyBudget } from "./energy";
-import type { State } from "./domain";
+import { num, type State } from "./domain";
 
-const kcal = (n: number) => `${Math.round(n).toLocaleString("pt-BR")} kcal`;
+const kcal = (n: number) => `${num(n)} kcal`;
 
 export default function CalorieBudget({
   state,

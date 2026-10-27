@@ -7,9 +7,9 @@ import { dailyBudget, dailyEnergy } from "./energy.ts";
  * Só responde quando a pergunta é exatamente uma delas; o resto vai à IA.
  */
 const kcal = (n: number) =>
-  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 0 })} kcal`;
+  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 const kg = (n: number) =>
-  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kg`;
+  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`;
 const normalize = (q: string) =>
   q
     .toLowerCase()
@@ -85,7 +85,7 @@ function basalText(state: State) {
   return [
     "Metabolismo basal é a energia que o corpo gasta em repouso total para se manter vivo: respirar, bater o coração, manter a temperatura e o funcionamento dos órgãos. É a maior parte do gasto do dia.",
     bmr
-      ? `O seu basal estimado é de ${kcal(bmr)} por dia, pela fórmula Mifflin–St Jeor com seu peso, altura, idade e coeficiente. Somando suas atividades, o gasto do dia fica em torno de ${kcal(Math.round(bmr * state.profile.activity))}.`
+      ? `O seu basal estimado é de ${kcal(bmr)} por dia, pela fórmula Mifflin–St Jeor com seu peso, altura, idade e coeficiente. Somando suas atividades, o gasto do dia fica em torno de ${kcal(bmr * state.profile.activity)}.`
       : "Para calcular o seu, salve o perfil e registre o peso.",
     "A meta de calorias do app nunca fica abaixo do seu basal. É uma estimativa, não uma medição.",
   ].join("\n\n");
@@ -128,7 +128,7 @@ function progress(state: State) {
     (state.foods ?? []).some((f) => f.date === d),
   ).length;
   lines.push(
-    `Nos últimos 7 dias: ${Math.round(minutes)} min de exercício (a OMS recomenda de 150 a 300 min por semana) e ${diaryDays} dia(s) com alimentação registrada.`,
+    `Nos últimos 7 dias: ${minutes.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} min de exercício (a OMS recomenda de 150 a 300 min por semana) e ${diaryDays} dia(s) com alimentação registrada.`,
   );
   const budget = dailyBudget(state, week[0]);
   if (budget.ready)

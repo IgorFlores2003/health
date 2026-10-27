@@ -136,8 +136,7 @@ export const num = (n: number) =>
 /** Meta de água: 35 ml por kg, sem arredondar. */
 export function waterGoal(weight: number) {
   if (!Number.isFinite(weight) || weight < 20 || weight > 400) return null;
-  // Em ml inteiros para evitar 2.204,9999 do ponto flutuante (63 × 35).
-  return Math.round(weight * 35 * 1000) / 1000;
+  return weight * 35;
 }
 /**
  * Menor meta de consumo aceita: nunca abaixo do basal estimado, nem abaixo
@@ -196,7 +195,8 @@ export function projection(
   if (goal <= 0 || goal === weight || intake <= 0) return null;
   const needed = goal > weight ? intake - expenditure : expenditure - intake;
   if (needed < 100 || needed > 1000) return null;
-  return (Math.abs(weight - goal) * 7700) / needed;
+  // Prazo em dias inteiros, para cima (as fórmulas em si não arredondam).
+  return Math.ceil((Math.abs(weight - goal) * 7700) / needed);
 }
 /** Limite aceito ao validar dados já salvos (registros antigos podiam ter 6). */
 export const MAX_EXERCISE_PHOTOS = 6;

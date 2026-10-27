@@ -75,3 +75,16 @@ test("without a known base nothing from either side is lost", () => {
   assert.equal(m.pressures.length, 1);
   assert.equal(m.exercises.length, 1);
 });
+
+test("profile merges field by field: a name change does not drop a new photo", () => {
+  const photo = "0f8fad5b-d9cb-469f-a165-70867728950e/profile/abc.jpg";
+  const base = s({});
+  const phone = s({ profile: { ...base.profile, photo } });
+  const laptop = s({ profile: { ...base.profile, name: "Igor" } });
+  const m = mergeStates(base, laptop, phone);
+  assert.equal(m.profile.photo, photo);
+  assert.equal(m.profile.name, "Igor");
+  // Remover a foto neste aparelho continua valendo.
+  const removed = mergeStates(phone, s({ profile: { ...base.profile } }), phone);
+  assert.equal(removed.profile.photo, undefined);
+});

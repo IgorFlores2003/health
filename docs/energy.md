@@ -5,7 +5,7 @@ A aba Alimentação agrupa alimentos e exercícios por data. Os mesmos cálculos
 ## Alimentação
 
 - Nome/preparo, gramas, kcal por 100 g, origem da energia (informada, estimada pela IA ou pendente).
-- Porção: gramas × kcal/100 g ÷ 100, arredondada para kcal inteiras por registro.
+- Porção: quantidade × kcal por 100 ÷ 100 (g ou ml), sem arredondar. Nenhum cálculo do app arredonda; as telas mostram até 2 casas decimais só para cortar o ruído do ponto flutuante.
 - Sem densidade calórica, o alimento permanece pendente; nunca é interpretado como zero kcal.
 - O botão Estimar calorias com IA envia apenas a descrição ao Gemini. A estimativa é identificada como tal, com hipóteses de preparo; não é consulta verificada a uma tabela nutricional. A pessoa pode corrigir ou substituir pelo rótulo antes de salvar.
 - Editar a descrição invalida estimativas da IA. Alterar os gramas recalcula a porção.
@@ -35,7 +35,7 @@ O usuário precisa revisar/salvar o perfil, registrar peso nessa data ou antes, 
 Card no Início e no Diário (`dailyBudget` em `supabase/functions/_shared/energy.ts`). A pessoa não informa a meta de calorias: ela é sempre calculada (`intakeTarget` em `domain.ts`).
 
 - Objetivo (`goalDirection`): peso desejado abaixo do atual = emagrecer; acima = ganhar peso; sem peso desejado = manter.
-- Meta do dia = gasto do dia − 500 kcal (emagrecer) ou + 300 kcal (ganhar), arredondada a 10 kcal.
+- Meta do dia = gasto do dia − 500 kcal (emagrecer) ou + 300 kcal (ganhar), sem arredondar.
 - Mínimo seguro (`minimumIntake`): nunca abaixo do basal nem de 1.200 kcal (coeficiente feminino) / 1.500 kcal (masculino). Quando o −500 bate nesse mínimo, o card avisa.
 - Restante = meta do dia − consumo registrado. Alimentos e exercícios sem calorias não entram na conta e são avisados.
 - `state.intake` não é mais usado (fica 0); backups antigos continuam válidos.

@@ -3,6 +3,7 @@ import CalorieBudget from "./CalorieBudget";
 import ExerciseFields from "./ExerciseFields";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import FoodSheet from "./FoodSheet";
+import CameraCapture from "./CameraCapture";
 import type { User } from "@supabase/supabase-js";
 import { userStorageKey } from "./access";
 import AccountAccess from "./AccountAccess";
@@ -20,6 +21,7 @@ import {
   RiArrowRightLine,
   RiArrowRightSLine,
   RiCameraLine,
+  RiImageLine,
   RiChat3Fill,
   RiChat3Line,
   RiCheckLine,
@@ -67,6 +69,7 @@ import {
   durationLabel,
   foodUnit,
   initial,
+  num,
   MAX_PHOTOS,
   minimumIntake,
   parseDuration,
@@ -106,7 +109,7 @@ function readLocal(localKey: string): State {
     return structuredClone(initial);
   }
 }
-const fmt = (n: number) => n.toLocaleString("pt-BR");
+const fmt = num;
 const dateLabel = (d: string) =>
   new Date(d + "T12:00:00").toLocaleDateString("pt-BR", {
     day: "2-digit",
@@ -356,6 +359,7 @@ export default function App({ account }: { account: User }) {
     }
   }, [tab]);
   const [modal, setModal] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [foodSheet, setFoodSheet] = useState<{
     food?: Food;
   } | null>(null);
@@ -480,7 +484,7 @@ export default function App({ account }: { account: User }) {
   }, [modal]);
   const weight = currentWeight(state);
   const bmr = basal(weight, state.profile);
-  const expenditure = bmr ? Math.round(bmr * state.profile.activity) : 0;
+  const expenditure = bmr ? bmr * state.profile.activity : 0;
   const day = dailyEnergy(state, diaryDate);
   const target = bmr
     ? intakeTarget(expenditure, weight, state.goal, bmr, state.profile)
@@ -1009,7 +1013,7 @@ export default function App({ account }: { account: User }) {
                   unit="kg"
                   detail={
                     state.weights.length > 1
-                      ? `${difference > 0 ? "+" : ""}${fmt(Number(difference.toFixed(1)))} kg desde o início`
+                      ? `${difference > 0 ? "+" : ""}${fmt(difference)} kg desde o início`
                       : "Sem histórico ainda"
                   }
                 />
@@ -1034,7 +1038,7 @@ export default function App({ account }: { account: User }) {
                   unit="kg"
                   detail={
                     state.goal && weight
-                      ? `Faltam ${fmt(Math.abs(Number((weight - state.goal).toFixed(1))))} kg`
+                      ? `Faltam ${fmt(Math.abs(weight - state.goal))} kg`
                       : "Não definida"
                   }
                 />
@@ -1125,7 +1129,7 @@ export default function App({ account }: { account: User }) {
                   <CardHeader title="Progresso da meta" />
                   <div className="flex items-baseline gap-1">
                     <strong className="text-4xl font-semibold tabular-nums">
-                      {Math.round(progress)}
+                      {fmt(progress)}
                     </strong>
                     <span className="text-lg text-ink-500">%</span>
                   </div>
@@ -1135,7 +1139,7 @@ export default function App({ account }: { account: User }) {
                     aria-label="Progresso da meta"
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-valuenow={Math.round(progress)}
+                    aria-valuenow={progress}
                   >
                     <div
                       className="h-full rounded-full bg-brand-600"
@@ -1434,7 +1438,7 @@ export default function App({ account }: { account: User }) {
                                       {dateLabel(item.date)}{" "}
                                       {item.date.slice(0, 4)}
                                       {ex
-                                        ? ` · ${durationLabel(ex.minutes)} · ${ex.intensity}${ex.distanceKm ? ` · ${fmt(ex.distanceKm)} km` : ""}${ex.elevationM ? ` · ${fmt(ex.elevationM)} m de elevação` : ""}${ex.activeCalories !== undefined ? ` · ${ex.activeCalories} kcal ativas` : ""}`
+                                        ? ` · ${durationLabel(ex.minutes)} · ${ex.intensity}${ex.distanceKm ? ` · ${fmt(ex.distanceKm)} km` : ""}${ex.elevationM ? ` · ${fmt(ex.elevationM)} m de elevação` : ""}${ex.activeCalories !== undefined ? ` · ${fmt(ex.activeCalories)} kcal ativas` : ""}`
                                         : p?.pulse
                                           ? ` · ${p.pulse} bpm`
                                           : ""}
@@ -1525,7 +1529,7 @@ export default function App({ account }: { account: User }) {
                             <li key={date} className="py-3">
                               <strong className="block font-semibold tabular-nums">
                                 {total.toLocaleString("pt-BR", {
-                                  maximumFractionDigits: 1,
+                                  maximumFractionDigits: 2,
                                 })}{" "}
                                 kcal
                               </strong>
@@ -1550,7 +1554,7 @@ export default function App({ account }: { account: User }) {
                                           {fmt(f.grams)} {foodUnit(f)} ·{" "}
                                           {c === null
                                             ? "calorias pendentes"
-                                            : `${c.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`}
+                                            : `${fmt(c)} kcal`}
                                         </span>
                                       </span>
                                       <span className="-mr-2 flex shrink-0">
@@ -1801,9 +1805,16 @@ export default function App({ account }: { account: User }) {
                       size={72}
                     />
                     <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={busy}
+                        onClick={() => setCameraOpen(true)}
+                      >
+                        <RiCameraLine className="size-5" /> Tirar foto
+                      </button>
                       <label className="btn-secondary relative">
-                        <RiCameraLine className="size-5" />
-                        {state.profile.photo ? "Trocar foto" : "Adicionar foto"}
+                        <RiImageLine className="size-5" /> Galeria
                         <input
                           className="absolute inset-0 cursor-pointer opacity-0"
                           type="file"
@@ -2063,7 +2074,7 @@ export default function App({ account }: { account: User }) {
                   <CardHeader title="Prazo estimado" />
                   <div className="flex items-baseline gap-2">
                     <strong className="text-5xl font-semibold tracking-tight tabular-nums">
-                      {days ? `~${days}` : "—"}
+                      {days ? `~${fmt(days)}` : "—"}
                     </strong>
                     {days ? <span className="text-ink-500">dias</span> : null}
                   </div>
@@ -2102,6 +2113,16 @@ export default function App({ account }: { account: User }) {
           </footer>
         </div>
       </main>
+      {cameraOpen && (
+        <CameraCapture
+          title="Foto de perfil"
+          onClose={() => setCameraOpen(false)}
+          onCapture={(file) => {
+            setCameraOpen(false);
+            void changePhoto(file);
+          }}
+        />
+      )}
       {foodSheet && (
         <FoodSheet
           key={foodSheet.food?.id ?? "new"}

@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { durationLabel, foodUnit, type State } from "./domain";
+import { durationLabel, foodUnit, num, type State } from "./domain";
 import { foodCalories } from "./energy";
 import type { Report, ReportDay } from "./report";
 import { palette, toRgb } from "./theme";
@@ -13,11 +13,9 @@ const LINE: [number, number, number] = [236, 236, 239];
 export const DISCLAIMER =
   "Este relatório mostra apenas o que foi registrado no Ritmo. Calorias e gastos são estimativas, e dias sem registro completo não refletem o consumo real. O app ajuda a acompanhar sua rotina, mas não substitui nutricionista, médico ou profissional de educação física.";
 
-const br = (n: number, digits = 0) =>
-  n.toLocaleString("pt-BR", {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  });
+// Sem arredondar: mostra o valor exato (até 2 casas, só para cortar o
+// ruído do ponto flutuante).
+const br = (n: number, _digits?: number) => num(n);
 const date = (d: string) =>
   new Date(d + "T12:00:00").toLocaleDateString("pt-BR");
 const weekday = (d: string) =>
@@ -146,7 +144,7 @@ export function buildReportPdf(state: State, r: Report) {
     [
       "Exercícios",
       r.exercise.count
-        ? `${r.exercise.count} treino(s) em ${r.exercise.activeDays} dia(s) · ${durationLabel(r.exercise.minutes)} no total · média de ${r.exercise.weeklyMinutes} min/semana${r.exercise.km ? ` · ${br(r.exercise.km, 2)} km` : ""}${r.exercise.elevation ? ` · ${br(r.exercise.elevation)} m de elevação` : ""}`
+        ? `${r.exercise.count} treino(s) em ${r.exercise.activeDays} dia(s) · ${durationLabel(r.exercise.minutes)} no total · média de ${br(r.exercise.weeklyMinutes)} min/semana${r.exercise.km ? ` · ${br(r.exercise.km, 2)} km` : ""}${r.exercise.elevation ? ` · ${br(r.exercise.elevation)} m de elevação` : ""}`
         : "Nenhum registro",
     ],
     [
@@ -247,7 +245,7 @@ export function buildReportPdf(state: State, r: Report) {
           date(f.date),
           f.name,
           `${br(f.grams)} ${foodUnit(f)}`,
-          kcal === null ? "pendente" : br(Math.round(kcal)),
+          kcal === null ? "pendente" : br(kcal),
           f.source === "ai" ? "IA" : f.source === "label" ? "rótulo" : "-",
         ];
       }),

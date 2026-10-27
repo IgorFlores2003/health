@@ -18,6 +18,28 @@ function mergeList<T extends Item>(base: T[], local: T[], remote: T[]) {
 }
 
 /**
+ * Perfil campo por campo: mudar o nome num aparelho não apaga a foto que
+ * outro aparelho acabou de colocar (e vice-versa).
+ */
+function mergeProfile(
+  base: State["profile"],
+  local: State["profile"],
+  remote: State["profile"],
+): State["profile"] {
+  const merged: Record<string, unknown> = {};
+  const keys = new Set([
+    ...Object.keys(base),
+    ...Object.keys(local),
+    ...Object.keys(remote),
+  ]) as Set<keyof State["profile"]>;
+  for (const k of keys) {
+    const v = same(local[k], base[k]) ? remote[k] : local[k];
+    if (v !== undefined) merged[k] = v;
+  }
+  return merged as State["profile"];
+}
+
+/**
  * Junta as alterações deste aparelho (local, em relação a base, a última
  * versão sincronizada) com a versão atual da conta (remote), que outro
  * aparelho pode ter mudado. Registro por registro, vence quem alterou;
@@ -28,7 +50,7 @@ export function mergeStates(base: State, local: State, remote: State): State {
     same(local[k], base[k]) ? remote[k] : local[k];
   const merged: State = {
     ...remote,
-    profile: pick("profile"),
+    profile: mergeProfile(base.profile, local.profile, remote.profile),
     profileReviewed: pick("profileReviewed"),
     goal: pick("goal"),
     intake: pick("intake"),

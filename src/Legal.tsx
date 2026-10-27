@@ -252,7 +252,7 @@ function Formulas() {
       </F>
       <F name="Meta do dia">
         Gasto do dia − 500 kcal (emagrecer), + 300 kcal (ganhar) ou + 0
-        (manter), arredondada a 10 kcal.
+        (manter), sem arredondar.
       </F>
       <F name="Mínimo seguro">
         A meta nunca fica abaixo do maior entre o basal e 1.200 kcal
@@ -260,7 +260,7 @@ function Formulas() {
       </F>
       <F name="Prazo estimado">
         |peso atual − peso desejado| × 7.700 kcal ÷ diferença diária entre a
-        meta e o gasto habitual. Só calculado com diferença entre 100 e 1.000
+        meta e o gasto habitual, em dias inteiros (para cima). Só calculado com diferença entre 100 e 1.000
         kcal/dia; não considera adaptação do metabolismo.
       </F>
       <F name="Progresso da meta">

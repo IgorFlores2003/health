@@ -37,7 +37,7 @@ export const balanceLabels = {
 const kcal = (n: number | null) =>
   n === null
     ? "—"
-    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`;
+    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 export default function DailyDiary({
   state,
   setState,
