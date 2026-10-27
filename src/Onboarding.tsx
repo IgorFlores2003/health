@@ -68,6 +68,8 @@ export default function Onboarding({
     const date = today();
     onDone({
       ...state,
+      goal: Number(f.get("goal")) || 0,
+      intake: 0,
       profileReviewed: true,
       profile: {
         ...p,
@@ -147,6 +149,23 @@ export default function Onboarding({
               />
             </label>
           </div>
+          <label className="block">
+            <span className="label">Peso desejado (kg) · opcional</span>
+            <input
+              className="input"
+              name="goal"
+              type="number"
+              inputMode="decimal"
+              min="20"
+              max="400"
+              step="0.1"
+              defaultValue={state.goal || undefined}
+            />
+            <span className="hint block">
+              Abaixo do seu peso, as calorias do dia miram emagrecer; acima,
+              ganhar peso. Sem ele, miram manter.
+            </span>
+          </label>
           <label className="block">
             <span className="label">Altura (cm)</span>
             <input

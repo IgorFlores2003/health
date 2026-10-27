@@ -69,7 +69,8 @@ import {
   minimumIntake,
   parseDuration,
   projection,
-  suggestedIntake,
+  goalDirection,
+  intakeTarget,
   today,
   validState,
   type State,
@@ -464,24 +465,21 @@ export default function App({ account }: { account: User }) {
   const bmr = basal(weight, state.profile);
   const expenditure = bmr ? Math.round(bmr * state.profile.activity) : 0;
   const day = dailyEnergy(state, diaryDate);
-  const autoIntake = suggestedIntake(weight, state.goal, state.profile);
-  const intakeFloor = minimumIntake(bmr, state.profile);
-  const [manualIntake, setManualIntake] = useState(state.intake > 0);
-  useEffect(() => setManualIntake(state.intake > 0), [state.intake]);
-  const days = projection(
-    weight,
-    state.goal,
-    expenditure,
-    state.intake || autoIntake || 0,
-  );
+  const target = bmr
+    ? intakeTarget(expenditure, weight, state.goal, bmr, state.profile)
+    : null;
+  const days = target
+    ? projection(weight, state.goal, expenditure, target.target)
+    : null;
   const sorted = byDate(state.weights);
   const first = sorted[0]?.value || 0;
   const difference = weight - first;
+  // Vale para emagrecer (meta abaixo do início) e ganhar (acima).
   const progress =
-    state.goal && first > state.goal
+    state.goal && first && first !== state.goal
       ? Math.min(
           100,
-          Math.max(0, ((first - weight) / (first - state.goal)) * 100),
+          Math.max(0, ((weight - first) / (state.goal - first)) * 100),
         )
       : 0;
   const cutoff = new Date();
@@ -981,7 +979,7 @@ export default function App({ account }: { account: User }) {
                   unit="kg"
                   detail={
                     state.goal && weight
-                      ? `Faltam ${fmt(Math.max(0, Number((weight - state.goal).toFixed(1))))} kg`
+                      ? `Faltam ${fmt(Math.abs(Number((weight - state.goal).toFixed(1))))} kg`
                       : "Não definida"
                   }
                 />
@@ -1690,21 +1688,18 @@ export default function App({ account }: { account: User }) {
                       e.preventDefault();
                       const f = new FormData(e.currentTarget);
                       const goal = Number(f.get("goal"));
-                      const intake = manualIntake ? Number(f.get("intake")) : 0;
-                      if (!weight || goal >= weight) {
-                        setNotice(
-                          "Registre seu peso e escolha uma meta abaixo do peso atual.",
-                        );
+                      if (!weight) {
+                        setNotice("Registre seu peso antes de definir a meta.");
                         return;
                       }
-                      if (manualIntake && intake < intakeFloor) {
-                        setNotice(
-                          `A meta de consumo não pode ficar abaixo de ${fmt(intakeFloor)} kcal, o mínimo seguro para você.`,
-                        );
-                        return;
-                      }
-                      setState({ ...state, goal, intake });
-                      setNotice("Meta atualizada.");
+                      setState({ ...state, goal, intake: 0 });
+                      setNotice(
+                        goal < weight
+                          ? "Meta salva: as calorias do dia agora miram emagrecer."
+                          : goal > weight
+                            ? "Meta salva: as calorias do dia agora miram ganhar peso."
+                            : "Meta salva: as calorias do dia miram manter o peso.",
+                      );
                     }}
                   >
                     <Field label="Peso desejado (kg)">
@@ -1718,48 +1713,45 @@ export default function App({ account }: { account: User }) {
                         required
                         defaultValue={state.goal || ""}
                       />
+                      <span className="hint block">
+                        Abaixo do peso atual, a meta de calorias é para
+                        emagrecer; acima, para ganhar peso.
+                      </span>
                     </Field>
-                    <Field label="Meta de consumo diário">
-                      <select
-                        className="input"
-                        value={manualIntake ? "manual" : "auto"}
-                        onChange={(e) =>
-                          setManualIntake(e.target.value === "manual")
-                        }
-                      >
-                        <option value="auto">
-                          Automática
-                          {autoIntake ? ` · ${fmt(autoIntake)} kcal` : ""}
-                        </option>
-                        <option value="manual">Definir um valor</option>
-                      </select>
-                    </Field>
-                    {manualIntake && (
-                      <Field label="Meta de consumo diário (kcal)">
-                        <input
-                          className="input"
-                          name="intake"
-                          type="number"
-                          min={intakeFloor}
-                          max="10000"
-                          required
-                          defaultValue={state.intake || autoIntake || ""}
-                        />
-                      </Field>
-                    )}
-                    <p className="hint">
-                      {manualIntake
-                        ? "Use um valor combinado com seu profissional de saúde."
-                        : "Calculada pelo seu perfil: gasto estimado (basal × 1,2), menos 500 kcal se a meta for perder peso."}{" "}
-                      Nunca fica abaixo de {fmt(intakeFloor)} kcal: o seu basal
-                      ou 1.200 kcal (coeficiente feminino) / 1.500 kcal
-                      (masculino), o que for maior. Vira o limite de "Calorias
-                      do dia" (mais os exercícios). O app não prescreve dietas.
-                    </p>
                     <button className="btn-primary" type="submit">
                       <RiCheckLine className="size-5" /> Salvar meta
                     </button>
                   </form>
+                  <dl className="mt-5 divide-y divide-line border-y border-line text-sm">
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-ink-500">Objetivo</dt>
+                      <dd className="font-medium">
+                        {
+                          {
+                            lose: "Emagrecer",
+                            gain: "Ganhar peso",
+                            maintain: "Manter o peso",
+                          }[goalDirection(weight, state.goal)]
+                        }
+                      </dd>
+                    </div>
+                    <div className="flex justify-between gap-4 py-3">
+                      <dt className="text-ink-500">Meta de calorias por dia</dt>
+                      <dd className="font-semibold tabular-nums">
+                        {target ? `${fmt(target.target)} kcal` : "—"}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className={note + " mt-3"}>
+                    Calculada pelo app, sem valor manual: gasto do seu nível de
+                    atividade (basal × fator do perfil), menos 500 kcal para
+                    emagrecer ou mais 300 kcal para ganhar peso. Nunca fica
+                    abaixo de {fmt(minimumIntake(bmr, state.profile))} kcal (o
+                    seu basal ou 1.200 kcal no coeficiente feminino / 1.500 kcal
+                    no masculino, o que for maior). Nos dias em que seus
+                    exercícios passam desse gasto, a meta do dia sobe. O app não
+                    prescreve dietas.
+                  </p>
                 </Panel>
                 <Panel>
                   <CardHeader title="Prazo estimado" />
@@ -1771,8 +1763,10 @@ export default function App({ account }: { account: User }) {
                   </div>
                   <p className="mt-2 text-sm text-ink-500">
                     {days
-                      ? "Cálculo com os valores informados."
-                      : "Preencha peso, perfil, meta e consumo para calcular."}
+                      ? "Seguindo a meta de calorias todos os dias."
+                      : state.goal && state.goal !== weight
+                        ? "Com a meta no mínimo seguro, a diferença é pequena demais para estimar um prazo."
+                        : "Defina um peso desejado diferente do atual para calcular."}
                   </p>
                   <dl className="mt-4 divide-y divide-line border-y border-line text-sm">
                     <div className="flex justify-between py-3">
@@ -1790,14 +1784,8 @@ export default function App({ account }: { account: User }) {
                   </dl>
                   <p className={note + " mt-4"}>
                     Considera 7.700 kcal por kg e gasto constante, sem adaptação
-                    do metabolismo, então não é uma data garantida. Só
-                    calculamos com diferença entre 100 e 1.000 kcal/dia, o que
-                    não é uma recomendação de déficit. Revise a meta com um
-                    profissional.
-                  </p>
-                  <p className={note + " mt-2"}>
-                    O nível de atividade do perfil já inclui os exercícios; eles
-                    não são somados de novo.
+                    do metabolismo, então não é uma data garantida. Revise a
+                    meta com um profissional.
                   </p>
                 </Panel>
               </div>

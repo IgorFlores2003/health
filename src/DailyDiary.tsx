@@ -675,15 +675,17 @@ export default function DailyDiary({
           </summary>
           <div className="space-y-3 pt-1">
             <p>
-              Consumo = gramas × kcal por 100 g ÷ 100. Base do dia = basal ×
-              1,2, considerando rotina leve fora dos treinos. Exercícios
+              Consumo = gramas × kcal por 100 g ÷ 100. Gasto do dia = o maior
+              entre basal × seu nível de atividade e basal × 1,2 + exercícios
+              registrados, para um treino nunca contar duas vezes. Exercícios
               estimados usam valores MET e descontam o repouso. Calorias ativas
               informadas substituem a estimativa do exercício, nunca são somadas
               a ela.
             </p>
             <p>
-              O fator de atividade do perfil só entra na simulação de meta, não
-              neste diário. Distância e duração estimam a velocidade em
+              A meta de calorias é esse gasto menos 500 kcal para emagrecer ou
+              mais 300 kcal para ganhar peso, nunca abaixo do mínimo seguro.
+              Distância e duração estimam a velocidade em
               caminhada, corrida e bicicleta em terreno plano; outras condições
               podem mudar bastante o gasto. Não são medições clínicas, não são
               diagnóstico e não garantem emagrecimento.

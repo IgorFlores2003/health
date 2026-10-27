@@ -26,22 +26,21 @@ São aproximações populacionais, não medições individuais. As faixas por ve
 
 ## Saldo
 
-Base diária = Mifflin–St Jeor × 1,2, assumindo rotina leve fora dos treinos. Gasto do dia = base + calorias ativas dos exercícios. Saldo = consumo − gasto. O fator habitual do perfil continua sendo usado apenas na simulação de prazo da aba Meta; nunca é somado ao exercício no diário.
+Base diária = Mifflin–St Jeor × 1,2 (rotina leve). Gasto habitual = basal × nível de atividade do perfil, que já inclui os treinos habituais. Gasto do dia = o maior entre o gasto habitual e base diária + calorias ativas dos exercícios registrados, para um treino nunca ser contado duas vezes. Saldo = consumo − gasto do dia.
 
-O usuário precisa revisar/salvar o perfil, registrar peso nessa data ou antes, resolver calorias pendentes e marcar que registrou tudo no dia. Só então o status pode ser déficit, superávit ou próximo do equilíbrio. A faixa de ±100 kcal é uma tolerância operacional, não clínica. Sem fechamento ou com dados faltantes, o resultado é incompleto, mesmo que o saldo parcial seja negativo. Um dia sem alimentos não é assumido como jejum. Ausência de exercícios após o fechamento é interpretada como dia sem treino.
+O usuário precisa revisar/salvar o perfil, registrar peso nessa data ou antes, resolver calorias pendentes e marcar que registrou tudo no dia. Só então o status pode ser déficit, superávit ou próximo do equilíbrio. A faixa de ±100 kcal é uma tolerância operacional, não clínica. Sem fechamento ou com dados faltantes, o resultado é incompleto, mesmo que o saldo parcial seja negativo. Um dia sem alimentos não é assumido como jejum.
 
-A estimativa de rotina leve pode subestimar trabalhos fisicamente ativos e não prevê perda de peso. Calorias de relógios, rótulos e IA também têm incerteza. Não há prescrição de déficit, dieta ou tratamento.
+## Calorias do dia (meta automática)
 
-## Calorias do dia (quanto ainda posso comer)
+Card no Início e no Diário (`dailyBudget` em `supabase/functions/_shared/energy.ts`). A pessoa não informa a meta de calorias: ela é sempre calculada (`intakeTarget` em `domain.ts`).
 
-Card no Início e no Diário (`dailyBudget` em `supabase/functions/_shared/energy.ts`):
+- Objetivo (`goalDirection`): peso desejado abaixo do atual = emagrecer; acima = ganhar peso; sem peso desejado = manter.
+- Meta do dia = gasto do dia − 500 kcal (emagrecer) ou + 300 kcal (ganhar), arredondada a 10 kcal.
+- Mínimo seguro (`minimumIntake`): nunca abaixo do basal nem de 1.200 kcal (coeficiente feminino) / 1.500 kcal (masculino). Quando o −500 bate nesse mínimo, o card avisa.
+- Restante = meta do dia − consumo registrado. Alimentos e exercícios sem calorias não entram na conta e são avisados.
+- `state.intake` não é mais usado (fica 0); backups antigos continuam válidos.
 
-- Meta base = meta de consumo diário definida na aba Meta (`state.intake`) ou, com `intake = 0`, a meta automática (`suggestedIntake` em `domain.ts`): base diária (Mifflin–St Jeor × 1,2), menos 500 kcal quando a meta de peso está abaixo do peso atual.
-- Mínimo seguro (`minimumIntake`): a meta nunca fica abaixo do basal nem de 1.200 kcal (coeficiente feminino) / 1.500 kcal (masculino). A aba Meta recusa valores menores; metas antigas abaixo do mínimo são elevadas até ele e o card avisa.
-- Disponível = meta base + calorias ativas dos exercícios do dia.
-- Restante = disponível − consumo registrado. Valor negativo aparece como "acima do disponível".
-- Alimentos e exercícios sem calorias não entram na conta e são avisados.
-- Sem perfil salvo ou sem peso até a data, não há cálculo.
+A aba Meta mostra a meta de calorias e o prazo estimado (7.700 kcal/kg, déficit ou superávit entre 100 e 1.000 kcal/dia). Não há prescrição de dieta ou tratamento.
 
 ## Persistência e compatibilidade
 

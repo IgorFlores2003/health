@@ -26,13 +26,15 @@ test("missing weight and minors do not produce estimates", () => {
   assert.equal(basal(0, initial.profile), null);
   assert.equal(basal(70, { ...initial.profile, age: 17 }), null);
 });
-test("projection requires a weight loss goal and bounded positive deficit", () => {
+test("projection needs a deficit to lose or a surplus to gain", () => {
   assert.equal(projection(80, 75, 2500, 2000), 77);
+  assert.equal(projection(80, 85, 2500, 2800), 129);
   for (const [w, g, e, i] of [
     [80, 85, 2500, 2000],
     [80, 75, 2000, 2500],
     [80, 75, 3000, 1000],
     [80, 75, 2000, 0],
+    [80, 80, 2000, 1500],
   ])
     assert.equal(projection(w, g, e, i), null);
 });
@@ -71,21 +73,22 @@ test("water goal is 35 ml/kg rounded to 50 ml", async () => {
   assert.equal(waterGoal(63), 2200);
   assert.equal(waterGoal(0), null);
 });
-test("automatic intake never goes below the safe minimum", async () => {
-  const { suggestedIntake, minimumIntake } = await import("../src/domain.ts");
-  const woman = {
-    ...initial.profile,
-    height: 155,
-    age: 60,
-    formulaSex: "female",
-  };
-  // basal 50 kg: 500 + 968,75 − 300 − 161 = 1008 → mínimo 1.200 kcal
-  assert.equal(minimumIntake(basal(50, woman), woman), 1200);
-  assert.equal(suggestedIntake(50, 45, woman), 1200);
+test("intake target loses, gains or maintains, never below the safe minimum", async () => {
+  const { intakeTarget, goalDirection } = await import("../src/domain.ts");
   const man = { ...initial.profile, height: 180, age: 30, formulaSex: "male" };
-  // 1780 × 1,2 = 2136 → 2140 para manter; perder: 1636 < basal → 1780
-  assert.equal(suggestedIntake(80, 0, man), 2140);
-  assert.equal(suggestedIntake(80, 70, man), 1780);
+  // basal 1780; gasto 2500
+  assert.equal(intakeTarget(2500, 80, 70, 1780, man).target, 2000);
+  assert.equal(intakeTarget(2500, 80, 90, 1780, man).target, 2800);
+  assert.equal(intakeTarget(2500, 80, 0, 1780, man).target, 2500);
+  // perder com gasto baixo: para no basal
+  const low = intakeTarget(2136, 80, 70, 1780, man);
+  assert.equal(low.target, 1780);
+  assert.equal(low.limited, true);
+  const woman = { ...initial.profile, formulaSex: "female" };
+  assert.equal(intakeTarget(1300, 50, 45, 1008, woman).target, 1200);
+  assert.equal(goalDirection(100, 110), "gain");
+  assert.equal(goalDirection(110, 100), "lose");
+  assert.equal(goalDirection(100, 0), "maintain");
 });
 test("water entries and hydration settings are validated", () => {
   const base = { ...initial, water: [{ id: "a", date: "2026-10-26", ml: 250 }] };
