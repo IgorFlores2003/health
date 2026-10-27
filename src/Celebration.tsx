@@ -48,7 +48,14 @@ function Confetti() {
     const brand = getComputedStyle(document.documentElement)
       .getPropertyValue("--color-brand-500")
       .trim();
-    const colors = [brand || "#ee3636", "#38bdf8", "#22c55e", "#facc15", "#a855f7", "#f97316"];
+    const colors = [
+      brand || "#ee3636",
+      "#38bdf8",
+      "#22c55e",
+      "#facc15",
+      "#a855f7",
+      "#f97316",
+    ];
     const pieces = Array.from({ length: 160 }, () => ({
       x: Math.random() * innerWidth,
       y: -20 - Math.random() * innerHeight * 0.6,

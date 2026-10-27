@@ -8,15 +8,13 @@ import {
   type Food,
 } from "./domain.ts";
 export const foodCalories = (food: Food) =>
-  food.kcalPer100g === null
-    ? null
-    : (food.grams * food.kcalPer100g) / 100;
+  food.kcalPer100g === null ? null : (food.grams * food.kcalPer100g) / 100;
 export function weightAtDate(state: State, date: string) {
   return byDate(state.weights.filter((w) => w.date <= date)).at(-1)?.value ?? 0;
 }
 // Simplified flat-ground MET bands from the 2024 Adult Compendium.
 // See docs/energy.md for sources, assumptions and limitations.
-export function exerciseMet(ex: Exercise): number | null {
+function exerciseMet(ex: Exercise): number | null {
   const speed =
     ex.distanceKm && ex.minutes > 0 ? ex.distanceKm / (ex.minutes / 60) : null;
   if (ex.type === "Caminhada") {
@@ -121,8 +119,7 @@ export function dailyEnergy(state: State, date: string) {
   const bmr = state.profileReviewed ? basal(weight, state.profile) : null;
   const baseline = bmr === null ? null : bmr * 1.2;
   // Gasto pelo nível de atividade do perfil (já inclui treinos habituais).
-  const habitual =
-    bmr === null ? null : bmr * state.profile.activity;
+  const habitual = bmr === null ? null : bmr * state.profile.activity;
   const foodMissing = foods.filter((f) => foodCalories(f) === null).length;
   const exerciseValues = exercises.map((e) => ({
     ...e,

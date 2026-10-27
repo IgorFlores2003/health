@@ -61,7 +61,8 @@ export default function NumberField({
     el.addEventListener("fill", onFill);
     return () => el.removeEventListener("fill", onFill);
   });
-  const shown = stored === null || stored === undefined ? null : stored / factor;
+  const shown =
+    stored === null || stored === undefined ? null : stored / factor;
   const text =
     shown === null
       ? ""

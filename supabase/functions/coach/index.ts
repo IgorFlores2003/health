@@ -406,10 +406,7 @@ Deno.serve(async (req) => {
       )
         return response({ error: "Estimativa inválida" }, 502);
       return response({
-        kcalPer100g:
-          value.kcalPer100g === null
-            ? null
-            : value.kcalPer100g,
+        kcalPer100g: value.kcalPer100g === null ? null : value.kcalPer100g,
         portionGrams:
           typeof value.portionGrams === "number" &&
           Number.isFinite(value.portionGrams) &&

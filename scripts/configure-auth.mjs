@@ -111,7 +111,9 @@ async function main() {
   });
   if (!result.ok) {
     const responseBody = await result.json().catch(() => null);
-    throw new Error(configurationError(result.status, responseBody, Object.keys(body)));
+    throw new Error(
+      configurationError(result.status, responseBody, Object.keys(body)),
+    );
   }
   const verification = await fetch(endpoint, {
     headers,

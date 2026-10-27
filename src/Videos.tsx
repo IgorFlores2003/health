@@ -2,6 +2,7 @@ import { useState } from "react";
 import { RiPlayFill, RiTimeLine } from "react-icons/ri";
 import Sheet from "./Sheet";
 import { VIDEOS, type Video } from "./videoCatalog";
+import Choice from "./Choice";
 
 const TOPICS = ["Todos", ...new Set(VIDEOS.map((v) => v.topic))];
 const length = (s: number) =>
@@ -20,28 +21,26 @@ export default function Videos() {
         </h1>
         <p className="mt-1 text-ink-500">Dicas curtas para cuidar da saúde.</p>
       </div>
-      <div
-        className="mb-5 flex flex-wrap gap-2"
-        role="radiogroup"
-        aria-label="Tema"
-      >
-        {TOPICS.map((t) => (
-          <button
-            key={t}
-            role="radio"
-            aria-checked={topic === t}
-            className="min-h-9 rounded-full border border-line px-3 text-sm text-ink-700 aria-checked:border-brand-500 aria-checked:bg-brand-50 aria-checked:font-medium aria-checked:text-brand-700"
-            onClick={() => setTopic(t)}
-          >
-            {t}
-            <span className="ml-1.5 text-ink-400">
-              {t === "Todos"
-                ? VIDEOS.length
-                : VIDEOS.filter((v) => v.topic === t).length}
-            </span>
-          </button>
-        ))}
-      </div>
+      <Choice
+        variant="chips"
+        className="mb-5"
+        label="Tema"
+        value={topic}
+        onChange={setTopic}
+        options={TOPICS.map((t) => ({
+          id: t,
+          label: (
+            <>
+              {t}
+              <span className="ml-1.5 text-ink-400">
+                {t === "Todos"
+                  ? VIDEOS.length
+                  : VIDEOS.filter((v) => v.topic === t).length}
+              </span>
+            </>
+          ),
+        }))}
+      />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {list.map((v) => (
           <button
@@ -81,8 +80,8 @@ export default function Videos() {
         ))}
       </div>
       <p className="mt-6 text-[13px] leading-relaxed text-ink-500">
-        Conteúdo para informação geral; não substitui a orientação do seu
-        médico ou nutricionista.
+        Conteúdo para informação geral; não substitui a orientação do seu médico
+        ou nutricionista.
       </p>
       {open && (
         <Sheet title={open.title} onClose={() => setOpen(null)}>

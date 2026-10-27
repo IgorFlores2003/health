@@ -1,16 +1,9 @@
 import { PhotoStrip, removePhotos } from "./photos";
 import CalorieBudget from "./CalorieBudget";
-import {
-  useState,
-  useRef,
-  type Dispatch,
-  type SetStateAction,
-  type FormEvent,
-} from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import {
   RiAddLine,
   RiChat3Line,
-  RiCheckLine,
   RiDeleteBin6Line,
   RiPencilLine,
   RiRestaurant2Line,
@@ -22,22 +15,17 @@ import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import {
   durationLabel,
   foodUnit,
+  kcal,
   today,
-  validState,
   type State,
   type Food,
 } from "./domain";
-import { supabase } from "./supabase";
 export const balanceLabels = {
   incomplete: "Registros incompletos",
   deficit: "Déficit estimado",
   surplus: "Superávit estimado",
   near_balance: "Próximo do equilíbrio",
 };
-const kcal = (n: number | null) =>
-  n === null
-    ? "—"
-    : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 export default function DailyDiary({
   state,
   setState,
@@ -137,10 +125,7 @@ export default function DailyDiary({
               </p>
             </div>
             <div className="contents">
-              <button
-                className="btn-secondary"
-                onClick={() => open()}
-              >
+              <button className="btn-secondary" onClick={() => open()}>
                 <RiAddLine size={18} /> Alimento
               </button>
             </div>
@@ -430,10 +415,10 @@ export default function DailyDiary({
             <p>
               A meta de calorias é esse gasto menos 500 kcal para emagrecer ou
               mais 300 kcal para ganhar peso, nunca abaixo do mínimo seguro.
-              Distância e duração estimam a velocidade em
-              caminhada, corrida e bicicleta em terreno plano; outras condições
-              podem mudar bastante o gasto. Não são medições clínicas, não são
-              diagnóstico e não garantem emagrecimento.
+              Distância e duração estimam a velocidade em caminhada, corrida e
+              bicicleta em terreno plano; outras condições podem mudar bastante
+              o gasto. Não são medições clínicas, não são diagnóstico e não
+              garantem emagrecimento.
             </p>
             <a
               className="inline-block text-brand-700 underline underline-offset-2"

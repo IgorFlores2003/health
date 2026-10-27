@@ -10,7 +10,7 @@ const INK: [number, number, number] = [0, 0, 0];
 // Todo o texto do PDF é preto (pedido do usuário: nada em cinza).
 const MUTED: [number, number, number] = [0, 0, 0];
 const LINE: [number, number, number] = [236, 236, 239];
-export const DISCLAIMER =
+const DISCLAIMER =
   "Este relatório mostra apenas o que foi registrado no Ritmo. Calorias e gastos são estimativas, e dias sem registro completo não refletem o consumo real. O app ajuda a acompanhar sua rotina, mas não substitui nutricionista, médico ou profissional de educação física.";
 
 // Sem arredondar: mostra o valor exato (até 2 casas, só para cortar o

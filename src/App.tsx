@@ -4,7 +4,6 @@ import ExerciseFields from "./ExerciseFields";
 import {
   dailyBudget,
   dailyEnergy,
-  foodCalories,
   reopenDay,
   waterOn,
   weightAtDate,
@@ -15,19 +14,12 @@ import CameraCapture from "./CameraCapture";
 import type { User } from "@supabase/supabase-js";
 import { userStorageKey } from "./access";
 import AccountAccess from "./AccountAccess";
-import { Avatar, PhotoStrip, removePhotos, uploadPhoto } from "./photos";
-import {
-  useEffect,
-  useState,
-  useRef,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { Avatar, removePhotos, uploadPhoto } from "./photos";
+import { useEffect, useState, useRef, type FormEvent } from "react";
 import type { IconType } from "react-icons";
 import {
   RiAddLine,
   RiArrowRightLine,
-  RiArrowRightSLine,
   RiCameraLine,
   RiComputerLine,
   RiMoonLine,
@@ -36,10 +28,7 @@ import {
   RiChat3Fill,
   RiChat3Line,
   RiCheckLine,
-  RiCloudLine,
-  RiCloudOffLine,
   RiCloseLine,
-  RiDeleteBin6Line,
   RiFileList3Fill,
   RiFileList3Line,
   RiFireLine,
@@ -48,9 +37,7 @@ import {
   RiHome5Fill,
   RiHome5Line,
   RiLineChartLine,
-  RiLogoutBoxRLine,
   RiFocus3Line,
-  RiPencilLine,
   RiPlayCircleFill,
   RiPlayCircleLine,
   RiPulseLine,
@@ -76,10 +63,9 @@ import {
 import {
   basal,
   byDate,
+  dateKey,
   waterGoal,
   currentWeight,
-  durationLabel,
-  foodUnit,
   initial,
   num,
   MAX_PHOTOS,
@@ -95,16 +81,28 @@ import {
 } from "./domain";
 import { supabase } from "./supabase";
 import { confirmDialog } from "./confirm";
-import { useCloudSync, type SyncStatus } from "./sync";
+import { useCloudSync } from "./sync";
+import { AccountMenu, SyncBadge } from "./AccountMenu";
+import {
+  CardHeader,
+  dateLabel,
+  Empty,
+  Field,
+  PageTitle,
+  Panel,
+  QuickAction,
+  Stat,
+} from "./ui";
 import Onboarding from "./Onboarding";
 import PressureFields from "./PressureFields";
-import ReportCard, { firstDate } from "./ReportCard";
+import Records from "./Records";
 import WeightFields from "./WeightFields";
 import AccentPicker from "./AccentPicker";
 import {
   applyAccent,
   applyColorMode,
   colorMode,
+  isDark,
   DEFAULT_ACCENT,
   nearestPreset,
 } from "./theme";
@@ -119,6 +117,7 @@ import Videos from "./Videos";
 import { useLegal } from "./Legal";
 import { quickAnswer } from "./quickAnswers";
 import NumberField from "./NumberField";
+import Choice from "./Choice";
 function readLocal(localKey: string): State {
   try {
     const s = JSON.parse(localStorage.getItem(localKey) || "null");
@@ -128,11 +127,6 @@ function readLocal(localKey: string): State {
   }
 }
 const fmt = num;
-const dateLabel = (d: string) =>
-  new Date(d + "T12:00:00").toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-  });
 const tabs: {
   id: string;
   label: string;
@@ -183,177 +177,6 @@ const tabs: {
     active: RiUser3Fill,
   },
 ];
-function Field({
-  label,
-  children,
-  className = "",
-}: {
-  label: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <label className={"block " + className}>
-      <span className="label">{label}</span>
-      {children}
-    </label>
-  );
-}
-function Panel({
-  children,
-  className = "",
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return <section className={"card min-w-0 " + className}>{children}</section>;
-}
-function CardHeader({
-  title,
-  text,
-  children,
-}: {
-  title: string;
-  text?: string;
-  children?: ReactNode;
-}) {
-  return (
-    <div className="mb-4 flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <h2 className="text-base font-semibold">{title}</h2>
-        {text && <p className="mt-0.5 text-sm text-ink-500">{text}</p>}
-      </div>
-      {children}
-    </div>
-  );
-}
-/** Foto do usuário com o menu da conta (perfil e sair). */
-function AccountMenu({
-  photo,
-  name,
-  email,
-  onProfile,
-  onSignOut,
-  compact,
-  up,
-  className = "",
-}: {
-  photo?: string;
-  name: string;
-  email: string;
-  onProfile: () => void;
-  onSignOut: () => void;
-  compact?: boolean;
-  /** Abre o menu para cima (rodapé da barra lateral). */
-  up?: boolean;
-  className?: string;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    const close = (e: Event) =>
-      !ref.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("pointerdown", close);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
-  const item =
-    "flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium hover:bg-surface";
-  return (
-    <div ref={ref} className={"relative " + className}>
-      <button
-        className={
-          compact
-            ? "flex rounded-full"
-            : "flex w-full items-center gap-3 rounded-lg px-2 py-1.5 text-left hover:bg-surface"
-        }
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Menu da conta"
-        onClick={() => setOpen((v) => !v)}
-      >
-        <Avatar path={photo} name={name} size={compact ? 32 : 36} />
-        {!compact && (
-          <span className="min-w-0">
-            <strong className="block truncate text-sm font-semibold">
-              {name || "Seu perfil"}
-            </strong>
-            <small className="block truncate text-xs text-ink-500">
-              {email || "Salvo neste aparelho"}
-            </small>
-          </span>
-        )}
-      </button>
-      {open && (
-        <div
-          role="menu"
-          className={
-            "absolute z-30 w-56 rounded-xl border border-line bg-white p-1.5 shadow-lg " +
-            (up ? "bottom-full left-0 mb-2" : "top-full right-0 mt-2")
-          }
-        >
-          {compact && email && (
-            <p className="truncate px-3 pt-2 pb-1 text-xs text-ink-500">
-              {email}
-            </p>
-          )}
-          <button
-            role="menuitem"
-            className={item}
-            onClick={() => {
-              setOpen(false);
-              onProfile();
-            }}
-          >
-            <RiUser3Line className="size-5 text-ink-500" /> Ver perfil
-          </button>
-          <button
-            role="menuitem"
-            className={item + " text-brand-700 hover:bg-brand-50"}
-            onClick={() => {
-              setOpen(false);
-              onSignOut();
-            }}
-          >
-            <RiLogoutBoxRLine className="size-5" /> Sair da conta
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-const syncText: Record<SyncStatus, string> = {
-  loading: "Carregando da conta…",
-  saving: "Salvando na conta…",
-  saved: "Salvo na conta",
-  offline: "Sem conexão: salvo no aparelho, envia quando voltar",
-  off: "Salvo só neste aparelho",
-};
-function SyncBadge({ status, label }: { status: SyncStatus; label?: boolean }) {
-  const ok = status === "saved" || status === "saving" || status === "loading";
-  const Icon = ok ? RiCloudLine : RiCloudOffLine;
-  return (
-    <span
-      className="inline-flex items-center gap-1.5"
-      title={syncText[status]}
-      aria-live="polite"
-    >
-      <Icon
-        className={`size-[18px] ${status === "saved" ? "text-ink-400" : ok ? "animate-pulse text-brand-600" : "text-brand-700"}`}
-      />
-      {label ? (
-        syncText[status]
-      ) : (
-        <span className="sr-only">{syncText[status]}</span>
-      )}
-    </span>
-  );
-}
 const note = "text-[13px] leading-relaxed text-ink-500";
 const axisTick = { fontSize: 12, fill: "var(--color-ink-400)" };
 export default function App({ account }: { account: User }) {
@@ -379,6 +202,15 @@ export default function App({ account }: { account: User }) {
   const [modal, setModal] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [mode, setMode] = useState(colorMode);
+  // Modo "Sistema" também muda sozinho: acompanha para o ícone do topo.
+  const [dark, setDark] = useState(isDark);
+  useEffect(() => {
+    const sync = () => setDark(isDark());
+    sync();
+    const media = matchMedia("(prefers-color-scheme: dark)");
+    media.addEventListener("change", sync);
+    return () => media.removeEventListener("change", sync);
+  }, [mode]);
   const [foodSheet, setFoodSheet] = useState<{
     food?: Food;
   } | null>(null);
@@ -411,14 +243,6 @@ export default function App({ account }: { account: User }) {
     : undefined;
   const [notice, setNotice] = useState("");
   const [period, setPeriod] = useState("30");
-  // Filtro de dias da aba Registros.
-  const [recPeriod, setRecPeriod] = useState("30");
-  const [customFrom, setCustomFrom] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 6);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
-  const [customTo, setCustomTo] = useState(today);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState("");
   const [question, setQuestion] = useState("");
@@ -577,7 +401,7 @@ export default function App({ account }: { account: User }) {
   const exerciseChart = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(weekStart);
     d.setDate(d.getDate() + i);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const key = dateKey(d);
     return {
       dia: d.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", ""),
       minutos: state.exercises
@@ -585,21 +409,6 @@ export default function App({ account }: { account: User }) {
         .reduce((s, x) => s + x.minutes, 0),
     };
   });
-  // Um período para o relatório e as listas da aba Registros.
-  const recFrom =
-    recPeriod === "all"
-      ? firstDate(state)
-      : recPeriod === "custom"
-        ? customFrom
-        : (() => {
-            const d = new Date();
-            d.setDate(d.getDate() - (Number(recPeriod) - 1));
-            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-          })();
-  const recTo = recPeriod === "custom" ? customTo : today();
-  const inRecords = (date: string) => date >= recFrom && date <= recTo;
-  const recFoods = (state.foods ?? []).filter((f) => inRecords(f.date));
-  const recWater = (state.water ?? []).filter((w) => inRecords(w.date));
   async function submitRecord(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (busy) return;
@@ -1006,6 +815,22 @@ export default function App({ account }: { account: User }) {
                 })}
               </span>
               <SyncBadge status={sync.status} />
+              <button
+                className="icon-btn -mx-1"
+                onClick={() => {
+                  const next = isDark() ? "light" : "dark";
+                  setMode(next);
+                  applyColorMode(next);
+                }}
+                aria-label={dark ? "Usar modo claro" : "Usar modo escuro"}
+                title={dark ? "Modo claro" : "Modo escuro"}
+              >
+                {dark ? (
+                  <RiSunLine className="size-5" />
+                ) : (
+                  <RiMoonLine className="size-5" />
+                )}
+              </button>
               <AccountMenu
                 compact
                 className="md:hidden"
@@ -1139,7 +964,10 @@ export default function App({ account }: { account: User }) {
                               />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid vertical={false} stroke="var(--color-line)" />
+                          <CartesianGrid
+                            vertical={false}
+                            stroke="var(--color-line)"
+                          />
                           <XAxis
                             dataKey="date"
                             axisLine={false}
@@ -1241,7 +1069,10 @@ export default function App({ account }: { account: User }) {
                         data={exerciseChart}
                         margin={{ left: -25, right: 0 }}
                       >
-                        <CartesianGrid vertical={false} stroke="var(--color-line)" />
+                        <CartesianGrid
+                          vertical={false}
+                          stroke="var(--color-line)"
+                        />
                         <XAxis
                           dataKey="dia"
                           axisLine={false}
@@ -1342,396 +1173,13 @@ export default function App({ account }: { account: User }) {
             />
           )}
           {tab === "records" && (
-            <>
-              <PageTitle
-                title="Registros"
-                text="Peso, exercícios, pressão arterial, alimentação e água."
-              />
-              <div className="mb-5 flex flex-wrap items-end gap-3">
-                <div
-                  className="flex flex-wrap rounded-lg border border-line p-0.5"
-                  role="radiogroup"
-                  aria-label="Período do relatório e dos registros"
-                >
-                  {[
-                    ["1", "Hoje"],
-                    ["7", "7 dias"],
-                    ["30", "30 dias"],
-                    ["90", "90 dias"],
-                    ["all", "Tudo"],
-                    ["custom", "Personalizado"],
-                  ].map(([id, label]) => (
-                    <button
-                      key={id}
-                      role="radio"
-                      aria-checked={recPeriod === id}
-                      className={`min-h-9 rounded-md px-3 text-sm font-medium ${recPeriod === id ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-surface"}`}
-                      onClick={() => setRecPeriod(id)}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {recPeriod === "custom" && (
-                  <div className="flex flex-wrap items-end gap-2">
-                    <label className="block">
-                      <span className="label">De</span>
-                      <input
-                        className="input w-auto"
-                        type="date"
-                        max={customTo}
-                        value={customFrom}
-                        onChange={(e) =>
-                          e.target.value &&
-                          e.target.value <= customTo &&
-                          setCustomFrom(e.target.value)
-                        }
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="label">Até</span>
-                      <input
-                        className="input w-auto"
-                        type="date"
-                        min={customFrom}
-                        max={today()}
-                        value={customTo}
-                        onChange={(e) =>
-                          e.target.value &&
-                          e.target.value >= customFrom &&
-                          e.target.value <= today() &&
-                          setCustomTo(e.target.value)
-                        }
-                      />
-                    </label>
-                  </div>
-                )}
-              </div>
-              <div className="mb-5">
-                <ReportCard
-                  state={state}
-                  from={recFrom}
-                  to={recTo}
-                  onError={setNotice}
-                />
-              </div>
-              <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-                <button
-                  className="btn-primary"
-                  onClick={() => openRecord("weight")}
-                >
-                  <RiAddLine className="size-5" /> Peso
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => openRecord("exercise")}
-                >
-                  <RiAddLine className="size-5" /> Exercício
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => openRecord("pressure")}
-                >
-                  <RiAddLine className="size-5" /> Pressão
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => setFoodSheet({})}
-                >
-                  <RiAddLine className="size-5" /> Alimento
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={() => openRecord("water")}
-                >
-                  <RiAddLine className="size-5" /> Água
-                </button>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                {(["weights", "exercises", "pressures"] as const).map(
-                  (kind, i) => (
-                    <Panel key={kind}>
-                      <h2 className="text-base font-semibold">
-                        {["Peso", "Exercícios", "Pressão arterial"][i]}
-                      </h2>
-                      {!state[kind].some((x) => inRecords(x.date)) ? (
-                        <p className="py-8 text-sm text-ink-500">
-                          Nenhum registro nesse período.
-                        </p>
-                      ) : (
-                        <ul className="mt-2 divide-y divide-line">
-                          {byDate(
-                            (state[kind] as { id: string; date: string }[]).filter(
-                              (x) => inRecords(x.date),
-                            ),
-                          )
-                            .reverse()
-                            .map((item) => {
-                              const w = state.weights.find(
-                                (x) => x.id === item.id,
-                              );
-                              const ex = state.exercises.find(
-                                (x) => x.id === item.id,
-                              );
-                              const p = state.pressures.find(
-                                (x) => x.id === item.id,
-                              );
-                              return (
-                                <li
-                                  className="flex items-start justify-between gap-2 py-3"
-                                  key={item.id}
-                                >
-                                  <div className="min-w-0">
-                                    <strong className="block font-semibold tabular-nums">
-                                      {w
-                                        ? `${fmt(w.value)} kg`
-                                        : ex
-                                          ? ex.type
-                                          : `${p?.systolic}/${p?.diastolic} mmHg`}
-                                    </strong>
-                                    <small className="mt-0.5 block text-[13px] text-ink-500">
-                                      {dateLabel(item.date)}{" "}
-                                      {item.date.slice(0, 4)}
-                                      {ex
-                                        ? ` · ${durationLabel(ex.minutes)} · ${ex.intensity}${ex.distanceKm ? ` · ${fmt(ex.distanceKm)} km` : ""}${ex.elevationM ? ` · ${fmt(ex.elevationM)} m de elevação` : ""}${ex.activeCalories !== undefined ? ` · ${fmt(ex.activeCalories)} kcal ativas` : ""}`
-                                        : p?.pulse
-                                          ? ` · ${p.pulse} bpm`
-                                          : ""}
-                                    </small>
-                                    <PhotoStrip
-                                      paths={
-                                        ex?.photos ?? p?.photos ?? w?.photos
-                                      }
-                                    />
-                                  </div>
-                                  <div className="-mr-2 flex shrink-0">
-                                    <button
-                                      className="icon-btn hover:text-brand-600"
-                                      aria-label="Editar registro"
-                                      onClick={() =>
-                                        openRecord(
-                                          kind === "weights"
-                                            ? "weight"
-                                            : kind === "exercises"
-                                              ? "exercise"
-                                              : "pressure",
-                                          item.id,
-                                        )
-                                      }
-                                    >
-                                      <RiPencilLine className="size-[18px]" />
-                                    </button>
-                                    <button
-                                      className="icon-btn hover:text-brand-600"
-                                      aria-label="Excluir registro"
-                                      onClick={async () => {
-                                        if (
-                                          !(await confirmDialog({
-                                            title: "Excluir registro?",
-                                            message:
-                                              "O registro e as fotos dele serão apagados da sua conta.",
-                                            confirmLabel: "Excluir",
-                                            danger: true,
-                                          }))
-                                        )
-                                          return;
-                                        void removePhotos(
-                                          ex?.photos ?? p?.photos ?? w?.photos,
-                                        );
-                                        setState({
-                                          ...state,
-                                          completedDays:
-                                            kind === "exercises"
-                                              ? reopenDay(state, item.date)
-                                              : state.completedDays,
-                                          [kind]: state[kind].filter(
-                                            (x) => x.id !== item.id,
-                                          ),
-                                        });
-                                      }}
-                                    >
-                                      <RiDeleteBin6Line className="size-[18px]" />
-                                    </button>
-                                  </div>
-                                </li>
-                              );
-                            })}
-                        </ul>
-                      )}
-                    </Panel>
-                  ),
-                )}
-                <Panel>
-                  <h2 className="text-base font-semibold">Alimentação</h2>
-                  {!recFoods.length ? (
-                    <p className="py-8 text-sm text-ink-500">
-                      Nenhum registro nesse período.
-                    </p>
-                  ) : (
-                    <ul className="mt-2 divide-y divide-line">
-                      {[...new Set(recFoods.map((f) => f.date))]
-                        .sort()
-                        .reverse()
-                        .map((date) => {
-                          const items = recFoods.filter(
-                            (f) => f.date === date,
-                          );
-                          const total = items.reduce(
-                            (t, f) => t + (foodCalories(f) ?? 0),
-                            0,
-                          );
-                          return (
-                            <li key={date} className="py-3">
-                              <strong className="block font-semibold tabular-nums">
-                                {total.toLocaleString("pt-BR", {
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                                kcal
-                              </strong>
-                              <small className="mt-0.5 block text-[13px] text-ink-500">
-                                {dateLabel(date)} {date.slice(0, 4)} ·{" "}
-                                {items.length} alimento
-                                {items.length === 1 ? "" : "s"}
-                              </small>
-                              <ul className="mt-2">
-                                {items.map((f) => {
-                                  const c = foodCalories(f);
-                                  return (
-                                    <li
-                                      key={f.id}
-                                      className="flex items-center justify-between gap-2"
-                                    >
-                                      <span className="min-w-0 text-[13px] text-ink-700">
-                                        <span className="block truncate">
-                                          {f.name}
-                                        </span>
-                                        <span className="text-ink-500 tabular-nums">
-                                          {fmt(f.grams)} {foodUnit(f)} ·{" "}
-                                          {c === null
-                                            ? "calorias pendentes"
-                                            : `${fmt(c)} kcal`}
-                                        </span>
-                                      </span>
-                                      <span className="-mr-2 flex shrink-0">
-                                        <button
-                                          className="icon-btn hover:text-brand-600"
-                                          aria-label={`Editar ${f.name}`}
-                                          onClick={() =>
-                                            setFoodSheet({ food: f })
-                                          }
-                                        >
-                                          <RiPencilLine className="size-[18px]" />
-                                        </button>
-                                        <button
-                                          className="icon-btn hover:text-brand-600"
-                                          aria-label={`Excluir ${f.name}`}
-                                          onClick={async () => {
-                                            if (
-                                              await confirmDialog({
-                                                title: "Excluir alimento?",
-                                                message: `"${f.name}" sai do diário de ${dateLabel(date)}.`,
-                                                confirmLabel: "Excluir",
-                                                danger: true,
-                                              })
-                                            )
-                                              setState((s) => ({
-                                                ...s,
-                                                foods: (s.foods ?? []).filter(
-                                                  (x) => x.id !== f.id,
-                                                ),
-                                                completedDays: reopenDay(
-                                                  s,
-                                                  date,
-                                                ),
-                                              }));
-                                          }}
-                                        >
-                                          <RiDeleteBin6Line className="size-[18px]" />
-                                        </button>
-                                      </span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  )}
-                </Panel>
-                <Panel>
-                  <h2 className="text-base font-semibold">Água</h2>
-                  {!recWater.length ? (
-                    <p className="py-8 text-sm text-ink-500">
-                      Nenhum registro nesse período.
-                    </p>
-                  ) : (
-                    <ul className="mt-2 divide-y divide-line">
-                      {[...new Set(recWater.map((w) => w.date))]
-                        .sort()
-                        .reverse()
-                        .map((date) => {
-                          const items = recWater.filter(
-                            (w) => w.date === date,
-                          );
-                          return (
-                            <li key={date} className="py-3">
-                              <strong className="block font-semibold tabular-nums">
-                                {fmt(items.reduce((t, w) => t + w.ml, 0))} ml
-                              </strong>
-                              <small className="mt-0.5 block text-[13px] text-ink-500">
-                                {dateLabel(date)} {date.slice(0, 4)} ·{" "}
-                                {items.length} registro
-                                {items.length === 1 ? "" : "s"} · toque em um
-                                valor para editar
-                              </small>
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {items.map((w) => (
-                                  <span
-                                    key={w.id}
-                                    className="inline-flex items-center gap-0.5 rounded-full bg-surface py-0.5 pr-0.5 pl-1 text-[13px] text-ink-700 tabular-nums"
-                                  >
-                                    <button
-                                      className="inline-flex min-h-7 items-center gap-1 rounded-full px-1.5 hover:bg-white hover:text-brand-700"
-                                      aria-label={`Editar ${w.ml} ml de ${dateLabel(date)}`}
-                                      onClick={() => openRecord("water", w.id)}
-                                    >
-                                      {fmt(w.ml)} ml
-                                      <RiPencilLine className="size-3.5 text-ink-400" />
-                                    </button>
-                                    <button
-                                      className="grid size-7 place-items-center rounded-full text-ink-400 hover:bg-white hover:text-brand-600"
-                                      aria-label={`Excluir ${w.ml} ml de ${dateLabel(date)}`}
-                                      onClick={async () => {
-                                        if (
-                                          await confirmDialog({
-                                            title: "Excluir registro de água?",
-                                            message: `${fmt(w.ml)} ml de ${dateLabel(date)} saem do histórico.`,
-                                            confirmLabel: "Excluir",
-                                            danger: true,
-                                          })
-                                        )
-                                          setState((s) => ({
-                                            ...s,
-                                            water: (s.water ?? []).filter(
-                                              (x) => x.id !== w.id,
-                                            ),
-                                          }));
-                                      }}
-                                    >
-                                      <RiCloseLine className="size-4" />
-                                    </button>
-                                  </span>
-                                ))}
-                              </div>
-                            </li>
-                          );
-                        })}
-                    </ul>
-                  )}
-                </Panel>
-              </div>
-            </>
+            <Records
+              state={state}
+              setState={setState}
+              onEdit={openRecord}
+              onFood={(food) => setFoodSheet({ food })}
+              onError={setNotice}
+            />
           )}
           {tab === "insights" && (
             <>
@@ -1823,8 +1271,8 @@ export default function App({ account }: { account: User }) {
                     Enviamos ao Gemini a pergunta e um resumo do dia: peso,
                     meta, dados do perfil usados no cálculo, alimentos e
                     exercícios. Nome, fotos e pressão arterial não são enviados.
-                    O áudio é usado só para transcrever a pergunta.
-                    O assistente não faz diagnóstico nem prescreve tratamento.
+                    O áudio é usado só para transcrever a pergunta. O assistente
+                    não faz diagnóstico nem prescreve tratamento.
                   </p>
                   <button
                     className="btn-primary mt-4 w-full sm:w-auto"
@@ -2004,36 +1452,42 @@ export default function App({ account }: { account: User }) {
                     />
                   </Panel>
                   <Panel>
-                    <CardHeader
-                      title="Aparência"
-                      text="Tema e cor do app."
+                    <CardHeader title="Aparência" text="Tema e cor do app." />
+                    <Choice
+                      className="mb-5"
+                      label="Tema"
+                      value={mode}
+                      onChange={(id) => {
+                        setMode(id);
+                        applyColorMode(id);
+                      }}
+                      options={[
+                        {
+                          id: "system",
+                          label: (
+                            <>
+                              <RiComputerLine className="size-4" /> Sistema
+                            </>
+                          ),
+                        },
+                        {
+                          id: "light",
+                          label: (
+                            <>
+                              <RiSunLine className="size-4" /> Claro
+                            </>
+                          ),
+                        },
+                        {
+                          id: "dark",
+                          label: (
+                            <>
+                              <RiMoonLine className="size-4" /> Escuro
+                            </>
+                          ),
+                        },
+                      ]}
                     />
-                    <div
-                      className="mb-5 flex rounded-lg border border-line p-0.5"
-                      role="radiogroup"
-                      aria-label="Tema"
-                    >
-                      {(
-                        [
-                          ["system", "Sistema", RiComputerLine],
-                          ["light", "Claro", RiSunLine],
-                          ["dark", "Escuro", RiMoonLine],
-                        ] as const
-                      ).map(([id, label, Icon]) => (
-                        <button
-                          key={id}
-                          role="radio"
-                          aria-checked={mode === id}
-                          className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium ${mode === id ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-surface"}`}
-                          onClick={() => {
-                            setMode(id);
-                            applyColorMode(id);
-                          }}
-                        >
-                          <Icon className="size-4" /> {label}
-                        </button>
-                      ))}
-                    </div>
                     <AccentPicker
                       value={state.accent ?? DEFAULT_ACCENT}
                       onChange={(hex) =>
@@ -2215,10 +1669,7 @@ export default function App({ account }: { account: User }) {
         />
       )}
       {celebration && (
-        <Celebration
-          kind={celebration}
-          onDone={() => setCelebration(null)}
-        />
+        <Celebration kind={celebration} onDone={() => setCelebration(null)} />
       )}
       {notice && (
         <div
@@ -2336,95 +1787,10 @@ export default function App({ account }: { account: User }) {
     </div>
   );
 }
-function Stat({
-  icon,
-  label,
-  value,
-  unit,
-  detail,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: string;
-  unit: string;
-  detail: string;
-}) {
-  return (
-    <Panel className="p-4">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm text-ink-500">{label}</span>
-        <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-[18px]">
-          {icon}
-        </span>
-      </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
-        {value}
-        <small className="ml-1 text-sm font-normal tracking-normal text-ink-500">
-          {unit}
-        </small>
-      </div>
-      <p className="mt-1 text-[13px] text-ink-500">{detail}</p>
-    </Panel>
-  );
-}
-function QuickAction({
-  icon,
-  title,
-  onClick,
-}: {
-  icon: ReactNode;
-  title: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className="flex min-h-14 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-medium hover:bg-surface"
-      onClick={onClick}
-    >
-      <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
-        {icon}
-      </span>
-      <span className="flex-1">{title}</span>
-      <RiArrowRightSLine className="size-5 text-ink-400" />
-    </button>
-  );
-}
-function Empty({
-  icon,
-  title,
-  text,
-  action,
-}: {
-  icon: ReactNode;
-  title: string;
-  text: string;
-  action: () => void;
-}) {
-  return (
-    <div className="flex min-h-56 flex-col items-center justify-center gap-2 px-4 text-center">
-      <span className="mb-1 grid size-11 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
-        {icon}
-      </span>
-      <strong className="font-semibold">{title}</strong>
-      <p className="text-sm text-ink-500">{text}</p>
-      <button className="btn-ghost mt-1" onClick={action}>
-        <RiAddLine className="size-4" /> Registrar peso
-      </button>
-    </div>
-  );
-}
-function PageTitle({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="mb-6">
-      <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-        {title}
-      </h1>
-      <p className="mt-1 text-ink-500">{text}</p>
-    </div>
-  );
-}
 /** Quantidade de água do formulário de registro (envia ml em name="ml"). */
 function WaterAmount({ initial }: { initial: number }) {
   const [ml, setMl] = useState<number | null>(initial);
-  return <LitersInput name="ml" label="Quantidade" value={ml} onChange={setMl} />;
+  return (
+    <LitersInput name="ml" label="Quantidade" value={ml} onChange={setMl} />
+  );
 }

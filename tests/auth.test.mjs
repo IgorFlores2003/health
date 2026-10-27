@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { passwordError, authError } from "../src/auth.ts";
-import { authConfiguration, configurationError } from "../scripts/configure-auth.mjs";
+import {
+  authConfiguration,
+  configurationError,
+} from "../scripts/configure-auth.mjs";
 test("new passwords require length and matching confirmation", () => {
   assert.match(passwordError("abc", "abc"), /8 caracteres/);
   assert.match(passwordError("abcdefgh", "abcdxxxx"), /não conferem/);
@@ -59,9 +62,17 @@ test("SMTP refuses missing credentials, different projects and unsafe ports", ()
 });
 
 test("configuration diagnostics name invalid fields without printing server values", () => {
-  const message = configurationError(400, {message: ["smtp_port must be a string", "smtp_pass: private-secret"]}, ["smtp_port", "smtp_pass"]);
+  const message = configurationError(
+    400,
+    { message: ["smtp_port must be a string", "smtp_pass: private-secret"] },
+    ["smtp_port", "smtp_pass"],
+  );
   assert.match(message, /smtp_port/);
   assert.match(message, /HTTP 400/);
   assert.ok(!message.includes("private-secret"));
-  assert.ok(!configurationError(400, {message:"unknown secret"}, ["smtp_port"]).includes("unknown secret"));
+  assert.ok(
+    !configurationError(400, { message: "unknown secret" }, [
+      "smtp_port",
+    ]).includes("unknown secret"),
+  );
 });

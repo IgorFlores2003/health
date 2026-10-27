@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
-export const BUCKET = "assets";
+const BUCKET = "assets";
 const MAX_SIDE = 1600;
 const URL_TTL = 60 * 60;
 const urls = new Map<string, { url: string; expires: number }>();
@@ -24,13 +24,17 @@ async function compress(file: File): Promise<Blob> {
   return blob;
 }
 
-/** Imagem reduzida em base64, para a IA ler o print/foto. */
-export async function photoBase64(file: File) {
-  const bytes = new Uint8Array(await (await compress(file)).arrayBuffer());
+/** Bytes em base64 (em blocos, para arquivos grandes não estourarem a pilha). */
+export function toBase64(bytes: Uint8Array) {
   let bin = "";
   for (let i = 0; i < bytes.length; i += 0x8000)
     bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
+}
+
+/** Imagem reduzida em base64, para a IA ler o print/foto. */
+export async function photoBase64(file: File) {
+  return toBase64(new Uint8Array(await (await compress(file)).arrayBuffer()));
 }
 
 /** Envia a foto e devolve somente o caminho, que é o que vai para o banco. */

@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
 import { RiFireLine } from "react-icons/ri";
 import { dailyBudget } from "./energy";
-import { num, type State } from "./domain";
-
-const kcal = (n: number) => `${num(n)} kcal`;
+import { kcal, type State } from "./domain";
 
 export default function CalorieBudget({
   state,

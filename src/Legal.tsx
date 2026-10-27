@@ -9,7 +9,7 @@ const CONTROLLER = "Igor Flores Bento";
 const CONTACT = "igorfb2003@gmail.com";
 const UPDATED = "26 de outubro de 2026";
 
-export type LegalDoc = "terms" | "privacy" | "formulas";
+type LegalDoc = "terms" | "privacy" | "formulas";
 const TITLES: Record<LegalDoc, string> = {
   terms: "Termos de Uso",
   privacy: "Política de Privacidade",
@@ -39,8 +39,8 @@ function Terms() {
         dieta, tratamento ou medicamento e não é um dispositivo médico. As
         respostas e leituras da inteligência artificial podem conter erros:
         confira sempre antes de salvar. Em caso de sintomas, pressão alta ou
-        qualquer dúvida de saúde, procure um profissional. Em emergência,
-        ligue 192 (SAMU).
+        qualquer dúvida de saúde, procure um profissional. Em emergência, ligue
+        192 (SAMU).
       </p>
       <H>3. Quem pode usar</H>
       <p>
@@ -70,8 +70,8 @@ function Terms() {
       <p>
         O serviço é oferecido como está e pode ficar indisponível para
         manutenção ou por falhas de terceiros. Mantenha cópias dos dados
-        importantes. Na medida permitida pela lei, não respondemos por
-        decisões tomadas apenas com base nas estimativas do app.
+        importantes. Na medida permitida pela lei, não respondemos por decisões
+        tomadas apenas com base nas estimativas do app.
       </p>
       <H>8. Mudanças e contato</H>
       <p>
@@ -87,9 +87,9 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
     <>
       <p>Última atualização: {UPDATED}.</p>
       <p className="mt-2">
-        Esta política explica como o Ritmo trata seus dados pessoais, conforme
-        a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, LGPD).
-        Controlador: {CONTROLLER}. Encarregado de dados (DPO): {CONTACT}.
+        Esta política explica como o Ritmo trata seus dados pessoais, conforme a
+        Lei Geral de Proteção de Dados (Lei nº 13.709/2018, LGPD). Controlador:{" "}
+        {CONTROLLER}. Encarregado de dados (DPO): {CONTACT}.
       </p>
       <H>1. Dados que coletamos</H>
       <ul className="list-disc space-y-1 pl-5">
@@ -108,8 +108,8 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
           descartados em seguida; não ficam guardados pelo Ritmo.
         </li>
         <li>
-          Preferências do aparelho (tela aberta, lembretes de água) ficam só
-          no aparelho.
+          Preferências do aparelho (tela aberta, lembretes de água) ficam só no
+          aparelho.
         </li>
       </ul>
       <H>2. Para que usamos</H>
@@ -123,23 +123,23 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
       </p>
       <H>3. Bases legais</H>
       <p>
-        Dados de saúde: seu consentimento específico e destacado (art. 11, I,
-        da LGPD), dado na caixa de aceite do cadastro. Dados da conta:
-        execução do contrato de uso do app (art. 7º, V) e cumprimento de
-        obrigação legal quando aplicável (art. 7º, II). Você pode revogar o
-        consentimento a qualquer momento (art. 8º, § 5º); sem ele, não é
-        possível continuar usando a conta.
+        Dados de saúde: seu consentimento específico e destacado (art. 11, I, da
+        LGPD), dado na caixa de aceite do cadastro. Dados da conta: execução do
+        contrato de uso do app (art. 7º, V) e cumprimento de obrigação legal
+        quando aplicável (art. 7º, II). Você pode revogar o consentimento a
+        qualquer momento (art. 8º, § 5º); sem ele, não é possível continuar
+        usando a conta.
       </p>
       <H>4. Com quem compartilhamos</H>
       <ul className="list-disc space-y-1 pl-5">
         <li>
-          Supabase: hospedagem do banco de dados, autenticação e
-          armazenamento das fotos.
+          Supabase: hospedagem do banco de dados, autenticação e armazenamento
+          das fotos.
         </li>
         <li>
-          Google (Gemini API): recebe apenas o conteúdo necessário a cada
-          pedido de IA (a foto, o áudio, a descrição do alimento ou a pergunta
-          com o resumo numérico do dia). Nome e e-mail não são enviados.
+          Google (Gemini API): recebe apenas o conteúdo necessário a cada pedido
+          de IA (a foto, o áudio, a descrição do alimento ou a pergunta com o
+          resumo numérico do dia). Nome e e-mail não são enviados.
         </li>
         <li>Autoridades, quando houver obrigação legal ou ordem judicial.</li>
       </ul>
@@ -151,9 +151,8 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
       <H>5. Por quanto tempo guardamos</H>
       <p>
         Enquanto a conta existir. Ao excluir a conta, os registros e fotos são
-        apagados dos nossos sistemas, salvo o que a lei exigir guardar.
-        Cópias de segurança dos fornecedores são sobrescritas nos prazos
-        deles.
+        apagados dos nossos sistemas, salvo o que a lei exigir guardar. Cópias
+        de segurança dos fornecedores são sobrescritas nos prazos deles.
       </p>
       <H>6. Seus direitos</H>
       <p>
@@ -169,8 +168,8 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
       <p>
         A conexão é criptografada (HTTPS), cada conta só acessa os próprios
         dados (regras de acesso no banco) e as chaves da IA ficam só no
-        servidor. Dados guardados no aparelho ficam no armazenamento do app,
-        que não é criptografado: proteja o celular com senha.
+        servidor. Dados guardados no aparelho ficam no armazenamento do app, que
+        não é criptografado: proteja o celular com senha.
       </p>
       <H>8. Cálculos automáticos</H>
       <p>
@@ -212,14 +211,14 @@ function Formulas() {
   return (
     <>
       <p>
-        Estimativas populacionais para adultos, não medições nem diagnóstico.
-        Os valores podem não refletir o seu caso.
+        Estimativas populacionais para adultos, não medições nem diagnóstico. Os
+        valores podem não refletir o seu caso.
       </p>
       <H>Energia</H>
       <F name="Basal (Mifflin–St Jeor)">
         10 × peso (kg) + 6,25 × altura (cm) − 5 × idade + 5 (coeficiente
-        masculino) ou − 161 (feminino). Só para 18 a 100 anos, 20 a 400 kg e
-        100 a 250 cm.
+        masculino) ou − 161 (feminino). Só para 18 a 100 anos, 20 a 400 kg e 100
+        a 250 cm.
       </F>
       <F name="Gasto habitual">
         Basal × nível de atividade do perfil: pouco ativo 1,2; levemente ativo
@@ -227,11 +226,11 @@ function Formulas() {
       </F>
       <F name="Base do dia (rotina leve)">Basal × 1,2.</F>
       <F name="Exercício estimado">
-        (MET − 1) × peso (kg) × duração (horas). O repouso é descontado
-        porque já está na base. MET pelo Compêndio de Atividades Físicas 2024,
-        pela velocidade (distância ÷ tempo) em caminhada, corrida e ciclismo,
-        ou pela intensidade; musculação 3,5 (6 se intensa), yoga 2,3, pilates
-        2,8. Calorias ativas informadas substituem a estimativa.
+        (MET − 1) × peso (kg) × duração (horas). O repouso é descontado porque
+        já está na base. MET pelo Compêndio de Atividades Físicas 2024, pela
+        velocidade (distância ÷ tempo) em caminhada, corrida e ciclismo, ou pela
+        intensidade; musculação 3,5 (6 se intensa), yoga 2,3, pilates 2,8.
+        Calorias ativas informadas substituem a estimativa.
       </F>
       <F name="Gasto do dia">
         O maior entre o gasto habitual e base do dia + exercícios registrados,
@@ -247,8 +246,8 @@ function Formulas() {
       </F>
       <H>Meta de calorias</H>
       <F name="Objetivo">
-        Peso desejado abaixo do atual = emagrecer; acima = ganhar peso; sem
-        peso desejado = manter.
+        Peso desejado abaixo do atual = emagrecer; acima = ganhar peso; sem peso
+        desejado = manter.
       </F>
       <F name="Meta do dia">
         Gasto do dia − 500 kcal (emagrecer), + 300 kcal (ganhar) ou + 0
@@ -260,8 +259,9 @@ function Formulas() {
       </F>
       <F name="Prazo estimado">
         |peso atual − peso desejado| × 7.700 kcal ÷ diferença diária entre a
-        meta e o gasto habitual, em dias inteiros (para cima). Só calculado com diferença entre 100 e 1.000
-        kcal/dia; não considera adaptação do metabolismo.
+        meta e o gasto habitual, em dias inteiros (para cima). Só calculado com
+        diferença entre 100 e 1.000 kcal/dia; não considera adaptação do
+        metabolismo.
       </F>
       <F name="Progresso da meta">
         (peso atual − peso inicial) ÷ (peso desejado − peso inicial) × 100,
@@ -275,8 +275,8 @@ function Formulas() {
       <H>Relatório</H>
       <F name="Classificação do dia">
         Acima: consumo mais de 100 kcal acima da meta do dia. Baixo: consumo
-        abaixo de 80% do basal. Ótimo: os demais dias completos. Incompleto:
-        dia não marcado como completo ou com alimentos sem calorias.
+        abaixo de 80% do basal. Ótimo: os demais dias completos. Incompleto: dia
+        não marcado como completo ou com alimentos sem calorias.
       </F>
       <F name="Exercício por semana">
         Minutos no período ÷ dias do período × 7, comparado à recomendação da
@@ -291,13 +291,7 @@ function Formulas() {
   );
 }
 
-export function LegalSheet({
-  doc,
-  onClose,
-}: {
-  doc: LegalDoc;
-  onClose: () => void;
-}) {
+function LegalSheet({ doc, onClose }: { doc: LegalDoc; onClose: () => void }) {
   const [current, setCurrent] = useState(doc);
   return (
     <Sheet key={current} title={TITLES[current]} onClose={onClose}>

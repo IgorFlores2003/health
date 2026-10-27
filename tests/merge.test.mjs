@@ -85,6 +85,10 @@ test("profile merges field by field: a name change does not drop a new photo", (
   assert.equal(m.profile.photo, photo);
   assert.equal(m.profile.name, "Igor");
   // Remover a foto neste aparelho continua valendo.
-  const removed = mergeStates(phone, s({ profile: { ...base.profile } }), phone);
+  const removed = mergeStates(
+    phone,
+    s({ profile: { ...base.profile } }),
+    phone,
+  );
   assert.equal(removed.profile.photo, undefined);
 });

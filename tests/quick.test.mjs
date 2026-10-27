@@ -10,7 +10,14 @@ const state = {
   profile: { ...initial.profile, height: 180, age: 30, formulaSex: "male" },
   weights: [{ id: "w", date, value: 80 }],
   foods: [
-    { id: "f", date, name: "Arroz", grams: 150, kcalPer100g: 130, source: "label" },
+    {
+      id: "f",
+      date,
+      name: "Arroz",
+      grams: 150,
+      kcalPer100g: 130,
+      source: "label",
+    },
   ],
   completedDays: [date],
 };
@@ -39,7 +46,11 @@ test("other questions still go to the AI", () => {
     assert.equal(quickAnswer(q, state, date), null, q);
 });
 test("incomplete day explains what is missing instead of a verdict", () => {
-  const a = quickAnswer("Estou em déficit calórico neste dia?", { ...state, completedDays: [] }, date);
+  const a = quickAnswer(
+    "Estou em déficit calórico neste dia?",
+    { ...state, completedDays: [] },
+    date,
+  );
   assert.match(a, /Ainda não dá para dizer/);
   assert.match(a, /marcar no Diário/);
 });

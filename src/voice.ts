@@ -5,6 +5,7 @@ import type {
   PressureReading,
   ScaleReading,
 } from "./readImage";
+import { toBase64 } from "./photos";
 import { supabase } from "./supabase";
 
 /** Limite da gravação: 60 s em WAV 16 kHz cabem no limite da função. */
@@ -12,7 +13,8 @@ export const MAX_SECONDS = 60;
 const RATE = 16000;
 
 export const voiceSupported = () =>
-  typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+  typeof MediaRecorder !== "undefined" &&
+  !!navigator.mediaDevices?.getUserMedia;
 
 /** Começa a gravar o microfone; stop() devolve o áudio gravado. */
 export async function startRecording() {
@@ -69,19 +71,30 @@ async function toWav(blob: Blob) {
   pcm.forEach((x, i) =>
     view.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 0x7fff, true),
   );
-  const bytes = new Uint8Array(view.buffer);
-  let bin = "";
-  for (let i = 0; i < bytes.length; i += 0x8000)
-    bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-  return btoa(bin);
+  return toBase64(new Uint8Array(view.buffer));
 }
 
 /** Envia o áudio para a IA extrair os campos do registro; nada é salvo. */
-export async function readAudio(kind: "exercise", audio: Blob): Promise<ExerciseReading>;
-export async function readAudio(kind: "pressure", audio: Blob): Promise<PressureReading>;
-export async function readAudio(kind: "meal", audio: Blob): Promise<MealReading>;
-export async function readAudio(kind: "scale", audio: Blob): Promise<ScaleReading>;
-export async function readAudio(kind: "question", audio: Blob): Promise<{ text: string }>;
+export async function readAudio(
+  kind: "exercise",
+  audio: Blob,
+): Promise<ExerciseReading>;
+export async function readAudio(
+  kind: "pressure",
+  audio: Blob,
+): Promise<PressureReading>;
+export async function readAudio(
+  kind: "meal",
+  audio: Blob,
+): Promise<MealReading>;
+export async function readAudio(
+  kind: "scale",
+  audio: Blob,
+): Promise<ScaleReading>;
+export async function readAudio(
+  kind: "question",
+  audio: Blob,
+): Promise<{ text: string }>;
 export async function readAudio(
   kind: "exercise" | "pressure" | "meal" | "scale" | "question",
   audio: Blob,

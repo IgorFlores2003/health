@@ -8,21 +8,17 @@ import {
 } from "./domain";
 import { waterOn, weightAtDate } from "./energy";
 import { allowReminders, remindersSupported } from "./reminders";
+import Choice from "./Choice";
+import NumberField from "./NumberField";
 
-export const CUPS = [150, 200, 250, 300, 350, 500];
+const CUPS = [150, 200, 250, 300, 350, 500];
 const MAX_ML = 5000;
 
-/**
- * Campo de água em litros com máscara: os dígitos entram pela direita como
- * mililitros (2 → 0,002 L, 250 → 0,250 L, 1500 → 1,500 L). Com name, envia
- * o valor em ml num campo oculto (para formulários).
- */
+/** Quantidade de água em litros (máscara 0,250 L), guardada em ml. */
 export function LitersInput({
-  value,
-  onChange,
-  name,
   label = "Quantidade",
   className = "",
+  ...field
 }: {
   value: number | null;
   onChange: (ml: number | null) => void;
@@ -31,35 +27,17 @@ export function LitersInput({
   className?: string;
 }) {
   return (
-    <label className={"block " + className}>
-      <span className="sr-only">{label} em litros</span>
-      <span className="relative block">
-        <input
-          className="input pr-10 tabular-nums"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="0,000"
-          value={
-            value === null
-              ? ""
-              : (value / 1000).toLocaleString("pt-BR", {
-                  minimumFractionDigits: 3,
-                  maximumFractionDigits: 3,
-                })
-          }
-          onChange={(e) => {
-            const digits = e.target.value.replace(/\D/g, "").replace(/^0+/, "");
-            const ml = Number(digits);
-            if (!digits) onChange(null);
-            else if (ml <= MAX_ML) onChange(ml);
-          }}
-        />
-        <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-ink-500">
-          L
-        </span>
-      </span>
-      {name && <input type="hidden" name={name} value={value ?? ""} />}
-    </label>
+    <NumberField
+      {...field}
+      className={className}
+      aria-label={`${label} em litros`}
+      unit="L"
+      decimals={3}
+      factor={1000}
+      min={1}
+      max={MAX_ML}
+      placeholder="0,000"
+    />
   );
 }
 const ml = (n: number) =>
@@ -125,24 +103,14 @@ export function WaterCard({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div
-        className="mt-4 flex flex-wrap gap-2"
-        role="radiogroup"
-        aria-label="Tamanho do copo"
-      >
-        {CUPS.map((c) => (
-          <button
-            key={c}
-            type="button"
-            role="radio"
-            aria-checked={h.cupMl === c}
-            className="min-h-9 rounded-full border border-line px-3 text-sm text-ink-700 aria-checked:border-brand-500 aria-checked:bg-brand-50 aria-checked:font-medium aria-checked:text-brand-700"
-            onClick={() => setCup(c)}
-          >
-            {c} ml
-          </button>
-        ))}
-      </div>
+      <Choice
+        variant="chips"
+        className="mt-4"
+        label="Tamanho do copo"
+        value={String(h.cupMl)}
+        onChange={(c) => setCup(Number(c))}
+        options={CUPS.map((c) => ({ id: String(c), label: `${c} ml` }))}
+      />
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           className="btn-primary flex-1 sm:flex-none"

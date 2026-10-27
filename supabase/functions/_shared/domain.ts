@@ -105,10 +105,19 @@ export const initial: State = {
   goal: 0,
   intake: 0,
 };
-export const today = () => {
+/** Data local no formato dos registros (AAAA-MM-DD). */
+export const dateKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export const today = () => dateKey(new Date());
+/** Data de n dias atrás (0 = hoje). */
+export function daysAgo(n: number) {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-};
+  d.setDate(d.getDate() - n);
+  return dateKey(d);
+}
+/** Últimos n dias até hoje, do mais antigo ao mais recente. */
+export const lastDays = (n: number) =>
+  Array.from({ length: n }, (_, i) => daysAgo(n - 1 - i));
 export function basal(weight: number, p: Profile) {
   if (
     !Number.isFinite(weight) ||
@@ -133,6 +142,7 @@ export function basal(weight: number, p: Profile) {
  */
 export const num = (n: number) =>
   n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+export const kcal = (n: number | null) => (n === null ? "—" : `${num(n)} kcal`);
 /** Meta de água: 35 ml por kg, sem arredondar. */
 export function waterGoal(weight: number) {
   if (!Number.isFinite(weight) || weight < 20 || weight > 400) return null;
@@ -147,7 +157,7 @@ export function minimumIntake(bmr: number | null, p: Profile) {
   const floor = p.formulaSex === "male" ? 1500 : 1200;
   return Math.max(floor, bmr ?? 0);
 }
-export type GoalDirection = "lose" | "gain" | "maintain";
+type GoalDirection = "lose" | "gain" | "maintain";
 /** Perder, ganhar ou manter, pelo peso desejado em relação ao atual. */
 export function goalDirection(weight: number, goal: number): GoalDirection {
   if (!(goal > 0) || !(weight > 0)) return "maintain";
@@ -199,7 +209,7 @@ export function projection(
   return Math.ceil((Math.abs(weight - goal) * 7700) / needed);
 }
 /** Limite aceito ao validar dados já salvos (registros antigos podiam ter 6). */
-export const MAX_EXERCISE_PHOTOS = 6;
+const MAX_EXERCISE_PHOTOS = 6;
 /** Limite de fotos por registro na hora de escolher. */
 export const MAX_PHOTOS = 5;
 /**
@@ -208,9 +218,7 @@ export const MAX_PHOTOS = 5;
  */
 export function parseDuration(text: string) {
   const m = /^(\d{1,2}):([0-5]\d)(?::([0-5]\d))?$/.exec(text.trim());
-  return m
-    ? Number(m[1]) * 60 + Number(m[2]) + Number(m[3] ?? 0) / 60
-    : null;
+  return m ? Number(m[1]) * 60 + Number(m[2]) + Number(m[3] ?? 0) / 60 : null;
 }
 const two = (n: number) => String(n).padStart(2, "0");
 /** Minutos → "hh:mm:ss" exato (formato do campo de duração). */

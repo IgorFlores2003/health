@@ -20,7 +20,7 @@ export const PRESETS = [
 export type PresetKey = (typeof PRESETS)[number]["key"];
 
 type RGB = [number, number, number];
-export const isHex = (v: unknown): v is string =>
+const isHex = (v: unknown): v is string =>
   typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
 export function toRgb(hex: string): RGB {
   const n = parseInt(hex.slice(1), 16);
@@ -67,21 +67,21 @@ export function palette(hex: string, dark = false): Record<string, string> {
         ["900", mix(base, white, 0.56)],
       ]
     : [
-    ["50", mix(base, white, 0.93)],
-    ["100", mix(base, white, 0.86)],
-    ["200", mix(base, white, 0.72)],
-    ["300", mix(base, white, 0.52)],
-    ["400", mix(base, white, 0.3)],
-    ["500", mix(base, white, 0.12)],
-    ["600", base],
-    ["700", mix(base, black, 0.16)],
-    ["800", mix(base, black, 0.3)],
-    ["900", mix(base, black, 0.44)],
-  ];
+        ["50", mix(base, white, 0.93)],
+        ["100", mix(base, white, 0.86)],
+        ["200", mix(base, white, 0.72)],
+        ["300", mix(base, white, 0.52)],
+        ["400", mix(base, white, 0.3)],
+        ["500", mix(base, white, 0.12)],
+        ["600", base],
+        ["700", mix(base, black, 0.16)],
+        ["800", mix(base, black, 0.3)],
+        ["900", mix(base, black, 0.44)],
+      ];
   return Object.fromEntries(steps.map(([k, c]) => [k, toHex(c)]));
 }
 
-export type ColorMode = "system" | "light" | "dark";
+type ColorMode = "system" | "light" | "dark";
 const MODE_KEY = "ritmo-theme";
 let accent: string | undefined;
 export function colorMode(): ColorMode {

@@ -1,4 +1,12 @@
-import { basal, byDate, currentWeight, type State } from "./domain.ts";
+import {
+  basal,
+  byDate,
+  currentWeight,
+  daysAgo,
+  kcal,
+  lastDays,
+  type State,
+} from "./domain.ts";
 import { dailyBudget, dailyEnergy } from "./energy.ts";
 
 /**
@@ -6,8 +14,6 @@ import { dailyBudget, dailyEnergy } from "./energy.ts";
  * calculadas no aparelho com as mesmas fórmulas do app, sem chamar a IA.
  * Só responde quando a pergunta é exatamente uma delas; o resto vai à IA.
  */
-const kcal = (n: number) =>
-  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 const kg = (n: number) =>
   `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kg`;
 const normalize = (q: string) =>
@@ -50,8 +56,7 @@ function deficit(state: State, date: string) {
         `informar as calorias de ${d.foodMissing} alimento(s) pendente(s)`,
       d.exerciseMissing > 0 &&
         `informar as calorias de ${d.exerciseMissing} exercício(s) pendente(s)`,
-      !d.completed &&
-        "marcar no Diário que registrou tudo do dia",
+      !d.completed && "marcar no Diário que registrou tudo do dia",
     ].filter(Boolean) as string[];
     return [
       `Ainda não dá para dizer se houve déficit em ${when}: os registros estão incompletos.`,
@@ -98,10 +103,10 @@ function progress(state: State) {
   const first = weights[0];
   const last = weights.at(-1)!;
   const change = last.value - first.value;
-  const since = new Date(first.date + "T12:00:00").toLocaleDateString(
-    "pt-BR",
-    { day: "numeric", month: "long" },
-  );
+  const since = new Date(first.date + "T12:00:00").toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+  });
   const lines = [
     weights.length === 1
       ? `Você tem um peso registrado: ${kg(last.value)}.`
@@ -115,12 +120,7 @@ function progress(state: State) {
         : `Faltam ${kg(left)} para o peso desejado de ${kg(state.goal)}.`,
     );
   }
-  const today = new Date();
-  const week = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  });
+  const week = lastDays(7).reverse();
   const minutes = state.exercises
     .filter((e) => week.includes(e.date))
     .reduce((t, e) => t + e.minutes, 0);
@@ -146,13 +146,7 @@ function streak(state: State) {
     ].map((x) => x.date),
   );
   let run = 0;
-  const d = new Date();
-  for (;;) {
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (!days.has(key)) break;
-    run += 1;
-    d.setDate(d.getDate() - 1);
-  }
+  while (days.has(daysAgo(run))) run += 1;
   return [
     run
       ? `Você registrou algo em ${run} dia(s) seguido(s) até hoje.`

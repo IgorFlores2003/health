@@ -6,7 +6,11 @@ import { readAudio } from "./voice";
 import VoiceButton from "./VoiceButton";
 
 export default function PressureFields({ initial }: { initial?: Pressure }) {
-  function apply(r: PressureReading, form: HTMLFormElement | null, fallback: string) {
+  function apply(
+    r: PressureReading,
+    form: HTMLFormElement | null,
+    fallback: string,
+  ) {
     if (r.systolic === null || r.diastolic === null)
       throw Error(r.note || fallback);
     fill(form, "systolic", r.systolic);

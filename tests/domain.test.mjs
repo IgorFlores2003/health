@@ -92,7 +92,10 @@ test("intake target loses, gains or maintains, never below the safe minimum", as
   assert.equal(goalDirection(100, 0), "maintain");
 });
 test("water entries and hydration settings are validated", () => {
-  const base = { ...initial, water: [{ id: "a", date: "2026-10-26", ml: 250 }] };
+  const base = {
+    ...initial,
+    water: [{ id: "a", date: "2026-10-26", ml: 250 }],
+  };
   assert.equal(validState(base), true);
   assert.equal(
     validState({ ...base, water: [{ id: "a", date: "2026-10-26", ml: 0 }] }),
@@ -128,12 +131,31 @@ test("liquid foods keep ml and old foods default to grams", async () => {
   assert.equal(foodCalories(juice), 112.5);
   const { unit: _u, ...old } = juice;
   assert.equal(foodUnit(old), "g");
-  assert.equal(validState({ ...initial, foods: [{ ...juice, unit: "l" }] }), false);
+  assert.equal(
+    validState({ ...initial, foods: [{ ...juice, unit: "l" }] }),
+    false,
+  );
 });
 test("drinks are recognized by name when the AI does not say", async () => {
   const { looksLiquid } = await import("../src/domain.ts");
-  for (const n of ["Leite", "leite integral", "Suco de laranja", "Café com leite", "Chá verde", "Refrigerante", "sopa de legumes", "Iogurte líquido"])
+  for (const n of [
+    "Leite",
+    "leite integral",
+    "Suco de laranja",
+    "Café com leite",
+    "Chá verde",
+    "Refrigerante",
+    "sopa de legumes",
+    "Iogurte líquido",
+  ])
     assert.equal(looksLiquid(n), true, n);
-  for (const n of ["Doce de leite", "Pão com leite", "Leite em pó", "Leite condensado", "Arroz", "Banana"])
+  for (const n of [
+    "Doce de leite",
+    "Pão com leite",
+    "Leite em pó",
+    "Leite condensado",
+    "Arroz",
+    "Banana",
+  ])
     assert.equal(looksLiquid(n), false, n);
 });

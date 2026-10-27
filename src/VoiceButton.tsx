@@ -16,7 +16,10 @@ export default function VoiceButton({
   hint?: string;
   disabled?: boolean;
   /** Recebe o áudio e o formulário do botão; devolve o aviso a mostrar. */
-  onAudio: (audio: Blob, form: HTMLFormElement | null) => Promise<string | void>;
+  onAudio: (
+    audio: Blob,
+    form: HTMLFormElement | null,
+  ) => Promise<string | void>;
 }) {
   const button = useRef<HTMLButtonElement>(null);
   const recording = useRef<{ stop: () => Promise<Blob> } | null>(null);
@@ -29,7 +32,10 @@ export default function VoiceButton({
       void stop();
       return;
     }
-    const t = setTimeout(() => setSeconds((s) => (s === null ? s : s + 1)), 1000);
+    const t = setTimeout(
+      () => setSeconds((s) => (s === null ? s : s + 1)),
+      1000,
+    );
     return () => clearTimeout(t);
   }, [seconds]);
   // Fechou o formulário gravando: solta o microfone.
@@ -58,7 +64,8 @@ export default function VoiceButton({
       if (text) setMessage({ text });
     } catch (e) {
       setMessage({
-        text: e instanceof Error ? e.message : "Não foi possível entender o áudio.",
+        text:
+          e instanceof Error ? e.message : "Não foi possível entender o áudio.",
         error: true,
       });
     } finally {

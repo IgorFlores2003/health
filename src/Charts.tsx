@@ -11,26 +11,16 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { byDate, waterGoal, type State } from "./domain";
+import { byDate, lastDays, waterGoal, type State } from "./domain";
 import { dailyBudget, waterOn, weightAtDate } from "./energy";
 
 const axisTick = { fontSize: 12, fill: "var(--color-ink-400)" };
 const grid = <CartesianGrid vertical={false} stroke="var(--color-line)" />;
-const key = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const label = (date: string) =>
   new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
   });
-/** Últimos n dias até hoje, do mais antigo ao mais recente. */
-export function lastDays(n: number) {
-  return Array.from({ length: n }, (_, i) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (n - 1 - i));
-    return key(d);
-  });
-}
 
 /** Consumo de cada dia contra o disponível (meta + exercícios). */
 export function CalorieChart({ state, days }: { state: State; days: number }) {
@@ -49,8 +39,18 @@ export function CalorieChart({ state, days }: { state: State; days: number }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: -15, right: 0 }}>
           {grid}
-          <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={axisTick} />
-          <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={axisTick} />
+          <XAxis
+            dataKey="dia"
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            allowDecimals={false}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
           <Tooltip
             cursor={{ fill: "var(--color-brand-50)" }}
             formatter={(v, name) => [
@@ -62,8 +62,18 @@ export function CalorieChart({ state, days }: { state: State; days: number }) {
             formatter={(v) => (v === "consumo" ? "Consumido" : "Disponível")}
             wrapperStyle={{ fontSize: 12 }}
           />
-          <Bar dataKey="meta" fill="var(--color-brand-100)" radius={[4, 4, 0, 0]} maxBarSize={22} />
-          <Bar dataKey="consumo" fill="var(--color-brand-600)" radius={[4, 4, 0, 0]} maxBarSize={22} />
+          <Bar
+            dataKey="meta"
+            fill="var(--color-brand-100)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={22}
+          />
+          <Bar
+            dataKey="consumo"
+            fill="var(--color-brand-600)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={22}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -85,21 +95,44 @@ export function WaterChart({ state, days }: { state: State; days: number }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ left: -10, right: 0 }}>
           {grid}
-          <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={axisTick} />
-          <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={axisTick} />
+          <XAxis
+            dataKey="dia"
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            allowDecimals={false}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
           <Tooltip
             cursor={{ fill: "var(--color-brand-50)" }}
-            formatter={(v) => [`${Number(v).toLocaleString("pt-BR")} ml`, "Água"]}
+            formatter={(v) => [
+              `${Number(v).toLocaleString("pt-BR")} ml`,
+              "Água",
+            ]}
           />
           {goal && (
             <ReferenceLine
               y={goal}
               stroke="var(--color-brand-800)"
               strokeDasharray="4 4"
-              label={{ value: "meta", position: "insideTopRight", fontSize: 11, fill: "var(--color-ink-500)" }}
+              label={{
+                value: "meta",
+                position: "insideTopRight",
+                fontSize: 11,
+                fill: "var(--color-ink-500)",
+              }}
             />
           )}
-          <Bar dataKey="agua" fill="var(--color-brand-600)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+          <Bar
+            dataKey="agua"
+            fill="var(--color-brand-600)"
+            radius={[4, 4, 0, 0]}
+            maxBarSize={28}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -132,8 +165,18 @@ export function PressureChart({ state, days }: { state: State; days: number }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, left: -15, right: 8 }}>
           {grid}
-          <XAxis dataKey="dia" axisLine={false} tickLine={false} tick={axisTick} />
-          <YAxis domain={[40, "auto"]} axisLine={false} tickLine={false} tick={axisTick} />
+          <XAxis
+            dataKey="dia"
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
+          <YAxis
+            domain={[40, "auto"]}
+            axisLine={false}
+            tickLine={false}
+            tick={axisTick}
+          />
           <Tooltip
             formatter={(v, name) => [
               `${v} mmHg`,
@@ -144,8 +187,16 @@ export function PressureChart({ state, days }: { state: State; days: number }) {
             formatter={(v) => (v === "sistolica" ? "Sistólica" : "Diastólica")}
             wrapperStyle={{ fontSize: 12 }}
           />
-          <ReferenceLine y={140} stroke="var(--color-ink-400)" strokeDasharray="4 4" />
-          <ReferenceLine y={90} stroke="var(--color-ink-400)" strokeDasharray="4 4" />
+          <ReferenceLine
+            y={140}
+            stroke="var(--color-ink-400)"
+            strokeDasharray="4 4"
+          />
+          <ReferenceLine
+            y={90}
+            stroke="var(--color-ink-400)"
+            strokeDasharray="4 4"
+          />
           {line("sistolica", "var(--color-brand-700)")}
           {line("diastolica", "var(--color-brand-400)")}
         </LineChart>

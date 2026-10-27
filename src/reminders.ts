@@ -18,7 +18,7 @@ export async function allowReminders() {
 }
 
 /** Horários do dia (minutos desde 0h) entre o início e o fim, a cada intervalo. */
-export function reminderTimes(h: Hydration) {
+function reminderTimes(h: Hydration) {
   const times: number[] = [];
   for (
     let t = h.startHour * 60;

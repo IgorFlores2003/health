@@ -8,7 +8,7 @@ import { byDate, num, type State } from "./domain.ts";
  * incompleto: o dia não foi fechado ou tem calorias pendentes.
  */
 export type Verdict = "otimo" | "acima" | "baixo" | "incompleto";
-export const TOLERANCE = 100;
+const TOLERANCE = 100;
 
 export type ReportDay = {
   date: string;

@@ -27,7 +27,11 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       pending.current = null;
     }
   }, [manual]);
-  function apply(r: ExerciseReading, form: HTMLFormElement | null, empty: string) {
+  function apply(
+    r: ExerciseReading,
+    form: HTMLFormElement | null,
+    empty: string,
+  ) {
     const found = [
       fill(form, "type", r.type),
       fill(form, "date", r.date),
@@ -40,8 +44,7 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       if (manual) fill(form, "activeCalories", r.activeCalories);
       else setManual(true);
     }
-    if (!found && r.activeCalories === null)
-      throw Error(empty);
+    if (!found && r.activeCalories === null) throw Error(empty);
     return `${r.note || "Dados preenchidos."} Confira os campos antes de salvar.`;
   }
   // "contents": os campos entram direto no grid de 2 colunas do modal.

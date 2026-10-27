@@ -3,12 +3,10 @@ import { useEffect, useState } from "react";
 import { RiCameraLine, RiCheckLine, RiSparkling2Line } from "react-icons/ri";
 import { readImage, type MealReading } from "./readImage";
 import { readAudio } from "./voice";
-import { looksLiquid } from "./domain";
+import { kcal, looksLiquid } from "./domain";
 import VoiceButton from "./VoiceButton";
 
 type Item = MealReading["items"][number] & { on: boolean };
-const kcal = (n: number) =>
-  `${n.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} kcal`;
 
 /**
  * Foto do prato → a IA sugere os itens com porção e kcal/100 g; a pessoa

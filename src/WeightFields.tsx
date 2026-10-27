@@ -6,7 +6,11 @@ import { readAudio } from "./voice";
 import VoiceButton from "./VoiceButton";
 
 export default function WeightFields({ initial }: { initial?: Weight }) {
-  function apply(r: ScaleReading, form: HTMLFormElement | null, fallback: string) {
+  function apply(
+    r: ScaleReading,
+    form: HTMLFormElement | null,
+    fallback: string,
+  ) {
     if (r.weight === null) throw Error(r.note || fallback);
     fill(form, "value", r.weight);
     return `Lido: ${r.weight.toLocaleString("pt-BR")} kg. Confira antes de salvar.`;

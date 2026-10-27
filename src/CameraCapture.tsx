@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { RiCameraLine, RiCameraSwitchLine, RiRefreshLine } from "react-icons/ri";
+import {
+  RiCameraLine,
+  RiCameraSwitchLine,
+  RiRefreshLine,
+} from "react-icons/ri";
 import Sheet from "./Sheet";
 
 /**
@@ -81,7 +85,11 @@ export default function CameraCapture({
     <Sheet title={title} onClose={onClose}>
       <div className="relative aspect-[4/3] overflow-hidden rounded-xl bg-ink-900">
         {shot ? (
-          <img src={shot.url} alt="Foto tirada" className="size-full object-cover" />
+          <img
+            src={shot.url}
+            alt="Foto tirada"
+            className="size-full object-cover"
+          />
         ) : (
           <video
             ref={video}
