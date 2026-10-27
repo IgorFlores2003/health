@@ -4,7 +4,7 @@ import { Capacitor } from "@capacitor/core";
  * Convite de amizade por link: https://health-e7a86.web.app/amigo/CODIGO.
  * No Android o link abre o app (App Links, public/.well-known/assetlinks.json);
  * sem o app, abre a versão web. O código fica guardado até a pessoa entrar
- * na conta e é usado na aba Amigos.
+ * na conta e é usado em Social → Amigos.
  */
 export const APP_URL = "https://health-e7a86.web.app";
 const KEY = "ritmo-invite";

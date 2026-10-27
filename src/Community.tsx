@@ -10,6 +10,7 @@ import {
   RiUserAddLine,
 } from "react-icons/ri";
 import { confirmDialog } from "./confirm";
+import Sheet from "./Sheet";
 import { Avatar, PhotoStrip, uploadPhoto } from "./photos";
 import PhotoEditor from "./PhotoEditor";
 import {
@@ -29,7 +30,7 @@ import {
   type Post,
   type SocialProfile,
 } from "./social";
-import { ago, PageTitle, Panel } from "./ui";
+import { ago, Panel } from "./ui";
 import { inviteLink } from "./invite";
 import OtterCard from "./Otter";
 import type { DayGoals } from "./gamification";
@@ -59,7 +60,10 @@ export default function Community({
   myGoals,
   ensureProfile,
   invite,
+  section,
 }: {
+  /** Tela dentro de Social: amigos (feed) ou a lontra. */
+  section: "friends" | "otter";
   /** Código de amigo vindo de um link de convite. */
   invite?: string | null;
   userId: string;
@@ -131,15 +135,53 @@ export default function Community({
   );
   const other = (f: Friendship) =>
     f.requester === userId ? f.addressee : f.requester;
+  // Amigos e pedidos enviados: 5 no painel, todos em "Ver todos".
+  const network = [...friends, ...outgoing];
+  const [allFriends, setAllFriends] = useState(false);
+  const friendRows = (list: Friendship[]) =>
+    list.map((f) => (
+      <PersonRow
+        key={f.id}
+        person={person(other(f))}
+        detail={
+          f.status === "pending"
+            ? "Pedido enviado"
+            : (([p]) =>
+                p
+                  ? `Nível ${p.level ?? 1} · ${p.medals ?? 0} medalha${p.medals === 1 ? "" : "s"}`
+                  : undefined)([person(other(f))])
+        }
+      >
+        <button
+          className="btn-ghost text-sm text-ink-500"
+          onClick={async () => {
+            if (
+              await confirmDialog({
+                title:
+                  f.status === "pending"
+                    ? "Cancelar pedido?"
+                    : "Desfazer amizade?",
+                message:
+                  f.status === "pending"
+                    ? undefined
+                    : "Vocês deixam de ver os posts um do outro.",
+                confirmLabel:
+                  f.status === "pending" ? "Cancelar pedido" : "Desfazer",
+                danger: true,
+              })
+            )
+              void run(() => removeFriend(f.id));
+          }}
+        >
+          {f.status === "pending" ? "Cancelar" : "Remover"}
+        </button>
+      </PersonRow>
+    ));
 
   return (
     <>
-      <PageTitle
-        title="Amigos"
-        text="Compartilhe conquistas só com quem você adicionar."
-      />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
-        <div className="grid min-w-0 content-start gap-4">
+      {section === "otter" ? (
+        <div className="grid max-w-3xl gap-4">
           <OtterCard
             userId={userId}
             myGoals={myGoals}
@@ -149,162 +191,153 @@ export default function Community({
             }))}
             onNotice={onNotice}
           />
-          <Composer
-            userId={userId}
-            draft={draft}
-            onDraftUsed={onDraftUsed}
-            onPost={(text, photo) =>
-              run(() => createPost(text, photo), "Publicado para seus amigos.")
-            }
-            onNotice={onNotice}
-          />
-          {loading ? (
-            <p className="py-10 text-center text-sm text-ink-500">
-              Carregando…
-            </p>
-          ) : !feed.length ? (
-            <Panel>
-              <p className="py-6 text-center text-sm text-ink-500">
-                {friends.length
-                  ? "Ainda não há posts. Que tal compartilhar uma conquista?"
-                  : "Adicione amigos pelo código para ver os posts deles aqui."}
-              </p>
-            </Panel>
-          ) : (
-            feed.map((p) => (
-              <PostCard
-                key={p.id}
-                post={p}
-                userId={userId}
-                person={person}
-                onLike={(on) => run(() => setLike(p.id, userId, on))}
-                onComment={(text) => run(() => addComment(p.id, text))}
-                onDeleteComment={(id) => run(() => deleteComment(id))}
-                onDelete={() => run(() => deletePost(p.id), "Post apagado.")}
-                onReport={(target, reason) =>
-                  run(
-                    () => report(target, reason),
-                    "Denúncia enviada. Obrigado por avisar.",
-                  )
-                }
-                onShare={() =>
-                  shareText(`${p.text}\n\nCompartilhado do Ritmo`).catch(
-                    () => undefined,
-                  )
-                }
-              />
-            ))
-          )}
         </div>
-        <div className="grid min-w-0 content-start gap-4">
-          <Panel>
-            <label className="flex cursor-pointer items-start gap-3 text-sm">
-              <input
-                type="checkbox"
-                className="mt-0.5 size-5 shrink-0 accent-brand-600"
-                checked={shareActivity}
-                onChange={(e) => onShareActivity(e.target.checked)}
-              />
-              <span>
-                <strong className="block font-medium">
-                  Mostrar minhas atividades aos amigos
-                </strong>
-                <span className="text-[13px] text-ink-500">
-                  Exercícios registrados e medalhas novas aparecem no feed dos
-                  seus amigos. Peso, pressão e alimentação nunca são publicados
-                  sozinhos.
-                </span>
-              </span>
-            </label>
-          </Panel>
-          <AddFriend
-            code={me?.friend_code}
-            invite={invite}
-            onNotice={onNotice}
-            onAdd={(id) =>
-              run(() => requestFriend(userId, id), "Pedido de amizade enviado.")
-            }
-          />
-          {incoming.length > 0 && (
-            <Panel>
-              <h2 className="text-base font-semibold">Pedidos recebidos</h2>
-              <ul className="mt-2 divide-y divide-line">
-                {incoming.map((f) => (
-                  <PersonRow key={f.id} person={person(other(f))}>
-                    <button
-                      className="btn-primary min-h-9 px-3 text-sm"
-                      onClick={() =>
-                        run(() => acceptFriend(f.id), "Agora vocês são amigos!")
-                      }
-                    >
-                      Aceitar
-                    </button>
-                    <button
-                      className="btn-ghost text-sm"
-                      onClick={() => run(() => removeFriend(f.id))}
-                    >
-                      Recusar
-                    </button>
-                  </PersonRow>
-                ))}
-              </ul>
-            </Panel>
-          )}
-          <Panel>
-            <h2 className="text-base font-semibold">
-              Amigos{friends.length ? ` · ${friends.length}` : ""}
-            </h2>
-            {!friends.length && !outgoing.length ? (
-              <p className="py-4 text-sm text-ink-500">
-                Você ainda não adicionou ninguém.
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
+          <div className="grid min-w-0 content-start gap-4">
+            <Composer
+              userId={userId}
+              draft={draft}
+              onDraftUsed={onDraftUsed}
+              onPost={(text, photo) =>
+                run(
+                  () => createPost(text, photo),
+                  "Publicado para seus amigos.",
+                )
+              }
+              onNotice={onNotice}
+            />
+            {loading ? (
+              <p className="py-10 text-center text-sm text-ink-500">
+                Carregando…
               </p>
+            ) : !feed.length ? (
+              <Panel>
+                <p className="py-6 text-center text-sm text-ink-500">
+                  {friends.length
+                    ? "Ainda não há posts. Que tal compartilhar uma conquista?"
+                    : "Adicione amigos pelo código para ver os posts deles aqui."}
+                </p>
+              </Panel>
             ) : (
-              <ul className="mt-2 divide-y divide-line">
-                {[...friends, ...outgoing].map((f) => (
-                  <PersonRow
-                    key={f.id}
-                    person={person(other(f))}
-                    detail={
-                      f.status === "pending"
-                        ? "Pedido enviado"
-                        : (([p]) =>
-                            p
-                              ? `Nível ${p.level ?? 1} · ${p.medals ?? 0} medalha${p.medals === 1 ? "" : "s"}`
-                              : undefined)([person(other(f))])
-                    }
-                  >
-                    <button
-                      className="btn-ghost text-sm text-ink-500"
-                      onClick={async () => {
-                        if (
-                          await confirmDialog({
-                            title:
-                              f.status === "pending"
-                                ? "Cancelar pedido?"
-                                : "Desfazer amizade?",
-                            message:
-                              f.status === "pending"
-                                ? undefined
-                                : "Vocês deixam de ver os posts um do outro.",
-                            confirmLabel:
-                              f.status === "pending"
-                                ? "Cancelar pedido"
-                                : "Desfazer",
-                            danger: true,
-                          })
-                        )
-                          void run(() => removeFriend(f.id));
-                      }}
-                    >
-                      {f.status === "pending" ? "Cancelar" : "Remover"}
-                    </button>
-                  </PersonRow>
-                ))}
-              </ul>
+              feed.map((p) => (
+                <PostCard
+                  key={p.id}
+                  post={p}
+                  userId={userId}
+                  person={person}
+                  onLike={(on) => run(() => setLike(p.id, userId, on))}
+                  onComment={(text) => run(() => addComment(p.id, text))}
+                  onDeleteComment={(id) => run(() => deleteComment(id))}
+                  onDelete={() => run(() => deletePost(p.id), "Post apagado.")}
+                  onReport={(target, reason) =>
+                    run(
+                      () => report(target, reason),
+                      "Denúncia enviada. Obrigado por avisar.",
+                    )
+                  }
+                  onShare={() =>
+                    shareText(`${p.text}\n\nCompartilhado do Ritmo`).catch(
+                      () => undefined,
+                    )
+                  }
+                />
+              ))
             )}
-          </Panel>
+          </div>
+          {/* No celular, amigos e pedidos vêm antes do feed. */}
+          <div className="order-first grid min-w-0 content-start gap-4 lg:order-none">
+            {incoming.length > 0 && (
+              <Panel>
+                <h2 className="text-base font-semibold">Pedidos recebidos</h2>
+                <ul className="mt-2 divide-y divide-line">
+                  {incoming.map((f) => (
+                    <PersonRow key={f.id} person={person(other(f))}>
+                      <button
+                        className="btn-primary min-h-9 px-3 text-sm"
+                        onClick={() =>
+                          run(
+                            () => acceptFriend(f.id),
+                            "Agora vocês são amigos!",
+                          )
+                        }
+                      >
+                        Aceitar
+                      </button>
+                      <button
+                        className="btn-ghost text-sm"
+                        onClick={() => run(() => removeFriend(f.id))}
+                      >
+                        Recusar
+                      </button>
+                    </PersonRow>
+                  ))}
+                </ul>
+              </Panel>
+            )}
+            <Panel>
+              <h2 className="text-base font-semibold">
+                Amigos{friends.length ? ` · ${friends.length}` : ""}
+              </h2>
+              {!friends.length && !outgoing.length ? (
+                <p className="py-4 text-sm text-ink-500">
+                  Você ainda não adicionou ninguém.
+                </p>
+              ) : (
+                <>
+                  <ul className="mt-2 divide-y divide-line">
+                    {friendRows(network.slice(0, 5))}
+                  </ul>
+                  {network.length > 5 && (
+                    <button
+                      className="btn-ghost mt-1 -ml-2 text-sm"
+                      onClick={() => setAllFriends(true)}
+                    >
+                      Ver todos os {network.length} amigos
+                    </button>
+                  )}
+                </>
+              )}
+            </Panel>
+            {allFriends && (
+              <Sheet title="Amigos" onClose={() => setAllFriends(false)}>
+                <ul className="divide-y divide-line">{friendRows(network)}</ul>
+              </Sheet>
+            )}
+            <AddFriend
+              code={me?.friend_code}
+              invite={invite}
+              onNotice={onNotice}
+              onAdd={(id) =>
+                run(
+                  () => requestFriend(userId, id),
+                  "Pedido de amizade enviado.",
+                )
+              }
+            />
+            <Panel>
+              <label className="flex cursor-pointer items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 size-5 shrink-0 accent-brand-600"
+                  checked={shareActivity}
+                  onChange={(e) => onShareActivity(e.target.checked)}
+                />
+                <span>
+                  <strong className="block font-medium">
+                    Mostrar minhas atividades aos amigos
+                  </strong>
+                  <span className="text-[13px] text-ink-500">
+                    Exercícios registrados e medalhas novas aparecem no feed dos
+                    seus amigos. Peso, pressão e alimentação nunca são
+                    publicados sozinhos.
+                  </span>
+                </span>
+              </label>
+            </Panel>
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
@@ -381,7 +414,7 @@ function AddFriend({
               className="btn-ghost -ml-2 mt-1 text-sm"
               onClick={() =>
                 shareText(
-                  `Me adicione no Ritmo para a gente se motivar! Toque no link: ${inviteLink(code)} (ou use o código ${code} na aba Amigos).`,
+                  `Me adicione no Ritmo para a gente se motivar! Toque no link: ${inviteLink(code)} (ou use o código ${code} em Social → Amigos).`,
                 )
                   .then((r) => r === "copied" && onNotice("Convite copiado."))
                   .catch(() => undefined)

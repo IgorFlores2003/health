@@ -20,11 +20,11 @@ const FAQ: [string, string][] = [
   ],
   [
     "Como adicionar um amigo?",
-    "Na aba Amigos, envie seu convite (o link já abre o app com o seu código) ou digite o código de amigo da outra pessoa. A amizade vale quando ela aceitar.",
+    "Em Social → Amigos, envie seu convite (o link já abre o app com o seu código) ou digite o código de amigo da outra pessoa. A amizade vale quando ela aceitar.",
   ],
   [
     "O que é a lontra e o puxar orelha?",
-    "A lontra fica magra e forte quando você (e quem cuida dela com você) bate as metas de água, calorias e exercício na semana. Se um amigo do time estiver fora da meta, toque em Puxar orelha para mandar um “bora lá” para o celular dele.",
+    "Em Social → Lontra: ela fica magra e forte quando você (e quem cuida dela com você) bate as metas de água, calorias e exercício na semana. Se um amigo do time estiver fora da meta, toque em Puxar orelha para mandar um “bora lá” para o celular dele.",
   ],
   [
     "O que meus amigos veem?",

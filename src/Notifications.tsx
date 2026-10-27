@@ -34,8 +34,8 @@ export default function Notifications({
   onSeen,
 }: {
   userId: string;
-  /** Leva para a aba da notificação (ex.: Amigos). */
-  onOpen: (tab: Notice["tab"]) => void;
+  /** Leva para a tela da notificação (ex.: Social → Amigos). */
+  onOpen: (notice: Notice) => void;
   /** Avisa que tudo foi visto (zera o número no sino). */
   onSeen: () => void;
 }) {
@@ -77,7 +77,7 @@ export default function Notifications({
                 <li key={n.id}>
                   <button
                     className={`flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-surface ${fresh ? "bg-brand-50" : ""}`}
-                    onClick={() => onOpen(n.tab)}
+                    onClick={() => onOpen(n)}
                   >
                     <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600">
                       <Icon className="size-5" />

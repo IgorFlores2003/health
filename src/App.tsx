@@ -80,8 +80,6 @@ import {
   RiHome5Line,
   RiLineChartLine,
   RiFocus3Line,
-  RiPlayCircleFill,
-  RiPlayCircleLine,
   RiPulseLine,
   RiSideBarFill,
   RiSideBarLine,
@@ -212,17 +210,10 @@ const tabs: {
   {
     id: "community",
     main: true,
-    label: "Amigos",
-    short: "Amigos",
+    label: "Social",
+    short: "Social",
     icon: RiGroupLine,
     active: RiGroupFill,
-  },
-  {
-    id: "videos",
-    label: "Vídeos",
-    short: "Vídeos",
-    icon: RiPlayCircleLine,
-    active: RiPlayCircleFill,
   },
   {
     id: "insights",
@@ -271,6 +262,14 @@ export default function App({ account }: { account: User }) {
   const [modal, setModal] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  // Tela aberta dentro de Social.
+  const [socialSection, setSocialSection] = useState<
+    "friends" | "otter" | "videos"
+  >("friends");
+  const openSocial = (section: "friends" | "otter" | "videos" = "friends") => {
+    setSocialSection(section);
+    openSocial();
+  };
   // Seção aberta em Configurações (a foto no topo abre direto o Perfil).
   const [section, setSection] = useState<
     "profile" | "appearance" | "water" | "account" | "help"
@@ -417,7 +416,7 @@ export default function App({ account }: { account: User }) {
   const clearDraft = useCallback(() => setDraft(""), []);
   function shareToFriends(text: string) {
     setDraft(text);
-    setTab("community");
+    openSocial();
   }
   // Perfil social (nome, foto, nível, medalhas) acompanha o do app.
   const level = progressLevel(state).level;
@@ -528,7 +527,7 @@ export default function App({ account }: { account: User }) {
     const open = (code: string) => {
       takeInvite();
       setInvite(code);
-      setTab("community");
+      openSocial();
     };
     const saved = takeInvite();
     if (saved) open(saved);
@@ -1483,35 +1482,59 @@ export default function App({ account }: { account: User }) {
               </div>
             </>
           )}
-          {tab === "videos" && <Videos />}
           {tab === "notifications" && (
             <Notifications
               userId={account.id}
-              onOpen={setTab}
+              onOpen={(n) =>
+                openSocial(n.kind.startsWith("otter") ? "otter" : "friends")
+              }
               onSeen={clearUnread}
             />
           )}
           {tab === "community" && (
-            <Community
-              invite={invite}
-              userId={account.id}
-              draft={draft}
-              onDraftUsed={clearDraft}
-              onNotice={setNotice}
-              myGoals={lastDays(7).map((d) => dayGoals(state, d))}
-              ensureProfile={() =>
-                saveSocialProfile(account.id, {
-                  name: state.profile.name,
-                  photo: state.profile.photo,
-                  level,
-                  medals: earned.length,
-                })
-              }
-              shareActivity={state.shareActivity !== false}
-              onShareActivity={(on) =>
-                setState((s) => ({ ...s, shareActivity: on }))
-              }
-            />
+            <>
+              <PageTitle
+                title="Social"
+                text="Amigos, a lontra que vocês cuidam juntos e vídeos com dicas."
+              />
+              <Choice
+                variant="chips"
+                className="mb-5"
+                label="Tela"
+                value={socialSection}
+                onChange={setSocialSection}
+                options={[
+                  { id: "friends", label: "Amigos" },
+                  { id: "otter", label: "Lontra" },
+                  { id: "videos", label: "Vídeos" },
+                ]}
+              />
+              {socialSection === "videos" ? (
+                <Videos />
+              ) : (
+                <Community
+                  section={socialSection}
+                  invite={invite}
+                  userId={account.id}
+                  draft={draft}
+                  onDraftUsed={clearDraft}
+                  onNotice={setNotice}
+                  myGoals={lastDays(7).map((d) => dayGoals(state, d))}
+                  ensureProfile={() =>
+                    saveSocialProfile(account.id, {
+                      name: state.profile.name,
+                      photo: state.profile.photo,
+                      level,
+                      medals: earned.length,
+                    })
+                  }
+                  shareActivity={state.shareActivity !== false}
+                  onShareActivity={(on) =>
+                    setState((s) => ({ ...s, shareActivity: on }))
+                  }
+                />
+              )}
+            </>
           )}
           {tab === "nutrition" && (
             <DailyDiary

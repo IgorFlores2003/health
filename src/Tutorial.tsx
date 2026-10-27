@@ -22,8 +22,8 @@ export const STEPS: { tab: string; title: string; text: string }[] = [
   },
   {
     tab: "community",
-    title: "Amigos",
-    text: "Convide amigos pelo link, poste conquistas e cuidem juntos da lontra. Se alguém sair da meta, dá para puxar a orelha!",
+    title: "Social",
+    text: "Amigos e posts, a lontra que vocês cuidam juntos (dá até para puxar a orelha de quem sair da meta) e vídeos com dicas.",
   },
   {
     tab: "insights",
@@ -33,7 +33,7 @@ export const STEPS: { tab: string; title: string; text: string }[] = [
   {
     tab: "settings",
     title: "Configurações",
-    text: "Seu perfil, meta de peso, tema escuro, lembretes de água e a Ajuda, onde você pode me chamar de novo.",
+    text: "Seu perfil, meta de peso, tema escuro, lembretes de água e a Ajuda, onde você pode me chamar de novo. É só tocar na sua foto no topo.",
   },
   {
     tab: "overview",

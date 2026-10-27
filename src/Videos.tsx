@@ -15,12 +15,6 @@ export default function Videos() {
   const list = VIDEOS.filter((v) => topic === "Todos" || v.topic === topic);
   return (
     <>
-      <div className="mb-6">
-        <h1 className="text-2xl font-semibold tracking-tight md:text-3xl">
-          Vídeos
-        </h1>
-        <p className="mt-1 text-ink-500">Dicas curtas para cuidar da saúde.</p>
-      </div>
       <Choice
         variant="chips"
         className="mb-5"
