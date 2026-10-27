@@ -18,9 +18,10 @@ import java.util.Locale;
  * (.IconRed, .IconBlue...). O Android não permite gerar ícones em tempo de
  * execução, então só as cores empacotadas estão disponíveis.
  *
- * Desabilitar o alias pelo qual o app foi aberto fecha a tarefa na hora, mesmo
- * com DONT_KILL_APP. Por isso a troca só fica agendada e é aplicada quando o
- * app vai para segundo plano (onStop).
+ * Desabilitar o alias pelo qual o app foi aberto fecha o app na hora, mesmo
+ * com DONT_KILL_APP. Por isso a troca fica guardada (set) e só é aplicada
+ * quando a pessoa toca em "Aplicar ícone" (apply). Aplicar sozinho ao ir
+ * para segundo plano fechava o app ao abrir o WhatsApp, por exemplo.
  */
 @CapacitorPlugin(name = "AppIcon")
 public class AppIconPlugin extends Plugin {
@@ -45,12 +46,24 @@ public class AppIconPlugin extends Plugin {
         call.resolve(result);
     }
 
-    @Override
-    protected void handleOnStop() {
-        super.handleOnStop();
+    /** Ícone escolhido que ainda não foi aplicado (ou null). */
+    @PluginMethod
+    public void pending(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("name", prefs().getString(PENDING, null));
+        call.resolve(result);
+    }
+
+    /** Aplica o ícone guardado. O Android fecha o app em seguida. */
+    @PluginMethod
+    public void apply(PluginCall call) {
         String name = prefs().getString(PENDING, null);
-        if (name == null) return;
-        prefs().edit().remove(PENDING).apply();
+        if (name == null) {
+            call.resolve();
+            return;
+        }
+        prefs().edit().remove(PENDING).commit();
+        call.resolve();
         apply(name);
     }
 

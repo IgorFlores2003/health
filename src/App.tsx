@@ -15,6 +15,9 @@ import Community from "./Community";
 import { dailyMissions, dayGoals, medals, progressLevel } from "./gamification";
 import { playSuccess } from "./sounds";
 import { registerPush, unregisterPush } from "./push";
+import { listenInvites, takeInvite } from "./invite";
+import Notifications from "./Notifications";
+import { lastSeen, loadNotifications } from "./notificationFeed";
 import {
   listenNudges,
   markSeen,
@@ -56,6 +59,10 @@ import {
   RiImageLine,
   RiChat3Fill,
   RiChat3Line,
+  RiLogoutBoxRLine,
+  RiMenuLine,
+  RiNotification3Fill,
+  RiNotification3Line,
   RiGroupFill,
   RiGroupLine,
   RiCheckLine,
@@ -77,8 +84,8 @@ import {
   RiCalendarCheckFill,
   RiCalendarCheckLine,
   RiScales3Line,
-  RiUser3Fill,
-  RiUser3Line,
+  RiSettings3Fill,
+  RiSettings3Line,
 } from "react-icons/ri";
 import {
   Area,
@@ -133,6 +140,7 @@ import {
 import Onboarding from "./Onboarding";
 import PressureFields from "./PressureFields";
 import Records from "./Records";
+import Sheet from "./Sheet";
 import WeightFields from "./WeightFields";
 import AccentPicker from "./AccentPicker";
 import {
@@ -143,7 +151,7 @@ import {
   DEFAULT_ACCENT,
   nearestPreset,
 } from "./theme";
-import { setAppIcon } from "./appIcon";
+import { applyAppIcon, appIconPending, setAppIcon } from "./appIcon";
 import RichText from "./RichText";
 import { HydrationSettings, LitersInput, WaterCard } from "./Water";
 import { CalorieChart, PressureChart, WaterChart } from "./Charts";
@@ -170,9 +178,12 @@ const tabs: {
   short: string;
   icon: IconType;
   active: IconType;
+  /** No celular, aparece direto no menu de baixo; as outras ficam em "Mais". */
+  main?: boolean;
 }[] = [
   {
     id: "overview",
+    main: true,
     label: "Início",
     short: "Início",
     icon: RiHome5Line,
@@ -180,6 +191,7 @@ const tabs: {
   },
   {
     id: "nutrition",
+    main: true,
     label: "Diário",
     short: "Diário",
     icon: RiCalendarCheckLine,
@@ -187,6 +199,7 @@ const tabs: {
   },
   {
     id: "records",
+    main: true,
     label: "Registros",
     short: "Registros",
     icon: RiFileList3Line,
@@ -194,6 +207,7 @@ const tabs: {
   },
   {
     id: "community",
+    main: true,
     label: "Amigos",
     short: "Amigos",
     icon: RiGroupLine,
@@ -214,11 +228,18 @@ const tabs: {
     active: RiChat3Fill,
   },
   {
+    id: "notifications",
+    label: "Notificações",
+    short: "Avisos",
+    icon: RiNotification3Line,
+    active: RiNotification3Fill,
+  },
+  {
     id: "settings",
-    label: "Perfil",
-    short: "Perfil",
-    icon: RiUser3Line,
-    active: RiUser3Fill,
+    label: "Configurações",
+    short: "Ajustes",
+    icon: RiSettings3Line,
+    active: RiSettings3Fill,
   },
 ];
 const note = "text-[13px] leading-relaxed text-ink-500";
@@ -245,6 +266,17 @@ export default function App({ account }: { account: User }) {
   }, [tab]);
   const [modal, setModal] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  // Seção aberta em Configurações (a foto no topo abre direto o Perfil).
+  const [section, setSection] = useState<
+    "profile" | "appearance" | "water" | "account" | "help"
+  >("profile");
+  const openProfile = () => {
+    setSection("profile");
+    setTab("settings");
+  };
+  // Ícone do Android na cor nova, esperando a pessoa aplicar.
+  const [iconPending, setIconPending] = useState(false);
   // Foto escolhida/tirada (ou a atual) aberta no editor antes de salvar.
   const [editingPhoto, setEditingPhoto] = useState<Blob | null>(null);
   const [mode, setMode] = useState(colorMode);
@@ -442,10 +474,44 @@ export default function App({ account }: { account: User }) {
         () => undefined,
       );
       void markSeen([n.id]);
+      void refreshUnread();
     };
     void pendingNudges(account.id).then((list) => list.forEach(show));
     return listenNudges(account.id, (n) => void show(n));
   }, [account.id]);
+  // Número no sino: novidades desde a última vez que a aba foi aberta.
+  const [unread, setUnread] = useState(0);
+  const clearUnread = useCallback(() => setUnread(0), []);
+  const refreshUnread = useCallback(async () => {
+    const seen = lastSeen(account.id);
+    const list = await loadNotifications(account.id).catch(() => []);
+    setUnread(list.filter((n) => n.at && n.at > seen).length);
+  }, [account.id]);
+  useEffect(() => {
+    void refreshUnread();
+    const id = setInterval(() => void refreshUnread(), 60000);
+    const visible = () =>
+      document.visibilityState === "visible" && void refreshUnread();
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [refreshUnread]);
+  // Convite por link (…/amigo/CODIGO): abre Amigos com o código preenchido.
+  const [invite, setInvite] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (code: string) => {
+      takeInvite();
+      setInvite(code);
+      setTab("community");
+    };
+    const saved = takeInvite();
+    if (saved) open(saved);
+    let stop = () => {};
+    void listenInvites(open).then((s) => (stop = s));
+    return () => stop();
+  }, []);
   // Push no Android: puxões de orelha chegam mesmo com o app fechado.
   useEffect(() => {
     void registerPush().catch(() => undefined);
@@ -471,7 +537,9 @@ export default function App({ account }: { account: User }) {
     } catch {
       /* só evita o "piscar" da cor padrão ao abrir */
     }
-    void setAppIcon(nearestPreset(state.accent ?? DEFAULT_ACCENT));
+    void setAppIcon(nearestPreset(state.accent ?? DEFAULT_ACCENT))
+      .then(appIconPending)
+      .then(setIconPending);
   }, [state.accent]);
   // Ao sair da conta, a tela de login volta para a cor padrão.
   useEffect(
@@ -881,7 +949,7 @@ export default function App({ account }: { account: User }) {
     if (result?.error) setNotice("Não foi possível sair. Tente novamente.");
   }
   function goToGoal() {
-    setTab("settings");
+    openProfile();
     setTimeout(
       () =>
         document
@@ -955,39 +1023,65 @@ export default function App({ account }: { account: User }) {
         </nav>
         <AccountMenu
           compact={collapsed}
-          up
           className={`mt-auto border-t border-line pt-4 ${collapsed ? "flex justify-center" : ""}`}
           photo={state.profile.photo}
           name={state.profile.name}
           email={user}
-          onProfile={() => setTab("settings")}
-          onSignOut={signOut}
+          onProfile={openProfile}
         />
       </aside>
       <nav
         aria-label="Navegação principal"
         className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden"
       >
-        {tabs.map(({ id, label, short, icon: Icon, active: ActiveIcon }) => (
-          <button
-            key={id}
-            className={
-              "flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium " +
-              (tab === id ? "text-brand-600" : "text-ink-500")
-            }
-            onClick={() => setTab(id)}
-            aria-label={label}
-            aria-current={tab === id ? "page" : undefined}
-          >
-            {tab === id ? (
-              <ActiveIcon className="size-[22px]" />
-            ) : (
-              <Icon className="size-[22px]" />
-            )}
-            <span className="max-w-full truncate px-0.5">{short}</span>
-          </button>
-        ))}
+        {tabs
+          .filter((t) => t.main)
+          .map(({ id, label, short, icon: Icon, active: ActiveIcon }) => (
+            <NavButton
+              key={id}
+              label={label}
+              short={short}
+              current={tab === id}
+              icon={tab === id ? ActiveIcon : Icon}
+              onClick={() => setTab(id)}
+            />
+          ))}
+        <NavButton
+          label="Mais opções"
+          short="Mais"
+          current={!tabs.find((t) => t.id === tab)?.main}
+          icon={RiMenuLine}
+          badge={unread}
+          onClick={() => setMoreOpen(true)}
+        />
       </nav>
+      {moreOpen && (
+        <Sheet title="Mais" onClose={() => setMoreOpen(false)}>
+          <ul className="grid gap-1">
+            {tabs
+              .filter((t) => !t.main)
+              .map(({ id, label, icon: Icon }) => (
+                <li key={id}>
+                  <button
+                    className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-[15px] font-medium ${tab === id ? "bg-brand-50 text-brand-700" : "hover:bg-surface"}`}
+                    onClick={() => {
+                      setTab(id);
+                      setMoreOpen(false);
+                    }}
+                  >
+                    <Icon className="size-5 text-ink-500" />
+                    <span className="flex-1">{label}</span>
+                    {id === "notifications" && unread > 0 && (
+                      <span className="rounded-full bg-brand-600 px-2 text-xs leading-5 font-semibold text-white">
+                        {unread}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </Sheet>
+      )}
       <main
         className={`pb-[calc(64px+env(safe-area-inset-bottom))] transition-[margin] md:pb-0 ${collapsed ? "md:ml-[72px]" : "md:ml-60"}`}
       >
@@ -1005,6 +1099,21 @@ export default function App({ account }: { account: User }) {
                   year: "numeric",
                 })}
               </span>
+              <button
+                className="icon-btn relative -mx-1"
+                onClick={() => setTab("notifications")}
+                aria-label={
+                  unread ? `Notificações, ${unread} nova(s)` : "Notificações"
+                }
+                title="Notificações"
+              >
+                <RiNotification3Line className="size-5" />
+                {unread > 0 && (
+                  <span className="absolute top-1 right-1 grid min-w-4 place-items-center rounded-full bg-brand-600 px-1 text-[10px] leading-4 font-semibold text-white">
+                    {unread > 9 ? "9+" : unread}
+                  </span>
+                )}
+              </button>
               <SyncBadge status={sync.status} />
               <button
                 className="icon-btn -mx-1"
@@ -1028,8 +1137,7 @@ export default function App({ account }: { account: User }) {
                 photo={state.profile.photo}
                 name={state.profile.name}
                 email={user}
-                onProfile={() => setTab("settings")}
-                onSignOut={signOut}
+                onProfile={openProfile}
               />
             </span>
           </div>
@@ -1063,7 +1171,7 @@ export default function App({ account }: { account: User }) {
                   compact
                   state={state}
                   date={today()}
-                  onProfile={() => setTab("settings")}
+                  onProfile={openProfile}
                   onWeight={() => openRecord("weight")}
                 >
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -1352,8 +1460,16 @@ export default function App({ account }: { account: User }) {
             </>
           )}
           {tab === "videos" && <Videos />}
+          {tab === "notifications" && (
+            <Notifications
+              userId={account.id}
+              onOpen={setTab}
+              onSeen={clearUnread}
+            />
+          )}
           {tab === "community" && (
             <Community
+              invite={invite}
               userId={account.id}
               draft={draft}
               onDraftUsed={clearDraft}
@@ -1381,7 +1497,7 @@ export default function App({ account }: { account: User }) {
               setDate={setDiaryDate}
               onExercise={(id) => openRecord("exercise", id)}
               onPressure={(id) => openRecord("pressure", id)}
-              onProfile={() => setTab("settings")}
+              onProfile={openProfile}
               onWeight={() => openRecord("weight")}
               onAnalyze={() => {
                 setQuestion(
@@ -1514,10 +1630,26 @@ export default function App({ account }: { account: User }) {
           {tab === "settings" && (
             <>
               <PageTitle
-                title="Perfil"
-                text="Esses dados entram no cálculo das estimativas."
+                title="Configurações"
+                text="Seu perfil, aparência, água, conta e ajuda."
               />
-              <div className="grid gap-4 lg:grid-cols-2">
+              <Choice
+                variant="chips"
+                className="mb-5"
+                label="Seção"
+                value={section}
+                onChange={setSection}
+                options={[
+                  { id: "profile", label: "Perfil" },
+                  { id: "appearance", label: "Aparência" },
+                  { id: "water", label: "Água" },
+                  { id: "account", label: "Conta e privacidade" },
+                  { id: "help", label: "Ajuda" },
+                ]}
+              />
+              {section === "profile" && (
+                <>
+                  <div className="max-w-2xl">
                 <Panel>
                   <CardHeader title="Sobre você" />
                   <div className="mb-5 flex items-center gap-4">
@@ -1672,93 +1804,7 @@ export default function App({ account }: { account: User }) {
                     </button>
                   </form>
                 </Panel>
-                <div className="grid content-start gap-4">
-                  <Panel>
-                    <CardHeader title="Conta" />
-                    {user && (
-                      <p className="truncate text-sm font-medium">{user}</p>
-                    )}
-                    <p className="mt-1 mb-4 flex items-center gap-2 text-sm text-ink-500">
-                      <SyncBadge status={sync.status} label />
-                    </p>
-                    <AccountAccess
-                      user={user}
-                      recovery={false}
-                      onRecovered={() => {}}
-                    />
-                  </Panel>
-                  <Panel>
-                    <CardHeader title="Aparência" text="Tema e cor do app." />
-                    <Choice
-                      className="mb-5"
-                      label="Tema"
-                      value={mode}
-                      onChange={(id) => {
-                        setMode(id);
-                        applyColorMode(id);
-                      }}
-                      options={[
-                        {
-                          id: "system",
-                          label: (
-                            <>
-                              <RiComputerLine className="size-4" /> Sistema
-                            </>
-                          ),
-                        },
-                        {
-                          id: "light",
-                          label: (
-                            <>
-                              <RiSunLine className="size-4" /> Claro
-                            </>
-                          ),
-                        },
-                        {
-                          id: "dark",
-                          label: (
-                            <>
-                              <RiMoonLine className="size-4" /> Escuro
-                            </>
-                          ),
-                        },
-                      ]}
-                    />
-                    <AccentPicker
-                      value={state.accent ?? DEFAULT_ACCENT}
-                      onChange={(hex) =>
-                        setState((s) => ({
-                          ...s,
-                          accent: hex === DEFAULT_ACCENT ? undefined : hex,
-                        }))
-                      }
-                    />
-                  </Panel>
-                  <Panel>
-                    <CardHeader
-                      title="Água"
-                      text="Copo padrão e lembretes no celular."
-                    />
-                    <HydrationSettings
-                      value={state.hydration}
-                      onChange={(hydration) =>
-                        setState((s) => ({ ...s, hydration }))
-                      }
-                      onNotice={setNotice}
-                    />
-                  </Panel>
-                  <Panel>
-                    <CardHeader title="Privacidade" />
-                    <p className="text-sm leading-relaxed text-ink-500">
-                      Leia os {legal.terms}, a {legal.privacy} (LGPD) e as{" "}
-                      {legal.formulas} usadas nas estimativas. Para acessar,
-                      corrigir ou excluir seus dados, ou revogar o
-                      consentimento, use o contato indicado na política.
-                    </p>
-                    {legal.sheet}
-                  </Panel>
-                </div>
-              </div>
+                  </div>
               <div id="meta" className="mt-10 mb-4 scroll-mt-20">
                 <h2 className="text-xl font-semibold tracking-tight">
                   Meta de peso
@@ -1877,6 +1923,138 @@ export default function App({ account }: { account: User }) {
                   </p>
                 </Panel>
               </div>
+                </>
+              )}
+              {section === "appearance" && (
+                <div className="max-w-2xl">
+                  <Panel>
+                    <CardHeader title="Aparência" text="Tema e cor do app." />
+                    <Choice
+                      className="mb-5"
+                      label="Tema"
+                      value={mode}
+                      onChange={(id) => {
+                        setMode(id);
+                        applyColorMode(id);
+                      }}
+                      options={[
+                        {
+                          id: "system",
+                          label: (
+                            <>
+                              <RiComputerLine className="size-4" /> Sistema
+                            </>
+                          ),
+                        },
+                        {
+                          id: "light",
+                          label: (
+                            <>
+                              <RiSunLine className="size-4" /> Claro
+                            </>
+                          ),
+                        },
+                        {
+                          id: "dark",
+                          label: (
+                            <>
+                              <RiMoonLine className="size-4" /> Escuro
+                            </>
+                          ),
+                        },
+                      ]}
+                    />
+                    <AccentPicker
+                      value={state.accent ?? DEFAULT_ACCENT}
+                      onChange={(hex) =>
+                        setState((s) => ({
+                          ...s,
+                          accent: hex === DEFAULT_ACCENT ? undefined : hex,
+                        }))
+                      }
+                    />
+                    {iconPending && (
+                      <div className="mt-4 rounded-lg bg-surface p-3 text-sm">
+                        <p>
+                          O ícone do app na tela inicial também pode mudar para
+                          essa cor. O app fecha ao trocar; é só abrir de novo
+                          pelo ícone novo.
+                        </p>
+                        <button
+                          className="btn-secondary mt-3"
+                          onClick={async () => {
+                            if (
+                              await confirmDialog({
+                                title: "Trocar o ícone agora?",
+                                message:
+                                  "O app vai fechar. Seus dados já estão salvos.",
+                                confirmLabel: "Trocar e fechar",
+                              })
+                            )
+                              void applyAppIcon();
+                          }}
+                        >
+                          Aplicar ícone
+                        </button>
+                      </div>
+                    )}
+                  </Panel>
+                </div>
+              )}
+              {section === "water" && (
+                <div className="max-w-2xl">
+                  <Panel>
+                    <CardHeader
+                      title="Água"
+                      text="Copo padrão e lembretes no celular."
+                    />
+                    <HydrationSettings
+                      value={state.hydration}
+                      onChange={(hydration) =>
+                        setState((s) => ({ ...s, hydration }))
+                      }
+                      onNotice={setNotice}
+                    />
+                  </Panel>
+                </div>
+              )}
+              {section === "account" && (
+                <div className="grid max-w-2xl gap-4">
+                  <Panel>
+                    <CardHeader title="Conta" />
+                    {user && (
+                      <p className="truncate text-sm font-medium">{user}</p>
+                    )}
+                    <p className="mt-1 mb-4 flex items-center gap-2 text-sm text-ink-500">
+                      <SyncBadge status={sync.status} label />
+                    </p>
+                    <AccountAccess
+                      user={user}
+                      recovery={false}
+                      onRecovered={() => {}}
+                    />
+                    <button
+                      className="btn-ghost mt-3 -ml-2 text-brand-700"
+                      onClick={signOut}
+                    >
+                      <RiLogoutBoxRLine className="size-5" /> Sair da conta
+                    </button>
+                  </Panel>
+                  <Panel>
+                    <CardHeader title="Privacidade" />
+                    <p className="text-sm leading-relaxed text-ink-500">
+                      Leia os {legal.terms}, a {legal.privacy} (LGPD) e as{" "}
+                      {legal.formulas} usadas nas estimativas. Para acessar,
+                      corrigir ou excluir seus dados, ou revogar o
+                      consentimento, use o contato indicado na política.
+                    </p>
+                    {legal.sheet}
+                  </Panel>
+                </div>
+              )}
+              {section === "help" && (
+                <Help onTutorial={() => setTutorial(0)} />
+              )}
             </>
           )}
           <footer className="mt-10 border-t border-line pt-5 pb-2 text-xs text-ink-400">
@@ -2046,5 +2224,37 @@ function WaterAmount({ initial }: { initial: number }) {
   const [ml, setMl] = useState<number | null>(initial);
   return (
     <LitersInput name="ml" label="Quantidade" value={ml} onChange={setMl} />
+  );
+}
+
+/** Botão do menu de baixo do celular (com número de novidades opcional). */
+function NavButton({
+  label,
+  short,
+  icon: Icon,
+  current,
+  badge,
+  onClick,
+}: {
+  label: string;
+  short: string;
+  icon: IconType;
+  current: boolean;
+  badge?: number;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`relative flex h-16 min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${current ? "text-brand-600" : "text-ink-500"}`}
+      onClick={onClick}
+      aria-label={badge ? `${label}, ${badge} novidade(s)` : label}
+      aria-current={current ? "page" : undefined}
+    >
+      <Icon className="size-[22px]" />
+      {!!badge && (
+        <span className="absolute top-2.5 left-1/2 ml-1.5 size-2.5 rounded-full bg-brand-600 ring-2 ring-white" />
+      )}
+      <span className="max-w-full truncate px-0.5">{short}</span>
+    </button>
   );
 }

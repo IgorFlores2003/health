@@ -2,6 +2,15 @@ import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import type { Hydration } from "./domain";
 
+/** Ícone (pulso do Ritmo) e a cor escolhida no app para as notificações. */
+const look = () => ({
+  smallIcon: "ic_stat_ritmo",
+  iconColor:
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--color-brand-600")
+      .trim() || "#D91C1C",
+});
+
 /** Faixa de ids reservada aos lembretes de água. */
 const FIRST_ID = 1000;
 const MAX_REMINDERS = 96;
@@ -49,6 +58,7 @@ export async function syncWaterReminders(h: Hydration | undefined) {
   await LocalNotifications.schedule({
     notifications: reminderTimes(h).map((t, i) => ({
       id: FIRST_ID + i,
+      ...look(),
       title: "Hora de beber água",
       body: `Que tal um copo de ${h.cupMl} ml agora?`,
       schedule: {
@@ -66,7 +76,7 @@ export async function notifyNow(title: string, body: string) {
     return;
   await LocalNotifications.schedule({
     notifications: [
-      { id: 2000 + Math.floor(Math.random() * 100000), title, body },
+      { ...look(), id: 2000 + Math.floor(Math.random() * 100000), title, body },
     ],
   });
 }

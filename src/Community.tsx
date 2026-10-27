@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   RiChat3Line,
   RiDeleteBin6Line,
@@ -29,7 +29,8 @@ import {
   type Post,
   type SocialProfile,
 } from "./social";
-import { PageTitle, Panel } from "./ui";
+import { ago, PageTitle, Panel } from "./ui";
+import { inviteLink } from "./invite";
 import OtterCard from "./Otter";
 import type { DayGoals } from "./gamification";
 
@@ -47,17 +48,6 @@ export async function shareText(text: string) {
   return "shared";
 }
 
-const ago = (iso: string) => {
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return "agora";
-  if (min < 60) return `há ${min} min`;
-  if (min < 1440) return `há ${Math.floor(min / 60)} h`;
-  return new Date(iso).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-  });
-};
-
 /** Aba Amigos: código de amigo, pedidos, publicar e o feed dos amigos. */
 export default function Community({
   userId,
@@ -68,7 +58,10 @@ export default function Community({
   onShareActivity,
   myGoals,
   ensureProfile,
+  invite,
 }: {
+  /** Código de amigo vindo de um link de convite. */
+  invite?: string | null;
   userId: string;
   /** Cria/atualiza o perfil social com os dados do perfil do app. */
   ensureProfile: () => Promise<void>;
@@ -226,6 +219,7 @@ export default function Community({
           </Panel>
           <AddFriend
             code={me?.friend_code}
+            invite={invite}
             onNotice={onNotice}
             onAdd={(id) =>
               run(() => requestFriend(userId, id), "Pedido de amizade enviado.")
@@ -340,90 +334,106 @@ function PersonRow({
 
 function AddFriend({
   code,
+  invite,
   onAdd,
   onNotice,
 }: {
   code?: string;
+  /** Código vindo de um link de convite: já busca a pessoa. */
+  invite?: string | null;
   onAdd: (userId: string) => void;
   onNotice: (text: string) => void;
 }) {
   const [value, setValue] = useState("");
   const [found, setFound] = useState<SocialProfile | null>(null);
   const [busy, setBusy] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  async function search(c: string) {
+    setBusy(true);
+    try {
+      const p = await findByCode(c);
+      setFound(p);
+      if (!p) onNotice("Nenhuma pessoa com esse código.");
+    } catch (err) {
+      onNotice(err instanceof Error ? err.message : "Falha na busca.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (!invite || invite === code) return;
+    setValue(invite);
+    void search(invite);
+    box.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invite, code]);
   return (
-    <Panel>
-      <h2 className="text-base font-semibold">Adicionar amigos</h2>
-      {code && (
-        <div className="mt-3 rounded-lg bg-surface p-3">
-          <p className="text-[13px] text-ink-500">Seu código de amigo</p>
-          <p className="mt-0.5 font-mono text-xl font-semibold tracking-widest">
-            {code}
-          </p>
-          <button
-            className="btn-ghost -ml-2 mt-1 text-sm"
-            onClick={() =>
-              shareText(
-                `Me adicione no Ritmo para a gente se motivar! Meu código de amigo: ${code}`,
-              )
-                .then((r) => r === "copied" && onNotice("Convite copiado."))
-                .catch(() => undefined)
-            }
-          >
-            <RiShareLine className="size-4" /> Enviar convite
-          </button>
-        </div>
-      )}
-      <form
-        className="mt-3 flex gap-2"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setBusy(true);
-          try {
-            const p = await findByCode(value);
-            setFound(p);
-            if (!p) onNotice("Nenhuma pessoa com esse código.");
-          } catch (err) {
-            onNotice(err instanceof Error ? err.message : "Falha na busca.");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <input
-          className="input font-mono uppercase"
-          aria-label="Código de amigo"
-          placeholder="Código do amigo"
-          maxLength={8}
-          value={value}
-          onChange={(e) => {
-            setValue(e.target.value.replace(/[^0-9a-f]/gi, "").toUpperCase());
-            setFound(null);
-          }}
-        />
-        <button
-          className="btn-secondary shrink-0"
-          disabled={busy || value.length < 8}
-        >
-          Buscar
-        </button>
-      </form>
-      {found && (
-        <ul className="mt-2">
-          <PersonRow person={found}>
+    <div ref={box}>
+      <Panel>
+        <h2 className="text-base font-semibold">Adicionar amigos</h2>
+        {code && (
+          <div className="mt-3 rounded-lg bg-surface p-3">
+            <p className="text-[13px] text-ink-500">Seu código de amigo</p>
+            <p className="mt-0.5 font-mono text-xl font-semibold tracking-widest">
+              {code}
+            </p>
             <button
-              className="btn-primary min-h-9 px-3 text-sm"
-              onClick={() => {
-                onAdd(found.user_id);
-                setFound(null);
-                setValue("");
-              }}
+              className="btn-ghost -ml-2 mt-1 text-sm"
+              onClick={() =>
+                shareText(
+                  `Me adicione no Ritmo para a gente se motivar! Toque no link: ${inviteLink(code)} (ou use o código ${code} na aba Amigos).`,
+                )
+                  .then((r) => r === "copied" && onNotice("Convite copiado."))
+                  .catch(() => undefined)
+              }
             >
-              <RiUserAddLine className="size-4" /> Adicionar
+              <RiShareLine className="size-4" /> Enviar convite
             </button>
-          </PersonRow>
-        </ul>
-      )}
-    </Panel>
+          </div>
+        )}
+        <form
+          className="mt-3 flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void search(value);
+          }}
+        >
+          <input
+            className="input font-mono uppercase"
+            aria-label="Código de amigo"
+            placeholder="Código do amigo"
+            maxLength={8}
+            value={value}
+            onChange={(e) => {
+              setValue(e.target.value.replace(/[^0-9a-f]/gi, "").toUpperCase());
+              setFound(null);
+            }}
+          />
+          <button
+            className="btn-secondary shrink-0"
+            disabled={busy || value.length < 8}
+          >
+            Buscar
+          </button>
+        </form>
+        {found && (
+          <ul className="mt-2">
+            <PersonRow person={found}>
+              <button
+                className="btn-primary min-h-9 px-3 text-sm"
+                onClick={() => {
+                  onAdd(found.user_id);
+                  setFound(null);
+                  setValue("");
+                }}
+              >
+                <RiUserAddLine className="size-4" /> Adicionar
+              </button>
+            </PersonRow>
+          </ul>
+        )}
+      </Panel>
+    </div>
   );
 }
 
@@ -440,15 +450,41 @@ function Composer({
   onPost: (text: string, photo: string | null) => Promise<boolean>;
   onNotice: (text: string) => void;
 }) {
-  const [text, setText] = useState("");
+  // Rascunho guardado no aparelho: não se perde se o celular fechar o app
+  // (ex.: ao ir para o WhatsApp e voltar).
+  const draftKey = `ritmo-post-draft-${userId}`;
+  const [text, setTextState] = useState(() => {
+    try {
+      return localStorage.getItem(draftKey) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const setText = (value: string) => {
+    setTextState(value);
+    try {
+      if (value) localStorage.setItem(draftKey, value);
+      else localStorage.removeItem(draftKey);
+    } catch {
+      /* só não guarda */
+    }
+  };
+  const box = useRef<HTMLDivElement>(null);
+  const field = useRef<HTMLTextAreaElement>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [editing, setEditing] = useState<Blob | null>(null);
   const [busy, setBusy] = useState(false);
+  // Veio de "Compartilhar" numa medalha: desce até o post, já escrito.
   useEffect(() => {
     if (!draft) return;
     setText(draft);
     onDraftUsed();
+    setTimeout(() => {
+      box.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      field.current?.focus({ preventScroll: true });
+    }, 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft, onDraftUsed]);
   useEffect(() => {
     if (!photo) return setPreview("");
@@ -457,80 +493,85 @@ function Composer({
     return () => URL.revokeObjectURL(url);
   }, [photo]);
   return (
-    <Panel>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!text.trim() && !photo) return;
-          setBusy(true);
-          try {
-            const path = photo
-              ? await uploadPhoto(userId, "posts", photo)
-              : null;
-            // Só limpa o que foi escrito se a publicação deu certo.
-            if (await onPost(text, path)) {
-              setText("");
-              setPhoto(null);
+    <div ref={box} className="scroll-mt-20">
+      <Panel>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!text.trim() && !photo) return;
+            setBusy(true);
+            try {
+              const path = photo
+                ? await uploadPhoto(userId, "posts", photo)
+                : null;
+              // Só limpa o que foi escrito se a publicação deu certo.
+              if (await onPost(text, path)) {
+                setText("");
+                setPhoto(null);
+              }
+            } catch (err) {
+              onNotice(
+                err instanceof Error ? err.message : "Falha ao publicar.",
+              );
+            } finally {
+              setBusy(false);
             }
-          } catch (err) {
-            onNotice(err instanceof Error ? err.message : "Falha ao publicar.");
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <textarea
-          className="input min-h-20 py-2.5"
-          placeholder="Conte uma conquista para seus amigos…"
-          maxLength={1000}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-        />
-        {preview && (
-          <div className="relative mt-3 inline-block">
-            <img src={preview} alt="" className="max-h-48 rounded-lg" />
+          }}
+        >
+          <textarea
+            ref={field}
+            className="input min-h-20 py-2.5"
+            placeholder="Conte uma conquista para seus amigos…"
+            maxLength={1000}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          {preview && (
+            <div className="relative mt-3 inline-block">
+              <img src={preview} alt="" className="max-h-48 rounded-lg" />
+              <button
+                type="button"
+                className="btn-secondary absolute top-2 right-2 min-h-8 px-2 text-xs"
+                onClick={() => setPhoto(null)}
+              >
+                Remover
+              </button>
+            </div>
+          )}
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <label className="btn-ghost relative">
+              <RiImageAddLine className="size-5" /> Foto
+              <input
+                className="absolute inset-0 cursor-pointer opacity-0"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  e.target.value = "";
+                  if (f) setEditing(f);
+                }}
+              />
+            </label>
             <button
-              type="button"
-              className="btn-secondary absolute top-2 right-2 min-h-8 px-2 text-xs"
-              onClick={() => setPhoto(null)}
+              className="btn-primary"
+              disabled={busy || (!text.trim() && !photo)}
             >
-              Remover
+              {busy ? "Publicando…" : "Publicar"}
             </button>
           </div>
+        </form>
+        {editing && (
+          <PhotoEditor
+            source={editing}
+            onClose={() => setEditing(null)}
+            onSave={(file) => {
+              setPhoto(file);
+              setEditing(null);
+            }}
+          />
         )}
-        <div className="mt-3 flex items-center justify-between gap-2">
-          <label className="btn-ghost relative">
-            <RiImageAddLine className="size-5" /> Foto
-            <input
-              className="absolute inset-0 cursor-pointer opacity-0"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                e.target.value = "";
-                if (f) setEditing(f);
-              }}
-            />
-          </label>
-          <button
-            className="btn-primary"
-            disabled={busy || (!text.trim() && !photo)}
-          >
-            {busy ? "Publicando…" : "Publicar"}
-          </button>
-        </div>
-      </form>
-      {editing && (
-        <PhotoEditor
-          source={editing}
-          onClose={() => setEditing(null)}
-          onSave={(file) => {
-            setPhoto(file);
-            setEditing(null);
-          }}
-        />
-      )}
-    </Panel>
+      </Panel>
+    </div>
   );
 }
 

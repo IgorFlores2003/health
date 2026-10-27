@@ -4,6 +4,7 @@ import AuthGate from "./AuthGate";
 import { ConfirmHost } from "./confirm";
 import { applyAccent, applyColorMode, colorMode } from "./theme";
 import "./styles.css";
+import { listenInvites } from "./invite";
 
 // Aplica a última cor escolhida antes de renderizar (evita piscar o vermelho).
 try {
@@ -11,6 +12,9 @@ try {
 } catch {
   /* sem armazenamento: fica a cor padrão */
 }
+
+// Convite aberto antes de entrar na conta: guarda o código para depois.
+void listenInvites(() => {});
 
 // Claro/escuro antes de renderizar; no modo Sistema, acompanha o aparelho.
 applyColorMode();

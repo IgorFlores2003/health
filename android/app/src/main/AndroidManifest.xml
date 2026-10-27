@@ -18,6 +18,13 @@
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
             android:exported="true">
+            <!-- Convite de amizade: https://health-e7a86.web.app/amigo/CODIGO abre o app. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="health-e7a86.web.app" android:pathPrefix="/amigo" />
+            </intent-filter>
         </activity>
 
         <!--
@@ -163,6 +170,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity-alias>
+
+        <!-- Ícone e cor das notificações push (Firebase). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_ritmo" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/notification" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

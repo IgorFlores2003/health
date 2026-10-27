@@ -164,3 +164,15 @@ export function CheckItem({
     </span>
   );
 }
+
+/** "agora", "há 5 min", "há 2 h" ou a data. */
+export const ago = (iso: string) => {
+  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "agora";
+  if (min < 60) return `há ${min} min`;
+  if (min < 1440) return `há ${Math.floor(min / 60)} h`;
+  return new Date(iso).toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+  });
+};

@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.ritmo.health",
+      "sha256_cert_fingerprints": [
+        "93:4A:DA:5A:73:A2:A3:F2:50:E4:E0:6C:1A:BD:0A:1B:40:5A:68:09:92:F1:1B:86:65:5B:14:76:EF:25:7E:A5"
+      ]
+    }
+  }
+]

@@ -18,10 +18,12 @@
     "auth:configure": "node scripts/configure-auth.mjs",
     "auth:check": "node scripts/configure-auth.mjs --check",
     "ai:deploy": "npx --yes supabase@2 functions deploy coach --use-api",
-    "push:deploy": "npx --yes supabase@2 functions deploy notify --use-api"
+    "push:deploy": "npx --yes supabase@2 functions deploy notify --use-api",
+    "web:deploy": "npm run build && npx --yes firebase-tools deploy --only hosting"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
+    "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.5",
     "@capacitor/local-notifications": "^8.3.1",
