@@ -12,7 +12,16 @@ import Celebration, { type CelebrationKind } from "./Celebration";
 import { BirthDateField, BirthdayCard } from "./Birthday";
 import MascotCard from "./Mascot";
 import Community from "./Community";
-import { dayGoals, medals, progressLevel } from "./gamification";
+import { dailyMissions, dayGoals, medals, progressLevel } from "./gamification";
+import { playSuccess } from "./sounds";
+import { registerPush, unregisterPush } from "./push";
+import {
+  listenNudges,
+  markSeen,
+  pendingNudges,
+  senderName,
+  type Nudge,
+} from "./nudges";
 import { syncGoals } from "./otterApi";
 import { autoPost, saveProfile as saveSocialProfile } from "./social";
 import FoodSheet from "./FoodSheet";
@@ -138,7 +147,7 @@ import { setAppIcon } from "./appIcon";
 import RichText from "./RichText";
 import { HydrationSettings, LitersInput, WaterCard } from "./Water";
 import { CalorieChart, PressureChart, WaterChart } from "./Charts";
-import { syncWaterReminders } from "./reminders";
+import { notifyNow, syncWaterReminders } from "./reminders";
 import VoiceButton from "./VoiceButton";
 import { readAudio } from "./voice";
 import Videos from "./Videos";
@@ -302,6 +311,8 @@ export default function App({ account }: { account: User }) {
         !!start &&
         start !== state.goal &&
         (state.goal < start ? now <= state.goal : now >= state.goal),
+      missions: dailyMissions(state, day).filter((m) => m.done),
+      medals: medals(state).filter((m) => m.earned),
     };
   })();
   const reached = useRef<typeof goals | null>(null);
@@ -311,16 +322,40 @@ export default function App({ account }: { account: User }) {
     reached.current = goals;
     // Primeira leitura ou virada do dia: só registra o estado atual.
     if (!before || before.day !== goals.day) return;
-    if (goals.weight && !before.weight) {
-      setCelebration("rocket");
-      setNotice("Você chegou ao seu peso desejado! Parabéns!");
-    } else if (goals.water && !before.water) {
-      setCelebration("confetti");
-      setNotice("Meta de água de hoje batida!");
-    } else if (goals.calories && !before.calories)
-      setNotice("Você chegou à meta de calorias de hoje.");
+    const isNew = <T extends { id: string }>(now: T[], old: T[]) =>
+      now.filter((x) => !old.some((o) => o.id === x.id));
+    // Do mais importante para o menos: o aviso mostra o primeiro.
+    const news = [
+      goals.weight && !before.weight
+        ? "Você chegou ao seu peso desejado! Parabéns!"
+        : null,
+      ...isNew(goals.medals, before.medals).map(
+        (m) => `Nova medalha: ${m.title}!`,
+      ),
+      goals.water && !before.water ? "Meta de água de hoje batida!" : null,
+      ...isNew(goals.missions, before.missions)
+        .filter((m) => m.id !== "water")
+        .map((m) => `Desafio concluído: ${m.label}.`),
+      goals.calories && !before.calories
+        ? "Você chegou à meta de calorias de hoje."
+        : null,
+    ].filter((x): x is string => !!x);
+    if (!news.length) return;
+    if (goals.weight && !before.weight) setCelebration("rocket");
+    else if (goals.water && !before.water) setCelebration("confetti");
+    setNotice(news[0]);
+    void playSuccess();
+    void notifyNow("Ritmo", news.join(" ")).catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [goals.day, goals.water, goals.calories, goals.weight, sync.status]);
+  }, [
+    goals.day,
+    goals.water,
+    goals.calories,
+    goals.weight,
+    goals.missions.length,
+    goals.medals.length,
+    sync.status,
+  ]);
   // Comunidade: texto vindo de "Compartilhar" numa medalha.
   const [draft, setDraft] = useState("");
   const clearDraft = useCallback(() => setDraft(""), []);
@@ -396,6 +431,25 @@ export default function App({ account }: { account: User }) {
     );
     return () => clearTimeout(id);
   }, [goalsKey, sync.status]);
+  // Puxões de orelha dos amigos: na hora (app aberto) e os que chegaram
+  // com o app fechado, ao abrir.
+  useEffect(() => {
+    const show = async (n: Nudge) => {
+      const who = await senderName(n.sender);
+      setNotice(`${who} puxou sua orelha: ${n.message}`);
+      void playSuccess();
+      void notifyNow(`${who} puxou sua orelha`, n.message).catch(
+        () => undefined,
+      );
+      void markSeen([n.id]);
+    };
+    void pendingNudges(account.id).then((list) => list.forEach(show));
+    return listenNudges(account.id, (n) => void show(n));
+  }, [account.id]);
+  // Push no Android: puxões de orelha chegam mesmo com o app fechado.
+  useEffect(() => {
+    void registerPush().catch(() => undefined);
+  }, [account.id]);
   // Aniversário: bolo, confete e música uma vez por ano neste aparelho.
   const [birthday, setBirthday] = useState(false);
   useEffect(() => {
@@ -821,6 +875,8 @@ export default function App({ account }: { account: User }) {
       }))
     )
       return;
+    // Antes de sair: este celular para de receber push desta conta.
+    await unregisterPush().catch(() => undefined);
     const result = await supabase?.auth.signOut({ scope: "local" });
     if (result?.error) setNotice("Não foi possível sair. Tente novamente.");
   }
@@ -1303,6 +1359,14 @@ export default function App({ account }: { account: User }) {
               onDraftUsed={clearDraft}
               onNotice={setNotice}
               myGoals={lastDays(7).map((d) => dayGoals(state, d))}
+              ensureProfile={() =>
+                saveSocialProfile(account.id, {
+                  name: state.profile.name,
+                  photo: state.profile.photo,
+                  level,
+                  medals: earned.length,
+                })
+              }
               shareActivity={state.shareActivity !== false}
               onShareActivity={(on) =>
                 setState((s) => ({ ...s, shareActivity: on }))

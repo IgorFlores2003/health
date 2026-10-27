@@ -1,5 +1,10 @@
 import type { ReactNode } from "react";
-import { RiAddLine, RiArrowRightSLine } from "react-icons/ri";
+import {
+  RiAddLine,
+  RiArrowRightSLine,
+  RiCheckboxBlankCircleLine,
+  RiCheckboxCircleFill,
+} from "react-icons/ri";
 
 /** Peças de layout repetidas nas telas do app. */
 export const dateLabel = (d: string) =>
@@ -136,5 +141,26 @@ export function PageTitle({ title, text }: { title: string; text: string }) {
       </h1>
       <p className="mt-1 text-ink-500">{text}</p>
     </div>
+  );
+}
+
+/** Item de checklist: círculo com check na cor do app quando feito. */
+export function CheckItem({
+  done,
+  children,
+}: {
+  done: boolean | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <span className="flex items-center gap-2">
+      {done ? (
+        <RiCheckboxCircleFill className="size-5 shrink-0 text-brand-600" />
+      ) : (
+        <RiCheckboxBlankCircleLine className="size-5 shrink-0 text-ink-400" />
+      )}
+      <span className={done ? "text-ink-900" : "text-ink-500"}>{children}</span>
+      <span className="sr-only">{done ? "(feito)" : "(pendente)"}</span>
+    </span>
   );
 }

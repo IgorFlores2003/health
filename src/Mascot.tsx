@@ -8,6 +8,7 @@ import {
   progressLevel,
 } from "./gamification";
 import Sheet from "./Sheet";
+import { CheckItem } from "./ui";
 
 /**
  * Rit, o mascote do Ritmo: uma gotinha na cor do app que fica com sede,
@@ -175,11 +176,9 @@ export default function MascotCard({
         {missions.map((m) => (
           <li
             key={m.id}
-            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${m.done ? "bg-brand-50 text-brand-800" : "bg-surface text-ink-700"}`}
+            className={`rounded-lg px-3 py-2 text-sm ${m.done ? "bg-brand-50" : "bg-surface"}`}
           >
-            <span aria-hidden>{m.done ? "✅" : "⬜"}</span>
-            {m.label}
-            <span className="sr-only">{m.done ? "(feita)" : "(pendente)"}</span>
+            <CheckItem done={m.done}>{m.label}</CheckItem>
           </li>
         ))}
       </ul>

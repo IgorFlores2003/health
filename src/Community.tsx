@@ -67,8 +67,11 @@ export default function Community({
   shareActivity,
   onShareActivity,
   myGoals,
+  ensureProfile,
 }: {
   userId: string;
+  /** Cria/atualiza o perfil social com os dados do perfil do app. */
+  ensureProfile: () => Promise<void>;
   /** Metas da pessoa nos últimos 7 dias (para a lontra da dupla). */
   myGoals: DayGoals[];
   /** Publicar sozinho exercícios e medalhas para os amigos. */
@@ -87,7 +90,16 @@ export default function Community({
 
   const refresh = useCallback(async () => {
     try {
-      const [net, posts] = await Promise.all([loadNetwork(userId), loadFeed()]);
+      const [first, posts] = await Promise.all([
+        loadNetwork(userId),
+        loadFeed(),
+      ]);
+      let net = first;
+      // Sem perfil (ex.: o app abriu antes da migração): cria agora.
+      if (!net.me) {
+        await ensureProfile();
+        net = await loadNetwork(userId);
+      }
       setMe(net.me);
       setFriendships(net.friendships);
       setPeople(net.people);
@@ -97,18 +109,22 @@ export default function Community({
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, onNotice]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
+  /** Executa e recarrega; devolve se deu certo (o erro vira aviso). */
   const run = async (action: () => Promise<unknown>, done?: string) => {
     try {
       await action();
       if (done) onNotice(done);
       await refresh();
+      return true;
     } catch (e) {
       onNotice(e instanceof Error ? e.message : "Não foi possível concluir.");
+      return false;
     }
   };
   const person = (id: string) =>
@@ -421,7 +437,7 @@ function Composer({
   userId: string;
   draft: string;
   onDraftUsed: () => void;
-  onPost: (text: string, photo: string | null) => Promise<void>;
+  onPost: (text: string, photo: string | null) => Promise<boolean>;
   onNotice: (text: string) => void;
 }) {
   const [text, setText] = useState("");
@@ -451,9 +467,11 @@ function Composer({
             const path = photo
               ? await uploadPhoto(userId, "posts", photo)
               : null;
-            await onPost(text, path);
-            setText("");
-            setPhoto(null);
+            // Só limpa o que foi escrito se a publicação deu certo.
+            if (await onPost(text, path)) {
+              setText("");
+              setPhoto(null);
+            }
           } catch (err) {
             onNotice(err instanceof Error ? err.message : "Falha ao publicar.");
           } finally {

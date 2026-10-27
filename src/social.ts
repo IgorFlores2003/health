@@ -41,8 +41,14 @@ function db() {
   return supabase;
 }
 function check<T>({ data, error }: { data: T; error: unknown }) {
-  if (error) throw Error("Não foi possível falar com a comunidade agora.");
-  return data;
+  if (!error) return data;
+  const code = (error as { code?: string }).code;
+  // Tabela ausente: a migração da comunidade não foi aplicada no servidor.
+  if (code === "42P01" || code === "PGRST205")
+    throw Error(
+      "A comunidade ainda não foi ativada no servidor (falta a migração).",
+    );
+  throw Error("Não foi possível falar com a comunidade agora.");
 }
 
 /** Cria/atualiza o perfil social: nome, foto, nível e medalhas. */

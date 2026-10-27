@@ -58,3 +58,15 @@ export async function syncWaterReminders(h: Hydration | undefined) {
     })),
   });
 }
+
+/** Notificação na hora (ex.: desafio concluído), se o aparelho permitir. */
+export async function notifyNow(title: string, body: string) {
+  if (!remindersSupported()) return;
+  if ((await LocalNotifications.checkPermissions()).display !== "granted")
+    return;
+  await LocalNotifications.schedule({
+    notifications: [
+      { id: 2000 + Math.floor(Math.random() * 100000), title, body },
+    ],
+  });
+}

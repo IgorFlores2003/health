@@ -120,8 +120,9 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
           só no aparelho.
         </li>
         <li>
-          Comunidade: código de amigo, amizades, dupla da lontra, posts, fotos
-          de posts, comentários, curtidas e denúncias.
+          Comunidade: código de amigo, amizades, lontra (modo, dupla,
+          ajudantes), puxões de orelha, posts, fotos de posts, comentários,
+          curtidas e denúncias.
         </li>
       </ul>
       <H>2. Para que usamos</H>
@@ -157,11 +158,13 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
           Seus amigos (pessoas que você adicionou e aceitaram): veem seu nome,
           foto de perfil, nível, número de medalhas, seus posts, comentários e
           curtidas e, se a opção estiver ligada, os exercícios registrados e as
-          medalhas novas. Quem você escolher como dupla da lontra vê apenas se
-          você cumpriu as metas do dia (água, calorias e exercício), sem os
-          valores. Peso, pressão e alimentação nunca são mostrados a eles. Você
-          pode desligar o compartilhamento automático, apagar posts e desfazer
-          amizades a qualquer momento.
+          medalhas novas. Quem cuida da lontra com você (a dupla escolhida ou
+          amigos que entraram para ajudar) vê apenas se você cumpriu as metas do
+          dia (água, calorias e exercício), sem os valores, e pode te mandar um
+          puxão de orelha (mensagem motivacional, no máximo uma por hora). Peso,
+          pressão e alimentação nunca são mostrados a eles. Você pode desligar o
+          compartilhamento automático, apagar posts e desfazer amizades a
+          qualquer momento.
         </li>
         <li>Autoridades, quando houver obrigação legal ou ordem judicial.</li>
       </ul>

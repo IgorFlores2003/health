@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "860612377124",
+    "project_id": "health-e7a86",
+    "storage_bucket": "health-e7a86.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:860612377124:android:8ae5d25e138ce1805e76b1",
+        "android_client_info": {
+          "package_name": "com.ritmo.health"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD9dtwUEBl77NRpNaNAwWYfGPHjFJsED2o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

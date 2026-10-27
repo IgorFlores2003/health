@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { today } from "./domain";
 import { otterFitness, type DayGoals } from "./gamification";
-import { chooseBuddy, loadOtter } from "./otterApi";
+import { RiAlarmWarningLine } from "react-icons/ri";
+import Choice from "./Choice";
+import { nudgeMessage, sendNudge } from "./nudges";
+import { loadOtter, removeHelper, setHelping, setOtterMode } from "./otterApi";
 import type { SocialProfile } from "./social";
-import { Panel } from "./ui";
+import { CheckItem, Panel } from "./ui";
 
 const BROWN = "#8b5a3c";
 const BELLY = "#e3c29f";
@@ -221,8 +224,9 @@ const MESSAGES: [number, string][] = [
 ];
 
 /**
- * Lontra da dupla: escolha um amigo; ela fica magra e forte quando vocês
- * dois cumprem as metas da semana e desanda junto quando não.
+ * Lontra: cuidar sozinho, com um amigo específico (os dois se escolhem) ou
+ * aberta para qualquer amigo ajudar. Fica magra e forte quando o time
+ * cumpre as metas da semana e desanda junto quando não.
  */
 export default function OtterCard({
   userId,
@@ -247,104 +251,221 @@ export default function OtterCard({
   useEffect(() => {
     void refresh();
   }, [refresh]);
-  const people = data?.mutual ? [myGoals, data.theirs] : [myGoals];
-  const fit = otterFitness(people);
+  const team = data?.team ?? [];
+  const fit = otterFitness([myGoals, ...team.map((id) => data!.goals(id))]);
   const name = (id: string | null | undefined) =>
-    friends.find((f) => f.id === id)?.person?.name ?? "seu amigo";
+    friends.find((f) => f.id === id)?.person?.name ?? "Amigo";
   const todayGoals = (g: DayGoals[]) => g.find((x) => x.date === today());
-  const choose = (id: string | null) =>
-    chooseBuddy(userId, id)
-      .then(refresh)
+  const act = (action: () => Promise<unknown>, done?: string) =>
+    action()
+      .then(() => {
+        if (done) onNotice(done);
+        return refresh();
+      })
       .catch((e) => onNotice(e instanceof Error ? e.message : "Falha."));
+  const mode = data?.mode ?? "solo";
 
   return (
-    <Panel>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold">Lontra da dupla</h2>
-          <p className="mt-0.5 text-sm text-ink-500">
-            Fica magra e forte quando vocês bebem água, comem dentro da meta e
-            treinam. Se desandarem, ela desanda junto.
+    <>
+      <Panel>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-base font-semibold">Sua lontra</h2>
+            <p className="mt-0.5 text-sm text-ink-500">
+              Fica magra e forte quando o time bebe água, come dentro da meta e
+              treina. Se desandarem, ela desanda junto.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-sm font-semibold text-brand-700 tabular-nums">
+            {Math.round(fit * 100)}%
+          </span>
+        </div>
+        <div className="mt-3 flex justify-center">
+          <OtterGym fit={fit} />
+        </div>
+        <p className="mt-2 text-center font-medium">
+          {MESSAGES.find(([min]) => fit >= min)![1]}
+        </p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <Today label="Você hoje" goals={todayGoals(myGoals)} />
+          {team.map((id) => (
+            <Today
+              key={id}
+              label={`${name(id)} hoje`}
+              goals={todayGoals(data!.goals(id))}
+              onRemove={
+                mode === "open"
+                  ? () => act(() => removeHelper(userId, id))
+                  : undefined
+              }
+              onNudge={() => {
+                const goals = todayGoals(data!.goals(id));
+                return act(
+                  () => sendNudge(id, nudgeMessage(goals)),
+                  `Orelha puxada! ${name(id)} vai receber um "bora lá".`,
+                );
+              }}
+            />
+          ))}
+        </div>
+        {data?.invitedBy.map((id) => (
+          <div
+            key={id}
+            className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-brand-50 p-3 text-sm"
+          >
+            <span>{name(id)} quer cuidar da lontra com você.</span>
+            <button
+              className="btn-primary min-h-9 px-3 text-sm"
+              onClick={() =>
+                act(
+                  () => setOtterMode(userId, "buddy", id),
+                  `Agora você e ${name(id)} cuidam da lontra juntos.`,
+                )
+              }
+            >
+              Aceitar
+            </button>
+          </div>
+        ))}
+        <div className="mt-4">
+          <span className="label">Quem cuida</span>
+          <Choice
+            label="Quem cuida da lontra"
+            value={mode}
+            onChange={(m) =>
+              act(() =>
+                setOtterMode(
+                  userId,
+                  m,
+                  m === "buddy"
+                    ? (data?.buddy ?? friends[0]?.id ?? null)
+                    : null,
+                ),
+              )
+            }
+            options={[
+              { id: "solo", label: "Sozinho" },
+              { id: "buddy", label: "Com um amigo" },
+              { id: "open", label: "Amigos ajudam" },
+            ]}
+          />
+          {mode === "buddy" && (
+            <select
+              className="input mt-3"
+              aria-label="Amigo da dupla"
+              value={data?.buddy ?? ""}
+              onChange={(e) =>
+                act(() => setOtterMode(userId, "buddy", e.target.value))
+              }
+            >
+              {friends.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.person?.name ?? "Amigo"}
+                </option>
+              ))}
+            </select>
+          )}
+          <p className="hint">
+            {!data
+              ? "Conecte-se para cuidar da lontra com amigos."
+              : mode === "solo"
+                ? "Só as suas metas contam."
+                : mode === "buddy"
+                  ? !friends.length
+                    ? "Adicione um amigo para cuidarem juntos."
+                    : data.mutual
+                      ? `Você e ${name(data.buddy)} cuidam da lontra juntos.`
+                      : `Esperando ${name(data.buddy)} escolher você também. Até lá, contam só as suas metas.`
+                  : team.length
+                    ? `${team.length} amigo(s) ajudando. Qualquer amigo pode entrar ou sair quando quiser.`
+                    : "Qualquer amigo pode entrar para ajudar. Ainda ninguém entrou."}{" "}
+            Só aparece se cada um cumpriu as metas, nunca os valores.
           </p>
         </div>
-        <span className="shrink-0 rounded-full bg-brand-50 px-2.5 py-1 text-sm font-semibold text-brand-700 tabular-nums">
-          {Math.round(fit * 100)}%
-        </span>
-      </div>
-      <div className="mt-3 flex justify-center">
-        <OtterGym fit={fit} />
-      </div>
-      <p className="mt-2 text-center font-medium">
-        {MESSAGES.find(([min]) => fit >= min)![1]}
-      </p>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-        <Today label="Você hoje" goals={todayGoals(myGoals)} />
-        {data?.mutual && (
-          <Today
-            label={`${name(data.buddy)} hoje`}
-            goals={todayGoals(data.theirs)}
-          />
-        )}
-      </div>
-      {data?.invitedBy.map((id) => (
-        <div
-          key={id}
-          className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-brand-50 p-3 text-sm"
-        >
-          <span>{name(id)} quer cuidar da lontra com você.</span>
-          <button
-            className="btn-primary min-h-9 px-3 text-sm"
-            onClick={() => choose(id)}
-          >
-            Aceitar
-          </button>
-        </div>
-      ))}
-      <label className="mt-4 block">
-        <span className="label">Dupla</span>
-        <select
-          className="input"
-          value={data?.buddy ?? ""}
-          disabled={!data}
-          onChange={(e) => choose(e.target.value || null)}
-        >
-          <option value="">Só eu</option>
-          {friends.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.person?.name ?? "Amigo"}
-            </option>
-          ))}
-        </select>
-        <span className="hint block">
-          {!data
-            ? "Conecte-se para escolher uma dupla."
-            : !data.buddy
-              ? friends.length
-                ? "Escolha um amigo: vocês dois cuidam da mesma lontra."
-                : "Adicione um amigo para cuidarem da lontra juntos."
-              : data.mutual
-                ? `Você e ${name(data.buddy)} cuidam da lontra. Ela só vê se cada um cumpriu as metas, sem os valores.`
-                : `Esperando ${name(data.buddy)} escolher você também. Até lá, conta só você.`}
-        </span>
-      </label>
-    </Panel>
+      </Panel>
+      {!!data?.openFriends.length && (
+        <Panel>
+          <h2 className="text-base font-semibold">Lontras de amigos</h2>
+          <p className="mt-0.5 text-sm text-ink-500">
+            Ajude: suas metas cumpridas também deixam a lontra deles mais forte.
+          </p>
+          <ul className="mt-2 divide-y divide-line">
+            {data.openFriends.map((f) => (
+              <li
+                key={f.id}
+                className="flex items-center justify-between gap-2 py-3"
+              >
+                <span className="text-sm font-medium">
+                  Lontra de {name(f.id)}
+                </span>
+                <button
+                  className={
+                    f.helping
+                      ? "btn-ghost text-sm"
+                      : "btn-primary min-h-9 px-3 text-sm"
+                  }
+                  onClick={() =>
+                    act(
+                      () => setHelping(userId, f.id, !f.helping),
+                      f.helping
+                        ? undefined
+                        : `Você está ajudando a lontra de ${name(f.id)}!`,
+                    )
+                  }
+                >
+                  {f.helping ? "Parar de ajudar" : "Ajudar"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+    </>
   );
 }
 
-function Today({ label, goals }: { label: string; goals?: DayGoals }) {
+function Today({
+  label,
+  goals,
+  onRemove,
+  onNudge,
+}: {
+  label: string;
+  goals?: DayGoals;
+  /** Tirar quem está ajudando (lontra aberta). */
+  onRemove?: () => void;
+  /** Mandar um "bora lá" para quem está fora da meta. */
+  onNudge?: () => void;
+}) {
+  const behind = !goals?.water || !goals?.calories || !goals?.exercise;
   const item = (done: boolean | undefined, text: string) => (
-    <li className={done ? "text-ink-900" : "text-ink-400"}>
-      {done ? "✅" : "⬜"} {text}
+    <li>
+      <CheckItem done={done}>{text}</CheckItem>
     </li>
   );
   return (
     <div className="rounded-lg bg-surface p-3 text-sm">
-      <p className="font-medium">{label}</p>
+      <p className="flex items-center justify-between gap-2 font-medium">
+        {label}
+        {onRemove && (
+          <button className="text-xs text-ink-500 underline" onClick={onRemove}>
+            Tirar
+          </button>
+        )}
+      </p>
       <ul className="mt-1 space-y-0.5">
         {item(goals?.water, "Meta de água")}
         {item(goals?.calories, "Dentro das calorias")}
         {item(goals?.exercise, "Exercício")}
       </ul>
+      {onNudge && behind && (
+        <button
+          className="btn-secondary mt-2 min-h-9 w-full px-3 text-sm"
+          onClick={onNudge}
+        >
+          <RiAlarmWarningLine className="size-4" /> Puxar orelha
+        </button>
+      )}
     </div>
   );
 }

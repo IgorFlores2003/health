@@ -17,13 +17,15 @@
     "db:status": "npx --yes supabase@2 migration list --linked",
     "auth:configure": "node scripts/configure-auth.mjs",
     "auth:check": "node scripts/configure-auth.mjs --check",
-    "ai:deploy": "npx --yes supabase@2 functions deploy coach --use-api"
+    "ai:deploy": "npx --yes supabase@2 functions deploy coach --use-api",
+    "push:deploy": "npx --yes supabase@2 functions deploy notify --use-api"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "@capacitor/filesystem": "^8.1.5",
     "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/push-notifications": "^8.1.3",
     "@capacitor/share": "^8.0.3",
     "@supabase/supabase-js": "^2.87.1",
     "jspdf": "^4.2.1",

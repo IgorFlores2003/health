@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ageOn, dateKey, today } from "./domain";
 import Sheet from "./Sheet";
+import { playNotes } from "./sounds";
 
 /** Data limite para ter `years` anos completos hoje. */
 function yearsAgo(years: number) {
@@ -43,18 +44,7 @@ export function BirthDateField({ initial }: { initial?: string }) {
  * Web Audio. Os navegadores só liberam o som depois de um toque: se ainda
  * não puder tocar, devolve false.
  */
-export async function playHappyBirthday() {
-  const AC =
-    window.AudioContext ??
-    (window as unknown as { webkitAudioContext?: typeof AudioContext })
-      .webkitAudioContext;
-  if (!AC) return false;
-  const ctx = new AC();
-  await ctx.resume().catch(() => undefined);
-  if (ctx.state !== "running") {
-    void ctx.close();
-    return false;
-  }
+export function playHappyBirthday() {
   const G4 = 392,
     A4 = 440,
     B4 = 493.88,
@@ -65,30 +55,12 @@ export async function playHappyBirthday() {
     G5 = 783.99;
   // [frequência, tempos] em compasso 3/4.
   // prettier-ignore
-  const song: [number, number][] = [
+  return playNotes([
     [G4, 0.75], [G4, 0.25], [A4, 1], [G4, 1], [C5, 1], [B4, 2],
     [G4, 0.75], [G4, 0.25], [A4, 1], [G4, 1], [D5, 1], [C5, 2],
     [G4, 0.75], [G4, 0.25], [G5, 1], [E5, 1], [C5, 1], [B4, 1], [A4, 2],
     [F5, 0.75], [F5, 0.25], [E5, 1], [C5, 1], [D5, 1], [C5, 3],
-  ];
-  const beat = 0.42;
-  let t = ctx.currentTime + 0.1;
-  for (const [freq, beats] of song) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.value = freq;
-    const len = beats * beat;
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + len * 0.95);
-    osc.connect(gain).connect(ctx.destination);
-    osc.start(t);
-    osc.stop(t + len);
-    t += len;
-  }
-  setTimeout(() => void ctx.close(), (t - ctx.currentTime + 0.5) * 1000);
-  return true;
+  ], 0.42);
 }
 
 /** Card de parabéns, com o bolo e o botão para tocar a música. */
