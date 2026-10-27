@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { RiFilePdf2Line } from "react-icons/ri";
+import { RiFilePdf2Line, RiShareLine } from "react-icons/ri";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { today, type State } from "./domain";
 import { analyzePeriod } from "./report";
 
@@ -25,6 +26,11 @@ function daysAgo(n: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+/** Plugin nativo (android/.../FileOpenerPlugin.java): abre no leitor de PDF. */
+const FileOpener = registerPlugin<{
+  open(options: { uri: string; mime: string }): Promise<void>;
+}>("FileOpener");
+
 /** Gera o PDF com todas as marcações e o resumo do período escolhido. */
 export default function ReportCard({
   state,
@@ -41,18 +47,24 @@ export default function ReportCard({
   const total =
     r.foods.length + r.exercises.length + r.weights.length + r.pressures.length;
 
-  async function generate() {
+  async function generate(action: "open" | "share") {
+    // No navegador, a aba é aberta já no toque (depois o bloqueador de pop-up impede).
+    const tab =
+      !Capacitor.isNativePlatform() && action === "open"
+        ? window.open("", "_blank")
+        : null;
     setBusy(true);
     try {
       const { buildReportPdf } = await import("./reportPdf");
       const doc = buildReportPdf(state, r);
       const name = `ritmo-relatorio-${from}-a-${to}.pdf`;
-      const { Capacitor } = await import("@capacitor/core");
       if (!Capacitor.isNativePlatform()) {
-        doc.save(name);
+        if (tab) tab.location.href = String(doc.output("bloburl"));
+        else doc.save(name);
         return;
       }
-      // No app Android o download do navegador não existe: salva e compartilha.
+      // No app Android não há download do navegador: salva no cache e abre
+      // no leitor de PDF do celular (ou compartilha).
       const [{ Filesystem, Directory }, { Share }] = await Promise.all([
         import("@capacitor/filesystem"),
         import("@capacitor/share"),
@@ -63,8 +75,16 @@ export default function ReportCard({
         data,
         directory: Directory.Cache,
       });
+      if (action === "open")
+        try {
+          await FileOpener.open({ uri: file.uri, mime: "application/pdf" });
+          return;
+        } catch {
+          // Sem leitor de PDF instalado: oferece compartilhar/salvar.
+        }
       await Share.share({ title: "Relatório Ritmo", url: file.uri });
     } catch (e) {
+      tab?.close();
       if (!(e instanceof Error && /cancel/i.test(e.message)))
         onError("Não foi possível gerar o relatório. Tente novamente.");
     } finally {
@@ -108,10 +128,20 @@ export default function ReportCard({
           <button
             className="btn-primary"
             disabled={busy || total === 0}
-            onClick={generate}
+            onClick={() => generate("open")}
           >
             <RiFilePdf2Line className="size-5" />
-            {busy ? "Gerando…" : "Gerar PDF"}
+            {busy ? "Gerando…" : "Abrir PDF"}
+          </button>
+          <button
+            className="btn-secondary"
+            disabled={busy || total === 0}
+            onClick={() => generate("share")}
+            aria-label="Compartilhar ou salvar PDF"
+            title="Compartilhar ou salvar"
+          >
+            <RiShareLine className="size-5" />
+            <span className="hidden sm:inline">Compartilhar</span>
           </button>
         </div>
       </div>
