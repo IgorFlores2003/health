@@ -77,9 +77,9 @@ export function Stat({
           {icon}
         </span>
       </div>
-      <div className="mt-2 text-2xl font-semibold tracking-tight tabular-nums">
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-1 text-2xl font-semibold tracking-tight tabular-nums">
         {value}
-        <small className="ml-1 text-sm font-normal tracking-normal text-ink-500">
+        <small className="text-sm font-normal tracking-normal text-ink-500">
           {unit}
         </small>
       </div>

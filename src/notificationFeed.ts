@@ -9,6 +9,7 @@ export type Notice = {
   id: string;
   kind:
     | "nudge"
+    | "help"
     | "friend_request"
     | "friend_accepted"
     | "comment"
@@ -56,7 +57,7 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
   const [nudges, friends, comments, likes, otter, helpers] = await Promise.all([
     db
       .from("nudges")
-      .select("id, sender, message, created_at")
+      .select("*")
       .eq("recipient", userId)
       .gte("created_at", since),
     db
@@ -87,11 +88,14 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
   for (const n of nudges.data ?? [])
     out.push({
       id: `nudge:${n.id}`,
-      kind: "nudge",
+      kind: n.kind === "help" ? "help" : "nudge",
       from: n.sender,
       at: n.created_at,
       tab: "community",
-      make: (name) => `${name} puxou sua orelha: ${n.message}`,
+      make: (name) =>
+        n.kind === "help"
+          ? `${name} pediu sua ajuda: ${n.message}`
+          : `${name} puxou sua orelha: ${n.message}`,
     });
   for (const f of friends.data ?? []) {
     if (f.status === "pending" && f.addressee === userId)

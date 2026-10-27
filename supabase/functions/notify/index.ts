@@ -1,8 +1,8 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 /**
- * Envia o push (Firebase Cloud Messaging) de um puxão de orelha para os
- * celulares do amigo, mesmo com o app fechado. Só quem mandou o puxão pode
+ * Envia o push (Firebase Cloud Messaging) de um puxão de orelha, ou de um
+ * pedido de ajuda, para os celulares do amigo, mesmo com o app fechado. Só quem mandou o puxão pode
  * pedir o envio, e cada puxão é enviado uma única vez.
  *
  * Secret necessário: FIREBASE_SERVICE_ACCOUNT (JSON da conta de serviço).
@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
       .eq("sender", auth.user.id)
       .eq("pushed", false)
       .gte("created_at", new Date(Date.now() - 5 * 60_000).toISOString())
-      .select("recipient, message")
+      .select("*")
       .maybeSingle();
     if (!sent) return response({ sent: 0 });
     const [{ data: who }, { data: tokens }] = await Promise.all([
@@ -116,6 +116,8 @@ Deno.serve(async (req) => {
       admin.from("push_tokens").select("token").eq("user_id", sent.recipient),
     ]);
     if (!tokens?.length) return response({ sent: 0 });
+    const help = sent.kind === "help";
+    const name = who?.name ?? "Um amigo";
     const sa = JSON.parse(raw) as ServiceAccount;
     const access = await googleToken(sa);
     let count = 0;
@@ -132,10 +134,19 @@ Deno.serve(async (req) => {
             message: {
               token,
               notification: {
-                title: `${who?.name ?? "Um amigo"} puxou sua orelha`,
+                title: help
+                  ? `🆘 ${name} pediu sua ajuda!`
+                  : `${name} puxou sua orelha`,
                 body: sent.message,
               },
-              android: { priority: "HIGH" },
+              // Ícone e cor do tipo (res/drawable/ic_stat_*.xml no app).
+              android: {
+                priority: "HIGH",
+                notification: {
+                  icon: help ? "ic_stat_help" : "ic_stat_nudge",
+                  color: help ? "#DC2626" : "#F97316",
+                },
+              },
             },
           }),
         },

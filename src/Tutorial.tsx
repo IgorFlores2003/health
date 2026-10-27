@@ -33,7 +33,7 @@ export const STEPS: { tab: string; title: string; text: string }[] = [
   {
     tab: "settings",
     title: "Configurações",
-    text: "Seu perfil, meta de peso, tema escuro, lembretes de água e a Ajuda, onde você pode me chamar de novo. É só tocar na sua foto no topo.",
+    text: "Tema escuro, lembretes de água, conta e a Ajuda, onde você pode me chamar de novo. Seu perfil, a meta de peso e a Pokédex dos bichinhos ficam em Perfil: é só tocar na sua foto no topo.",
   },
   {
     tab: "overview",

@@ -1,7 +1,14 @@
 import { validState, type State } from "./domain.ts";
 
 type Item = { id: string; date: string };
-const LISTS = ["weights", "exercises", "pressures", "foods", "water"] as const;
+const LISTS = [
+  "weights",
+  "exercises",
+  "pressures",
+  "foods",
+  "water",
+  "social",
+] as const;
 const same = (a: unknown, b: unknown) =>
   JSON.stringify(a) === JSON.stringify(b);
 
@@ -62,6 +69,7 @@ export function mergeStates(base: State, local: State, remote: State): State {
     pressures: [],
     foods: [],
     water: [],
+    social: [],
   };
   for (const k of LISTS)
     (merged[k] as Item[]) = mergeList(

@@ -152,7 +152,14 @@ export async function createPost(
   photo: string | null,
   kind: Post["kind"] = "post",
 ) {
-  check(await db().from("posts").insert({ text: text.trim(), photo, kind }));
+  const row = check(
+    await db()
+      .from("posts")
+      .insert({ text: text.trim(), photo, kind })
+      .select("id, author, text, photo, kind, created_at")
+      .single(),
+  ) as Omit<Post, "likes" | "comments">;
+  return { ...row, likes: [], comments: [] } as Post;
 }
 
 /** UUID fixo a partir de um texto (o mesmo texto gera sempre o mesmo id). */
@@ -190,9 +197,13 @@ export async function deletePost(id: string) {
   check(await db().from("posts").delete().eq("id", id));
 }
 export async function addComment(postId: string, text: string) {
-  check(
-    await db().from("comments").insert({ post_id: postId, text: text.trim() }),
-  );
+  return check(
+    await db()
+      .from("comments")
+      .insert({ post_id: postId, text: text.trim() })
+      .select("id, post_id, author, text, created_at")
+      .single(),
+  ) as Comment;
 }
 export async function deleteComment(id: string) {
   check(await db().from("comments").delete().eq("id", id));

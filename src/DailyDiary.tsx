@@ -1,10 +1,17 @@
 import { PhotoStrip, removePhotos } from "./photos";
 import CalorieBudget from "./CalorieBudget";
-import { useState, type Dispatch, type SetStateAction } from "react";
+import {
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import {
   RiAddLine,
   RiChat3Line,
   RiDeleteBin6Line,
+  RiFootprintLine,
+  RiHeartPulseLine,
   RiPencilLine,
   RiRestaurant2Line,
 } from "react-icons/ri";
@@ -116,262 +123,144 @@ export default function DailyDiary({
         </button>
       </section>
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
-        <section className="card min-w-0">
-          <div className="mb-4 flex flex-wrap items-start justify-end gap-3">
-            <div className="mr-auto">
-              <h2 className="text-base font-semibold">Alimentação</h2>
-              <p className="mt-0.5 text-sm text-ink-500">
-                Inclua preparo, marca, molhos e bebidas.
-              </p>
-            </div>
-            <div className="contents">
-              <button className="btn-secondary" onClick={() => open()}>
-                <RiAddLine size={18} /> Alimento
-              </button>
-            </div>
-          </div>
-          {foodSheet && (
-            <FoodSheet
-              key={foodSheet.food?.id ?? "new"}
-              state={state}
-              setState={setState}
-              date={date}
-              food={foodSheet.food}
-              onClose={() => setFoodSheet(null)}
+        <DiaryCard
+          title="Alimentação"
+          text="Inclua preparo, marca, molhos e bebidas."
+          addLabel="Alimento"
+          onAdd={() => open()}
+          icon={<RiRestaurant2Line size={20} />}
+          empty="Nenhum alimento nesse dia."
+        >
+          {day.foods.map((food) => (
+            <DiaryRow
+              key={food.id}
+              title={food.name}
+              detail={`${food.grams.toLocaleString("pt-BR")} ${foodUnit(food)} · ${
+                foodCalories(food) === null
+                  ? "calorias pendentes"
+                  : kcal(foodCalories(food))
+              } · ${
+                food.source === "ai"
+                  ? "estimativa IA"
+                  : food.source === "label"
+                    ? "informado"
+                    : "a preencher"
+              }`}
+              onEdit={() => open(food)}
+              onDelete={async () => {
+                if (
+                  await confirmDialog({
+                    title: "Excluir alimento?",
+                    message: `"${food.name}" sai do diário deste dia.`,
+                    confirmLabel: "Excluir",
+                    danger: true,
+                  })
+                )
+                  setState((s) => ({
+                    ...s,
+                    foods: (s.foods ?? []).filter((f) => f.id !== food.id),
+                    completedDays: reopenDay(s, date),
+                  }));
+              }}
             />
-          )}
-          {!day.foods.length && (
-            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-line px-4 py-10 text-center">
-              <span className="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-600">
-                <RiRestaurant2Line size={20} />
-              </span>
-              <strong className="text-sm font-semibold">
-                Nenhum alimento registrado
-              </strong>
-              <p className="text-sm text-ink-500">
-                Informe nome e gramas. Use o rótulo ou peça uma estimativa à IA.
-              </p>
-              <button className="btn-ghost" onClick={() => open()}>
-                <RiAddLine size={18} /> Registrar alimento
-              </button>
-            </div>
-          )}
-          <div>
-            {day.foods.map((food) => (
-              <div
-                className="flex items-center justify-between gap-2 border-b border-line py-3 last:border-b-0"
-                key={food.id}
-              >
-                <div className="min-w-0">
-                  <strong className="block truncate text-sm font-medium">
-                    {food.name}
-                  </strong>
-                  <small className="mt-0.5 block text-[13px] text-ink-500">
-                    {food.grams.toLocaleString("pt-BR")} {foodUnit(food)} ·{" "}
-                    {foodCalories(food) === null
-                      ? "calorias pendentes"
-                      : kcal(foodCalories(food))}{" "}
-                    ·{" "}
-                    {food.source === "ai"
-                      ? "estimativa IA"
-                      : food.source === "label"
-                        ? "informado"
-                        : "a preencher"}
-                  </small>
-                </div>
-                <div className="flex shrink-0">
-                  <button
-                    className="icon-btn size-11"
-                    aria-label={`Editar ${food.name}`}
-                    onClick={() => open(food)}
-                  >
-                    <RiPencilLine size={18} />
-                  </button>
-                  <button
-                    className="icon-btn size-11 hover:text-brand-600"
-                    aria-label={`Excluir ${food.name}`}
-                    onClick={async () => {
-                      if (
-                        await confirmDialog({
-                          title: "Excluir alimento?",
-                          message: `"${food.name}" sai do diário deste dia.`,
-                          confirmLabel: "Excluir",
-                          danger: true,
-                        })
-                      )
-                        setState((s) => ({
-                          ...s,
-                          foods: (s.foods ?? []).filter(
-                            (f) => f.id !== food.id,
-                          ),
-                          completedDays: reopenDay(s, date),
-                        }));
-                    }}
-                  >
-                    <RiDeleteBin6Line size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+          ))}
+        </DiaryCard>
+        {foodSheet && (
+          <FoodSheet
+            key={foodSheet.food?.id ?? "new"}
+            state={state}
+            setState={setState}
+            date={date}
+            food={foodSheet.food}
+            onClose={() => setFoodSheet(null)}
+          />
+        )}
         <div className="grid min-w-0 content-start gap-4">
-          <section className="card min-w-0">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">Exercícios</h2>
-                <p className="mt-0.5 text-sm text-ink-500">
-                  Calorias informadas ou estimadas pela atividade.
-                </p>
-              </div>
-              <button className="btn-secondary" onClick={() => onExercise()}>
-                <RiAddLine size={18} /> Exercício
-              </button>
-            </div>
-            {!day.exercises.length && (
-              <p className="py-6 text-sm text-ink-500">
-                Nenhum exercício nesse dia.
-              </p>
-            )}
-            <div>
-              {day.exercises.map((ex) => (
-                <div
-                  className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0"
-                  key={ex.id}
-                >
-                  <div className="min-w-0">
-                    <strong className="block text-sm font-medium">
-                      {ex.type}
-                    </strong>
-                    <small className="mt-0.5 block text-[13px] text-ink-500">
-                      {ex.minutes ? `${durationLabel(ex.minutes)} · ` : ""}
-                      {ex.distanceKm ? `${ex.distanceKm} km · ` : ""}
-                      {ex.calories === null
-                        ? "calorias pendentes"
-                        : kcal(ex.calories)}{" "}
-                      · {ex.source}
-                    </small>
-                    <PhotoStrip
-                      paths={
-                        state.exercises.find((x) => x.id === ex.id)?.photos
-                      }
-                    />
-                    {ex.calories === null && (
-                      <small className="mt-1 block text-[13px] text-brand-700">
-                        Informe as calorias ativas, ou um tipo compatível com
-                        peso e duração.
-                      </small>
-                    )}
-                  </div>
-                  <div className="flex shrink-0">
-                    <button
-                      className="icon-btn size-11 hover:text-brand-600"
-                      aria-label={`Editar ${ex.type}`}
-                      onClick={() => onExercise(ex.id)}
-                    >
-                      <RiPencilLine size={18} />
-                    </button>
-                    <button
-                      className="icon-btn size-11 hover:text-brand-600"
-                      aria-label={`Excluir ${ex.type}`}
-                      onClick={async () => {
-                        if (
-                          !(await confirmDialog({
-                            title: "Excluir exercício?",
-                            message:
-                              "O exercício e as fotos dele serão apagados da sua conta.",
-                            confirmLabel: "Excluir",
-                            danger: true,
-                          }))
-                        )
-                          return;
-                        void removePhotos(
-                          state.exercises.find((x) => x.id === ex.id)?.photos,
-                        );
-                        setState((s) => ({
-                          ...s,
-                          exercises: s.exercises.filter((x) => x.id !== ex.id),
-                          completedDays: reopenDay(s, date),
-                        }));
-                      }}
-                    >
-                      <RiDeleteBin6Line size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="card min-w-0">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold">Pressão arterial</h2>
-                <p className="mt-0.5 text-sm text-ink-500">
-                  Medições do dia, com a foto do aparelho se quiser.
-                </p>
-              </div>
-              <button className="btn-secondary" onClick={() => onPressure()}>
-                <RiAddLine size={18} /> Pressão
-              </button>
-            </div>
-            {!pressures.length && (
-              <p className="py-6 text-sm text-ink-500">
-                Nenhuma medição nesse dia.
-              </p>
-            )}
-            <div>
-              {pressures.map((p) => (
-                <div
-                  className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0"
-                  key={p.id}
-                >
-                  <div className="min-w-0">
-                    <strong className="block text-sm font-medium tabular-nums">
-                      {p.systolic}/{p.diastolic} mmHg
-                    </strong>
-                    {p.pulse && (
-                      <small className="mt-0.5 block text-[13px] text-ink-500">
-                        {p.pulse} bpm
-                      </small>
-                    )}
-                    <PhotoStrip paths={p.photos} />
-                  </div>
-                  <div className="flex shrink-0">
-                    <button
-                      className="icon-btn size-11 hover:text-brand-600"
-                      aria-label="Editar medição"
-                      onClick={() => onPressure(p.id)}
-                    >
-                      <RiPencilLine size={18} />
-                    </button>
-                    <button
-                      className="icon-btn size-11 hover:text-brand-600"
-                      aria-label="Excluir medição"
-                      onClick={async () => {
-                        if (
-                          !(await confirmDialog({
-                            title: "Excluir medição?",
-                            message:
-                              "A medição e as fotos dela serão apagadas da sua conta.",
-                            confirmLabel: "Excluir",
-                            danger: true,
-                          }))
-                        )
-                          return;
-                        void removePhotos(p.photos);
-                        setState((s) => ({
-                          ...s,
-                          pressures: s.pressures.filter((x) => x.id !== p.id),
-                        }));
-                      }}
-                    >
-                      <RiDeleteBin6Line size={18} />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <DiaryCard
+            title="Exercícios"
+            text="Calorias informadas ou estimadas pela atividade."
+            addLabel="Exercício"
+            onAdd={() => onExercise()}
+            icon={<RiFootprintLine size={20} />}
+            empty="Nenhum exercício nesse dia."
+          >
+            {day.exercises.map((ex) => (
+              <DiaryRow
+                key={ex.id}
+                title={ex.type}
+                detail={`${ex.minutes ? `${durationLabel(ex.minutes)} · ` : ""}${
+                  ex.distanceKm ? `${ex.distanceKm} km · ` : ""
+                }${ex.calories === null ? "calorias pendentes" : kcal(ex.calories)} · ${ex.source}`}
+                onEdit={() => onExercise(ex.id)}
+                onDelete={async () => {
+                  if (
+                    !(await confirmDialog({
+                      title: "Excluir exercício?",
+                      message:
+                        "O exercício e as fotos dele serão apagados da sua conta.",
+                      confirmLabel: "Excluir",
+                      danger: true,
+                    }))
+                  )
+                    return;
+                  void removePhotos(
+                    state.exercises.find((x) => x.id === ex.id)?.photos,
+                  );
+                  setState((s) => ({
+                    ...s,
+                    exercises: s.exercises.filter((x) => x.id !== ex.id),
+                    completedDays: reopenDay(s, date),
+                  }));
+                }}
+              >
+                <PhotoStrip
+                  paths={state.exercises.find((x) => x.id === ex.id)?.photos}
+                />
+                {ex.calories === null && (
+                  <small className="mt-1 block text-[13px] text-brand-700">
+                    Informe as calorias ativas, ou um tipo compatível com peso e
+                    duração.
+                  </small>
+                )}
+              </DiaryRow>
+            ))}
+          </DiaryCard>
+          <DiaryCard
+            title="Pressão arterial"
+            text="Medições do dia, com a foto do aparelho se quiser."
+            addLabel="Pressão"
+            onAdd={() => onPressure()}
+            icon={<RiHeartPulseLine size={20} />}
+            empty="Nenhuma medição nesse dia."
+          >
+            {pressures.map((p) => (
+              <DiaryRow
+                key={p.id}
+                title={`${p.systolic}/${p.diastolic} mmHg`}
+                detail={p.pulse ? `${p.pulse} bpm` : undefined}
+                onEdit={() => onPressure(p.id)}
+                onDelete={async () => {
+                  if (
+                    !(await confirmDialog({
+                      title: "Excluir medição?",
+                      message:
+                        "A medição e as fotos dela serão apagadas da sua conta.",
+                      confirmLabel: "Excluir",
+                      danger: true,
+                    }))
+                  )
+                    return;
+                  void removePhotos(p.photos);
+                  setState((s) => ({
+                    ...s,
+                    pressures: s.pressures.filter((x) => x.id !== p.id),
+                  }));
+                }}
+              >
+                <PhotoStrip paths={p.photos} />
+              </DiaryRow>
+            ))}
+          </DiaryCard>
         </div>
       </div>
       <section className="card space-y-3 text-sm text-ink-500">
@@ -432,5 +321,95 @@ export default function DailyDiary({
         </details>
       </section>
     </>
+  );
+}
+
+/**
+ * Card de uma lista do diário (alimentos, exercícios, pressão): todos com o
+ * mesmo cabeçalho, um só botão de adicionar e o mesmo aviso quando vazio.
+ */
+function DiaryCard({
+  title,
+  text,
+  addLabel,
+  onAdd,
+  icon,
+  empty,
+  children,
+}: {
+  title: string;
+  text: string;
+  addLabel: string;
+  onAdd: () => void;
+  icon: ReactNode;
+  empty: string;
+  children: ReactNode[];
+}) {
+  return (
+    <section className="card min-w-0">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-base font-semibold">{title}</h2>
+          <p className="mt-0.5 text-sm text-ink-500">{text}</p>
+        </div>
+        <button className="btn-secondary shrink-0" onClick={onAdd}>
+          <RiAddLine size={18} /> {addLabel}
+        </button>
+      </div>
+      {children.length ? (
+        <div>{children}</div>
+      ) : (
+        <div className="flex items-center gap-3 rounded-lg border border-dashed border-line px-4 py-4 text-sm text-ink-500">
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
+            {icon}
+          </span>
+          {empty}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DiaryRow({
+  title,
+  detail,
+  onEdit,
+  onDelete,
+  children,
+}: {
+  title: string;
+  detail?: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0">
+      <div className="min-w-0">
+        <strong className="block truncate text-sm font-medium">{title}</strong>
+        {detail && (
+          <small className="mt-0.5 block text-[13px] text-ink-500">
+            {detail}
+          </small>
+        )}
+        {children}
+      </div>
+      <div className="-my-1 flex shrink-0">
+        <button
+          className="icon-btn size-11"
+          aria-label={`Editar ${title}`}
+          onClick={onEdit}
+        >
+          <RiPencilLine size={18} />
+        </button>
+        <button
+          className="icon-btn size-11 hover:text-brand-600"
+          aria-label={`Excluir ${title}`}
+          onClick={onDelete}
+        >
+          <RiDeleteBin6Line size={18} />
+        </button>
+      </div>
+    </div>
   );
 }

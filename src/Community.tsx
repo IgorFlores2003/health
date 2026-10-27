@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  RiAlarmWarningLine,
+  RiArrowDownSLine,
+  RiArrowUpSLine,
   RiChat3Line,
   RiDeleteBin6Line,
   RiFlagLine,
   RiHeart3Fill,
   RiHeart3Line,
   RiImageAddLine,
+  RiLifebuoyFill,
+  RiLifebuoyLine,
   RiShareLine,
   RiUserAddLine,
 } from "react-icons/ri";
@@ -33,7 +38,33 @@ import {
 import { ago, Panel } from "./ui";
 import { inviteLink } from "./invite";
 import OtterCard from "./Otter";
-import type { DayGoals } from "./gamification";
+import { petStage, type DayGoals } from "./gamification";
+import { PetArt } from "./Pet";
+import {
+  askForHelp,
+  HELP_MESSAGES,
+  helpRequests,
+  nudgeMessage,
+  sendNudge,
+  type Nudge,
+} from "./nudges";
+
+/** Lista de ids guardada neste aparelho (as últimas 300). */
+function readList(key: string): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+function saveList(key: string, list: string[]) {
+  try {
+    localStorage.setItem(key, JSON.stringify(list.slice(-300)));
+  } catch {
+    /* só não lembra */
+  }
+}
 
 /** Compartilha fora do app (WhatsApp etc.) ou copia o texto. */
 export async function shareText(text: string) {
@@ -61,7 +92,10 @@ export default function Community({
   ensureProfile,
   invite,
   section,
+  onXp,
 }: {
+  /** Ganha XP por curtir/comentar posts de amigos e por publicar. */
+  onXp: (kind: "like" | "comment" | "post", id: string) => void;
   /** Tela dentro de Social: amigos (feed) ou a lontra. */
   section: "friends" | "otter";
   /** Código de amigo vindo de um link de convite. */
@@ -84,6 +118,25 @@ export default function Community({
   const [people, setPeople] = useState<SocialProfile[]>([]);
   const [feed, setFeed] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  // Pedidos de ajuda dos amigos ainda não respondidos (some ao puxar a orelha).
+  const answeredKey = `ritmo-help-answered-${userId}`;
+  const [help, setHelp] = useState<Nudge[]>([]);
+  const answerHelp = (id: string) => {
+    setHelp((h) => h.filter((x) => x.id !== id));
+    saveList(answeredKey, [...readList(answeredKey), id]);
+  };
+  const [asking, setAsking] = useState(false);
+  // Perfil de amigo aberto.
+  const [profile, setProfile] = useState<string | null>(null);
+  // Posts minimizados, lembrados neste aparelho.
+  const collapsedKey = `ritmo-collapsed-posts-${userId}`;
+  const [collapsed, setCollapsed] = useState(() => readList(collapsedKey));
+  const collapse = (id: string, on: boolean) =>
+    setCollapsed((c) => {
+      const next = on ? [...c, id] : c.filter((x) => x !== id);
+      saveList(collapsedKey, next);
+      return next;
+    });
 
   const refresh = useCallback(async () => {
     try {
@@ -101,6 +154,12 @@ export default function Community({
       setFriendships(net.friendships);
       setPeople(net.people);
       setFeed(posts);
+      const answered = readList(answeredKey);
+      setHelp(
+        (await helpRequests(userId).catch(() => [])).filter(
+          (h) => !answered.includes(h.id),
+        ),
+      );
     } catch (e) {
       onNotice(e instanceof Error ? e.message : "Falha ao carregar.");
     } finally {
@@ -124,6 +183,77 @@ export default function Community({
       return false;
     }
   };
+  const patchPost = (id: string, change: (p: Post) => Post) =>
+    setFeed((f) => f.map((p) => (p.id === id ? change(p) : p)));
+  /**
+   * Muda a tela na hora e só depois fala com o servidor. Se falhar, avisa e
+   * recarrega o feed para desfazer o que foi mostrado.
+   */
+  const optimistic = async (
+    change: () => void,
+    action: () => Promise<unknown>,
+  ) => {
+    change();
+    try {
+      await action();
+      return true;
+    } catch (e) {
+      onNotice(e instanceof Error ? e.message : "Não foi possível concluir.");
+      await refresh();
+      return false;
+    }
+  };
+  const like = (p: Post, on: boolean) =>
+    optimistic(
+      () =>
+        patchPost(p.id, (x) => ({
+          ...x,
+          likes: on
+            ? [...x.likes.filter((u) => u !== userId), userId]
+            : x.likes.filter((u) => u !== userId),
+        })),
+      async () => {
+        await setLike(p.id, userId, on);
+        if (on && p.author !== userId) onXp("like", p.id);
+      },
+    );
+  const comment = (p: Post, text: string) => {
+    // Id provisório até o servidor devolver o comentário salvo.
+    const tmp = `tmp-${Date.now()}`;
+    return optimistic(
+      () =>
+        patchPost(p.id, (x) => ({
+          ...x,
+          comments: [
+            ...x.comments,
+            {
+              id: tmp,
+              post_id: p.id,
+              author: userId,
+              text: text.trim(),
+              created_at: new Date().toISOString(),
+            },
+          ],
+        })),
+      async () => {
+        const saved = await addComment(p.id, text);
+        if (p.author !== userId) onXp("comment", saved.id);
+        patchPost(p.id, (x) => ({
+          ...x,
+          comments: x.comments.map((c) => (c.id === tmp ? saved : c)),
+        }));
+      },
+    );
+  };
+  const removeComment = (p: Post, id: string) =>
+    optimistic(
+      () =>
+        patchPost(p.id, (x) => ({
+          ...x,
+          comments: x.comments.filter((c) => c.id !== id),
+        })),
+      () => deleteComment(id),
+    );
   const person = (id: string) =>
     id === userId ? me : people.find((p) => p.user_id === id);
   const friends = friendships.filter((f) => f.status === "accepted");
@@ -143,6 +273,9 @@ export default function Community({
       <PersonRow
         key={f.id}
         person={person(other(f))}
+        onOpen={
+          f.status === "accepted" ? () => setProfile(other(f)) : undefined
+        }
         detail={
           f.status === "pending"
             ? "Pedido enviado"
@@ -193,60 +326,39 @@ export default function Community({
           />
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
-          <div className="grid min-w-0 content-start gap-4">
-            <Composer
-              userId={userId}
-              draft={draft}
-              onDraftUsed={onDraftUsed}
-              onPost={(text, photo) =>
-                run(
-                  () => createPost(text, photo),
-                  "Publicado para seus amigos.",
-                )
-              }
-              onNotice={onNotice}
-            />
-            {loading ? (
-              <p className="py-10 text-center text-sm text-ink-500">
-                Carregando…
-              </p>
-            ) : !feed.length ? (
-              <Panel>
-                <p className="py-6 text-center text-sm text-ink-500">
-                  {friends.length
-                    ? "Ainda não há posts. Que tal compartilhar uma conquista?"
-                    : "Adicione amigos pelo código para ver os posts deles aqui."}
-                </p>
-              </Panel>
-            ) : (
-              feed.map((p) => (
-                <PostCard
-                  key={p.id}
-                  post={p}
-                  userId={userId}
-                  person={person}
-                  onLike={(on) => run(() => setLike(p.id, userId, on))}
-                  onComment={(text) => run(() => addComment(p.id, text))}
-                  onDeleteComment={(id) => run(() => deleteComment(id))}
-                  onDelete={() => run(() => deletePost(p.id), "Post apagado.")}
-                  onReport={(target, reason) =>
-                    run(
-                      () => report(target, reason),
-                      "Denúncia enviada. Obrigado por avisar.",
-                    )
-                  }
-                  onShare={() =>
-                    shareText(`${p.text}\n\nCompartilhado do Ritmo`).catch(
-                      () => undefined,
-                    )
-                  }
-                />
-              ))
+        // Celular: ajuda e amigos, depois o feed e, no fim, adicionar amigos.
+        // Computador: feed à esquerda e o resto na coluna da direita.
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)] lg:grid-rows-[auto_1fr]">
+          <div className="grid min-w-0 content-start gap-4 lg:col-start-2 lg:row-start-1">
+            {help.length > 0 && (
+              <section className="card min-w-0 border-red-300 bg-red-500/5">
+                <h2 className="flex items-center gap-2 text-base font-semibold text-red-700">
+                  <RiLifebuoyFill className="size-5" /> Seus amigos pedem ajuda
+                </h2>
+                <ul className="mt-2 divide-y divide-line">
+                  {help.map((h) => (
+                    <PersonRow
+                      key={h.id}
+                      person={person(h.sender)}
+                      detail={`${h.message} · ${ago(h.created_at)}`}
+                      onOpen={() => setProfile(h.sender)}
+                    >
+                      <button
+                        className="btn-primary min-h-9 px-3 text-sm"
+                        onClick={() =>
+                          run(async () => {
+                            await sendNudge(h.sender, nudgeMessage(undefined));
+                            answerHelp(h.id);
+                          }, "Orelha puxada! Seu amigo vai receber agora.")
+                        }
+                      >
+                        <RiAlarmWarningLine className="size-4" /> Puxar orelha
+                      </button>
+                    </PersonRow>
+                  ))}
+                </ul>
+              </section>
             )}
-          </div>
-          {/* No celular, amigos e pedidos vêm antes do feed. */}
-          <div className="order-first grid min-w-0 content-start gap-4 lg:order-none">
             {incoming.length > 0 && (
               <Panel>
                 <h2 className="text-base font-semibold">Pedidos recebidos</h2>
@@ -276,12 +388,23 @@ export default function Community({
               </Panel>
             )}
             <Panel>
-              <h2 className="text-base font-semibold">
-                Amigos{friends.length ? ` · ${friends.length}` : ""}
-              </h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-semibold">
+                  Amigos{friends.length ? ` · ${friends.length}` : ""}
+                </h2>
+                {friends.length > 0 && (
+                  <button
+                    className="btn-secondary min-h-9 px-3 text-sm text-red-700"
+                    onClick={() => setAsking(true)}
+                  >
+                    <RiLifebuoyLine className="size-4" /> Pedir ajuda
+                  </button>
+                )}
+              </div>
               {!friends.length && !outgoing.length ? (
                 <p className="py-4 text-sm text-ink-500">
-                  Você ainda não adicionou ninguém.
+                  Você ainda não adicionou ninguém. Use o código lá embaixo, em
+                  "Adicionar amigos".
                 </p>
               ) : (
                 <>
@@ -299,11 +422,78 @@ export default function Community({
                 </>
               )}
             </Panel>
-            {allFriends && (
-              <Sheet title="Amigos" onClose={() => setAllFriends(false)}>
-                <ul className="divide-y divide-line">{friendRows(network)}</ul>
-              </Sheet>
+          </div>
+          <div className="grid min-w-0 content-start gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
+            <Composer
+              userId={userId}
+              draft={draft}
+              onDraftUsed={onDraftUsed}
+              onPost={(text, photo) =>
+                // Entra no topo do feed sem recarregar tudo.
+                createPost(text, photo).then(
+                  (post) => {
+                    setFeed((f) => [post, ...f]);
+                    onXp("post", post.id);
+                    onNotice("Publicado para seus amigos.");
+                    return true;
+                  },
+                  (e) => {
+                    onNotice(
+                      e instanceof Error ? e.message : "Falha ao publicar.",
+                    );
+                    return false;
+                  },
+                )
+              }
+              onNotice={onNotice}
+            />
+            {loading ? (
+              <p className="py-10 text-center text-sm text-ink-500">
+                Carregando…
+              </p>
+            ) : !feed.length ? (
+              <Panel>
+                <p className="py-6 text-center text-sm text-ink-500">
+                  {friends.length
+                    ? "Ainda não há posts. Que tal compartilhar uma conquista?"
+                    : "Adicione amigos pelo código para ver os posts deles aqui."}
+                </p>
+              </Panel>
+            ) : (
+              feed.map((p) => (
+                <PostCard
+                  key={p.id}
+                  post={p}
+                  userId={userId}
+                  person={person}
+                  collapsed={collapsed.includes(p.id)}
+                  onCollapse={(on) => collapse(p.id, on)}
+                  onOpenPerson={setProfile}
+                  onLike={(on) => void like(p, on)}
+                  onComment={(text) => void comment(p, text)}
+                  onDeleteComment={(id) => void removeComment(p, id)}
+                  onDelete={() =>
+                    optimistic(
+                      () => setFeed((f) => f.filter((x) => x.id !== p.id)),
+                      () => deletePost(p.id),
+                    ).then((ok) => ok && onNotice("Post apagado."))
+                  }
+                  onReport={(target, reason) =>
+                    run(
+                      () => report(target, reason),
+                      "Denúncia enviada. Obrigado por avisar.",
+                    )
+                  }
+                  onShare={() =>
+                    shareText(`${p.text}\n\nCompartilhado do Ritmo`).catch(
+                      () => undefined,
+                    )
+                  }
+                />
+              ))
             )}
+          </div>
+          <div className="grid min-w-0 content-start gap-4 lg:col-start-2 lg:row-start-2">
             <AddFriend
               code={me?.friend_code}
               invite={invite}
@@ -336,6 +526,56 @@ export default function Community({
               </label>
             </Panel>
           </div>
+          {allFriends && (
+            <Sheet title="Amigos" onClose={() => setAllFriends(false)}>
+              <ul className="divide-y divide-line">{friendRows(network)}</ul>
+            </Sheet>
+          )}
+          {asking && (
+            <AskHelp
+              friends={friends
+                .map((f) => person(other(f)))
+                .filter((p): p is SocialProfile => !!p)}
+              onClose={() => setAsking(false)}
+              onSend={async (ids, message) => {
+                const sent = await askForHelp(ids, message);
+                onNotice(
+                  sent
+                    ? `Pedido de ajuda enviado para ${sent} amigo${sent > 1 ? "s" : ""}.`
+                    : "Não foi possível enviar agora. Se já mandou algo há pouco, tente daqui a 1 hora.",
+                );
+                if (sent) setAsking(false);
+              }}
+            />
+          )}
+          {profile && (
+            <FriendProfile
+              person={person(profile)}
+              me={profile === userId}
+              posts={feed.filter((p) => p.author === profile)}
+              friendship={friendships.find((f) => other(f) === profile)}
+              onClose={() => setProfile(null)}
+              onNudge={() =>
+                run(
+                  () => sendNudge(profile, nudgeMessage(undefined)),
+                  "Orelha puxada! Seu amigo vai receber agora.",
+                )
+              }
+              onRemove={async (f) => {
+                if (
+                  await confirmDialog({
+                    title: "Desfazer amizade?",
+                    message: "Vocês deixam de ver os posts um do outro.",
+                    confirmLabel: "Desfazer",
+                    danger: true,
+                  })
+                ) {
+                  setProfile(null);
+                  void run(() => removeFriend(f.id));
+                }
+              }}
+            />
+          )}
         </div>
       )}
     </>
@@ -345,22 +585,41 @@ export default function Community({
 function PersonRow({
   person,
   detail,
+  onOpen,
   children,
 }: {
   person: SocialProfile | null | undefined;
   detail?: string;
-  children: React.ReactNode;
+  /** Toque na pessoa abre o perfil dela. */
+  onOpen?: () => void;
+  children?: React.ReactNode;
 }) {
-  return (
-    <li className="flex items-center gap-3 py-3">
+  const who = (
+    <>
       <Avatar path={person?.photo ?? undefined} name={person?.name ?? "?"} />
       <span className="min-w-0 flex-1">
         <strong className="block truncate text-sm font-medium">
           {person?.name ?? "Pessoa"}
         </strong>
-        {detail && <small className="text-[13px] text-ink-500">{detail}</small>}
+        {detail && (
+          <small className="block text-[13px] text-ink-500">{detail}</small>
+        )}
       </span>
-      <span className="flex shrink-0 gap-1">{children}</span>
+    </>
+  );
+  return (
+    <li className="flex items-center gap-3 py-3">
+      {onOpen ? (
+        <button
+          className="-my-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg py-1 text-left hover:bg-surface"
+          onClick={onOpen}
+        >
+          {who}
+        </button>
+      ) : (
+        who
+      )}
+      {children && <span className="flex shrink-0 gap-1">{children}</span>}
     </li>
   );
 }
@@ -380,6 +639,8 @@ function AddFriend({
   const [value, setValue] = useState("");
   const [found, setFound] = useState<SocialProfile | null>(null);
   const [busy, setBusy] = useState(false);
+  // Fica minimizado; abre sozinho quando chega um convite.
+  const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   async function search(c: string) {
     setBusy(true);
@@ -396,6 +657,7 @@ function AddFriend({
   useEffect(() => {
     if (!invite || invite === code) return;
     setValue(invite);
+    setOpen(true);
     void search(invite);
     box.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -403,8 +665,21 @@ function AddFriend({
   return (
     <div ref={box}>
       <Panel>
-        <h2 className="text-base font-semibold">Adicionar amigos</h2>
-        {code && (
+        <button
+          className="-m-2 flex w-[calc(100%+1rem)] items-center justify-between gap-2 rounded-lg p-2 text-left hover:bg-surface"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="flex items-center gap-2 text-base font-semibold">
+            <RiUserAddLine className="size-5 text-brand-600" /> Adicionar amigos
+          </span>
+          {open ? (
+            <RiArrowUpSLine className="size-5 text-ink-500" />
+          ) : (
+            <RiArrowDownSLine className="size-5 text-ink-500" />
+          )}
+        </button>
+        {open && code && (
           <div className="mt-3 rounded-lg bg-surface p-3">
             <p className="text-[13px] text-ink-500">Seu código de amigo</p>
             <p className="mt-0.5 font-mono text-xl font-semibold tracking-widest">
@@ -424,32 +699,36 @@ function AddFriend({
             </button>
           </div>
         )}
-        <form
-          className="mt-3 flex gap-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void search(value);
-          }}
-        >
-          <input
-            className="input font-mono uppercase"
-            aria-label="Código de amigo"
-            placeholder="Código do amigo"
-            maxLength={8}
-            value={value}
-            onChange={(e) => {
-              setValue(e.target.value.replace(/[^0-9a-f]/gi, "").toUpperCase());
-              setFound(null);
+        {open && (
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void search(value);
             }}
-          />
-          <button
-            className="btn-secondary shrink-0"
-            disabled={busy || value.length < 8}
           >
-            Buscar
-          </button>
-        </form>
-        {found && (
+            <input
+              className="input font-mono uppercase"
+              aria-label="Código de amigo"
+              placeholder="Código do amigo"
+              maxLength={8}
+              value={value}
+              onChange={(e) => {
+                setValue(
+                  e.target.value.replace(/[^0-9a-f]/gi, "").toUpperCase(),
+                );
+                setFound(null);
+              }}
+            />
+            <button
+              className="btn-secondary shrink-0"
+              disabled={busy || value.length < 8}
+            >
+              Buscar
+            </button>
+          </form>
+        )}
+        {open && found && (
           <ul className="mt-2">
             <PersonRow person={found}>
               <button
@@ -612,6 +891,9 @@ function PostCard({
   post,
   userId,
   person,
+  collapsed,
+  onCollapse,
+  onOpenPerson,
   onLike,
   onComment,
   onDeleteComment,
@@ -622,6 +904,10 @@ function PostCard({
   post: Post;
   userId: string;
   person: (id: string) => SocialProfile | null | undefined;
+  /** Minimizado: só o autor e o começo do texto. */
+  collapsed: boolean;
+  onCollapse: (on: boolean) => void;
+  onOpenPerson: (id: string) => void;
   onLike: (on: boolean) => void;
   onComment: (text: string) => void;
   onDeleteComment: (id: string) => void;
@@ -634,6 +920,8 @@ function PostCard({
 }) {
   const [open, setOpen] = useState(false);
   const [comment, setComment] = useState("");
+  // Conta as curtidas feitas aqui, só para tocar a animação.
+  const [pop, setPop] = useState(0);
   const author = person(post.author);
   const liked = post.likes.includes(userId);
   const mine = post.author === userId;
@@ -654,18 +942,39 @@ function PostCard({
   };
   return (
     <Panel>
-      <div className="flex items-center gap-3">
-        <Avatar path={author?.photo ?? undefined} name={author?.name ?? "?"} />
-        <span className="min-w-0 flex-1">
-          <strong className="block truncate text-sm font-semibold">
-            {author?.name ?? "Amigo"}
-          </strong>
-          <small className="text-[13px] text-ink-500">
-            {ago(post.created_at)}
-            {post.kind === "medal" && " · conquista"}
-            {post.kind === "activity" && " · atividade"}
-          </small>
-        </span>
+      <div className="flex items-center gap-1">
+        <button
+          className="-my-1 -ml-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left hover:bg-surface"
+          onClick={() => onOpenPerson(post.author)}
+        >
+          <Avatar
+            path={author?.photo ?? undefined}
+            name={author?.name ?? "?"}
+          />
+          <span className="min-w-0 flex-1">
+            <strong className="block truncate text-sm font-semibold">
+              {author?.name ?? "Amigo"}
+            </strong>
+            <small className="block truncate text-[13px] text-ink-500">
+              {collapsed && post.text
+                ? post.text
+                : `${ago(post.created_at)}${post.kind === "medal" ? " · conquista" : post.kind === "activity" ? " · atividade" : ""}`}
+            </small>
+          </span>
+        </button>
+        <button
+          className="icon-btn"
+          aria-label={collapsed ? "Mostrar post" : "Minimizar post"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Mostrar" : "Minimizar"}
+          onClick={() => onCollapse(!collapsed)}
+        >
+          {collapsed ? (
+            <RiArrowDownSLine className="size-5" />
+          ) : (
+            <RiArrowUpSLine className="size-5" />
+          )}
+        </button>
         <button
           className="icon-btn"
           aria-label={mine ? "Apagar post" : "Denunciar post"}
@@ -686,105 +995,293 @@ function PostCard({
           )}
         </button>
       </div>
-      {post.text && (
-        <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-wrap">
-          {post.text}
-        </p>
-      )}
-      {post.photo && (
-        <div className="mt-3 [&_img]:size-auto [&_img]:max-h-96 [&_img]:w-full [&_img]:object-contain">
-          <PhotoStrip paths={[post.photo]} />
-        </div>
-      )}
-      <div className="mt-3 flex gap-1 border-t border-line pt-2">
-        <button
-          className={`btn-ghost text-sm ${liked ? "" : "text-ink-500"}`}
-          aria-pressed={liked}
-          onClick={() => onLike(!liked)}
-        >
-          {liked ? (
-            <RiHeart3Fill className="size-5" />
-          ) : (
-            <RiHeart3Line className="size-5" />
+      {!collapsed && (
+        <>
+          {post.text && (
+            <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-wrap">
+              {post.text}
+            </p>
           )}
-          {post.likes.length || ""}
-        </button>
-        <button
-          className="btn-ghost text-sm text-ink-500"
-          aria-expanded={open}
-          onClick={() => setOpen((o) => !o)}
-        >
-          <RiChat3Line className="size-5" />
-          {post.comments.length || ""}
-        </button>
-        <button className="btn-ghost text-sm text-ink-500" onClick={onShare}>
-          <RiShareLine className="size-5" /> Compartilhar
-        </button>
-      </div>
-      {open && (
-        <div className="mt-2 space-y-2">
-          {post.comments.map((c) => {
-            const who = person(c.author);
-            const canDelete = c.author === userId || mine;
-            return (
-              <div
-                key={c.id}
-                className="flex items-start gap-2 rounded-lg bg-surface p-2.5"
-              >
-                <span className="min-w-0 flex-1 text-sm">
-                  <strong className="font-medium">
-                    {who?.name ?? `Amigo(a) de ${author?.name ?? "alguém"}`}
-                  </strong>{" "}
-                  {c.text}
-                  <small className="block text-xs text-ink-400">
-                    {ago(c.created_at)}
-                  </small>
-                </span>
-                <button
-                  className="icon-btn size-8"
-                  aria-label={
-                    canDelete ? "Apagar comentário" : "Denunciar comentário"
-                  }
-                  onClick={() =>
-                    canDelete
-                      ? onDeleteComment(c.id)
-                      : askReport({ comment_id: c.id })
-                  }
-                >
-                  {canDelete ? (
-                    <RiDeleteBin6Line className="size-4" />
-                  ) : (
-                    <RiFlagLine className="size-4" />
-                  )}
-                </button>
-              </div>
-            );
-          })}
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!comment.trim()) return;
-              onComment(comment);
-              setComment("");
-            }}
-          >
-            <input
-              className="input"
-              placeholder="Escreva um comentário"
-              maxLength={500}
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-            />
+          {post.photo && (
+            <div className="mt-3 [&_img]:size-auto [&_img]:max-h-96 [&_img]:w-full [&_img]:object-contain">
+              <PhotoStrip paths={[post.photo]} />
+            </div>
+          )}
+          <div className="mt-3 flex gap-1 border-t border-line pt-2">
             <button
-              className="btn-secondary shrink-0"
-              disabled={!comment.trim()}
+              className={`btn-ghost text-sm ${liked ? "text-brand-600" : "text-ink-500"}`}
+              aria-pressed={liked}
+              onClick={() => {
+                if (!liked) setPop((n) => n + 1);
+                onLike(!liked);
+              }}
             >
-              Enviar
+              {/* A key nova reinicia a animação a cada curtida. */}
+              <span key={pop} className="relative inline-flex">
+                {liked ? (
+                  <RiHeart3Fill
+                    className={`size-5 ${pop ? "animate-heart-pop" : ""}`}
+                  />
+                ) : (
+                  <RiHeart3Line className="size-5" />
+                )}
+                {liked && pop > 0 && (
+                  <span className="pointer-events-none absolute inset-0 animate-heart-ring rounded-full border-2 border-brand-500" />
+                )}
+              </span>
+              {post.likes.length || ""}
             </button>
-          </form>
-        </div>
+            <button
+              className="btn-ghost text-sm text-ink-500"
+              aria-expanded={open}
+              onClick={() => setOpen((o) => !o)}
+            >
+              <RiChat3Line className="size-5" />
+              {post.comments.length || ""}
+            </button>
+            <button
+              className="btn-ghost text-sm text-ink-500"
+              onClick={onShare}
+            >
+              <RiShareLine className="size-5" /> Compartilhar
+            </button>
+          </div>
+          {open && (
+            <div className="mt-2 space-y-2">
+              {post.comments.map((c) => {
+                const who = person(c.author);
+                const canDelete = c.author === userId || mine;
+                // Ainda indo para o servidor (ver comment() em Community).
+                const sending = c.id.startsWith("tmp-");
+                return (
+                  <div
+                    key={c.id}
+                    className={`flex items-start gap-2 rounded-lg bg-surface p-2.5 ${sending ? "opacity-60" : ""}`}
+                  >
+                    <span className="min-w-0 flex-1 text-sm">
+                      <strong className="font-medium">
+                        {who?.name ?? `Amigo(a) de ${author?.name ?? "alguém"}`}
+                      </strong>{" "}
+                      {c.text}
+                      <small className="block text-xs text-ink-400">
+                        {ago(c.created_at)}
+                      </small>
+                    </span>
+                    <button
+                      className="icon-btn size-8"
+                      disabled={sending}
+                      aria-label={
+                        canDelete ? "Apagar comentário" : "Denunciar comentário"
+                      }
+                      onClick={() =>
+                        canDelete
+                          ? onDeleteComment(c.id)
+                          : askReport({ comment_id: c.id })
+                      }
+                    >
+                      {canDelete ? (
+                        <RiDeleteBin6Line className="size-4" />
+                      ) : (
+                        <RiFlagLine className="size-4" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+              <form
+                className="flex gap-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!comment.trim()) return;
+                  onComment(comment);
+                  setComment("");
+                }}
+              >
+                <input
+                  className="input"
+                  placeholder="Escreva um comentário"
+                  maxLength={500}
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                />
+                <button
+                  className="btn-secondary shrink-0"
+                  disabled={!comment.trim()}
+                >
+                  Enviar
+                </button>
+              </form>
+            </div>
+          )}
+        </>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Pedir ajuda: a pessoa escolhe uma mensagem (ou escreve a sua) e para quais
+ * amigos mandar. Chega como notificação importante para eles.
+ */
+function AskHelp({
+  friends,
+  onClose,
+  onSend,
+}: {
+  friends: SocialProfile[];
+  onClose: () => void;
+  onSend: (ids: string[], message: string) => Promise<void>;
+}) {
+  const [message, setMessage] = useState<string>(HELP_MESSAGES[0]);
+  const [to, setTo] = useState(() => friends.map((f) => f.user_id));
+  const [busy, setBusy] = useState(false);
+  return (
+    <Sheet title="Pedir ajuda aos amigos" onClose={onClose}>
+      <p className="text-sm text-ink-500">
+        Seus amigos recebem uma notificação para puxar a sua orelha.
+      </p>
+      <h3 className="mt-4 text-sm font-semibold">Mensagem</h3>
+      <div className="mt-2 grid gap-2">
+        {HELP_MESSAGES.map((m) => (
+          <button
+            key={m}
+            className={`rounded-lg border px-3 py-2.5 text-left text-sm ${message === m ? "border-red-400 bg-red-500/10 font-medium" : "border-line hover:bg-surface"}`}
+            aria-pressed={message === m}
+            onClick={() => setMessage(m)}
+          >
+            {m}
+          </button>
+        ))}
+        <textarea
+          className="input min-h-16 py-2.5"
+          placeholder="Ou escreva do seu jeito…"
+          maxLength={200}
+          value={HELP_MESSAGES.includes(message) ? "" : message}
+          onChange={(e) => setMessage(e.target.value || HELP_MESSAGES[0])}
+        />
+      </div>
+      <h3 className="mt-4 text-sm font-semibold">Para quem</h3>
+      <ul className="mt-1 divide-y divide-line">
+        {friends.map((f) => (
+          <li key={f.user_id}>
+            <label className="flex cursor-pointer items-center gap-3 py-2.5">
+              <input
+                type="checkbox"
+                className="size-5 shrink-0 accent-brand-600"
+                checked={to.includes(f.user_id)}
+                onChange={(e) =>
+                  setTo((t) =>
+                    e.target.checked
+                      ? [...t, f.user_id]
+                      : t.filter((x) => x !== f.user_id),
+                  )
+                }
+              />
+              <Avatar path={f.photo ?? undefined} name={f.name} size={32} />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                {f.name}
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      <button
+        className="btn-primary mt-4 w-full"
+        disabled={busy || !to.length || !message.trim()}
+        onClick={async () => {
+          setBusy(true);
+          await onSend(to, message).finally(() => setBusy(false));
+        }}
+      >
+        <RiLifebuoyLine className="size-5" />
+        {busy
+          ? "Enviando…"
+          : `Pedir ajuda${to.length ? ` a ${to.length} amigo${to.length > 1 ? "s" : ""}` : ""}`}
+      </button>
+    </Sheet>
+  );
+}
+
+/** Perfil de um amigo: nível, bichinho, medalhas e os posts dele. */
+function FriendProfile({
+  person,
+  me,
+  posts,
+  friendship,
+  onClose,
+  onNudge,
+  onRemove,
+}: {
+  person: SocialProfile | null | undefined;
+  /** É o próprio perfil (tocou no próprio post). */
+  me: boolean;
+  posts: Post[];
+  friendship?: Friendship;
+  onClose: () => void;
+  onNudge: () => void;
+  onRemove: (f: Friendship) => void;
+}) {
+  const level = person?.level ?? 1;
+  const pet = petStage(level);
+  return (
+    <Sheet title={person?.name ?? "Perfil"} onClose={onClose}>
+      <div className="flex items-center gap-4">
+        <Avatar
+          path={person?.photo ?? undefined}
+          name={person?.name ?? "?"}
+          size={64}
+        />
+        <div className="min-w-0">
+          <p className="truncate text-lg font-semibold">
+            {person?.name ?? "Amigo"}
+          </p>
+          <p className="text-sm text-ink-500">
+            Nível {level} · {person?.medals ?? 0} medalha
+            {person?.medals === 1 ? "" : "s"}
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-4 rounded-xl bg-surface p-3">
+        <PetArt stage={pet} className="size-20" alive />
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-brand-700">
+            {pet.form === "egg" ? pet.name : `${pet.name} · ${pet.formLabel}`}
+          </p>
+          <p className="font-semibold">{pet.label}</p>
+        </div>
+      </div>
+      {!me && friendship?.status === "accepted" && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button className="btn-primary flex-1" onClick={onNudge}>
+            <RiAlarmWarningLine className="size-5" /> Puxar orelha
+          </button>
+          <button
+            className="btn-ghost text-ink-500"
+            onClick={() => onRemove(friendship)}
+          >
+            Desfazer amizade
+          </button>
+        </div>
+      )}
+      <h3 className="mt-5 text-sm font-semibold">Posts recentes</h3>
+      {posts.length ? (
+        <ul className="mt-1 divide-y divide-line">
+          {posts.slice(0, 10).map((p) => (
+            <li key={p.id} className="py-2.5 text-sm">
+              <p className="line-clamp-3 whitespace-pre-wrap">
+                {p.text || "📷 Foto"}
+              </p>
+              <small className="text-xs text-ink-500">
+                {ago(p.created_at)} · {p.likes.length} curtida
+                {p.likes.length === 1 ? "" : "s"} · {p.comments.length}{" "}
+                comentário{p.comments.length === 1 ? "" : "s"}
+              </small>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-sm text-ink-500">Nenhum post recente.</p>
+      )}
+    </Sheet>
   );
 }

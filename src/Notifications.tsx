@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import {
-  RiAlarmWarningLine,
-  RiChat3Line,
-  RiHandHeartLine,
-  RiHeart3Line,
+  RiAlarmWarningFill,
+  RiChat3Fill,
+  RiHandHeartFill,
+  RiHeart3Fill,
+  RiLifebuoyFill,
   RiNotification3Line,
-  RiUserAddLine,
-  RiUserFollowLine,
+  RiUserAddFill,
+  RiUserHeartFill,
 } from "react-icons/ri";
 import {
   lastSeen,
@@ -17,14 +18,16 @@ import {
 } from "./notificationFeed";
 import { ago, PageTitle, Panel } from "./ui";
 
-const ICONS: Record<Notice["kind"], IconType> = {
-  nudge: RiAlarmWarningLine,
-  friend_request: RiUserAddLine,
-  friend_accepted: RiUserFollowLine,
-  comment: RiChat3Line,
-  like: RiHeart3Line,
-  otter_invite: RiHandHeartLine,
-  otter_helper: RiHandHeartLine,
+/** Cada tipo com o seu ícone e a sua cor, para reconhecer de relance. */
+const ICONS: Record<Notice["kind"], [IconType, string]> = {
+  nudge: [RiAlarmWarningFill, "bg-orange-500/15 text-orange-600"],
+  help: [RiLifebuoyFill, "bg-red-500/15 text-red-600"],
+  friend_request: [RiUserAddFill, "bg-pink-500/15 text-pink-600"],
+  friend_accepted: [RiUserHeartFill, "bg-pink-500/15 text-pink-600"],
+  comment: [RiChat3Fill, "bg-blue-500/15 text-blue-600"],
+  like: [RiHeart3Fill, "bg-rose-500/15 text-rose-600"],
+  otter_invite: [RiHandHeartFill, "bg-emerald-500/15 text-emerald-600"],
+  otter_helper: [RiHandHeartFill, "bg-emerald-500/15 text-emerald-600"],
 };
 
 /** Aba Notificações: o que os amigos fizeram, das mais novas às antigas. */
@@ -71,7 +74,7 @@ export default function Notifications({
         ) : (
           <ul>
             {list.map((n) => {
-              const Icon = ICONS[n.kind];
+              const [Icon, color] = ICONS[n.kind];
               const fresh = !!n.at && n.at > seen;
               return (
                 <li key={n.id}>
@@ -79,7 +82,9 @@ export default function Notifications({
                     className={`flex w-full items-start gap-3 rounded-lg p-3 text-left hover:bg-surface ${fresh ? "bg-brand-50" : ""}`}
                     onClick={() => onOpen(n)}
                   >
-                    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-brand-50 text-brand-600">
+                    <span
+                      className={`grid size-9 shrink-0 place-items-center rounded-full ${color}`}
+                    >
                       <Icon className="size-5" />
                     </span>
                     <span className="min-w-0 flex-1">

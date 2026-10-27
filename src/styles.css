@@ -81,6 +81,33 @@
       transform: translateY(-4px);
     }
   }
+  /* Curtir um post (Community.tsx): o coração pula e solta um anel. */
+  --animate-heart-pop: heart-pop 0.45s cubic-bezier(0.17, 0.89, 0.32, 1.49);
+  --animate-heart-ring: heart-ring 0.5s ease-out forwards;
+  @keyframes heart-pop {
+    0% {
+      transform: scale(1);
+    }
+    30% {
+      transform: scale(0.7);
+    }
+    60% {
+      transform: scale(1.35);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes heart-ring {
+    0% {
+      transform: scale(0.4);
+      opacity: 0.7;
+    }
+    100% {
+      transform: scale(1.8);
+      opacity: 0;
+    }
+  }
   /* Foguete ao bater a meta de peso (Celebration.tsx). */
   --animate-rocket: rocket 2.6s cubic-bezier(0.5, 0, 0.75, 0) forwards;
   @keyframes rocket {
@@ -102,10 +129,17 @@
 }
 
 @layer base {
+  /* Nenhuma tela rola para o lado no celular; o que for largo quebra linha. */
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
   html {
     -webkit-text-size-adjust: 100%;
   }
   body {
+    overflow-wrap: break-word;
     @apply bg-white font-sans text-[15px] text-ink-900 antialiased;
   }
   button,
@@ -127,7 +161,7 @@
   @apply rounded-xl border border-line bg-white p-5;
 }
 @utility btn {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex min-h-11 max-w-full items-center justify-center gap-2 rounded-lg px-4 text-center text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility btn-primary {
   @apply btn bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800;

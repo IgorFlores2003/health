@@ -2,13 +2,38 @@ import { Capacitor } from "@capacitor/core";
 import { LocalNotifications } from "@capacitor/local-notifications";
 import type { Hydration } from "./domain";
 
-/** Ícone (pulso do Ritmo) e a cor escolhida no app para as notificações. */
-const look = () => ({
-  smallIcon: "ic_stat_ritmo",
-  iconColor:
-    getComputedStyle(document.documentElement)
-      .getPropertyValue("--color-brand-600")
-      .trim() || "#D91C1C",
+/**
+ * Tipo de notificação: cada um tem o seu ícone na barra de status
+ * (android/app/src/main/res/drawable/ic_stat_*.xml) e a sua cor.
+ */
+export type NotifyKind =
+  | "nudge"
+  | "help"
+  | "water"
+  | "medal"
+  | "level"
+  | "pet"
+  | "mission"
+  | "goal"
+  | "friend"
+  | "like"
+  | "comment";
+export const NOTIFY_COLORS: Record<NotifyKind, string> = {
+  nudge: "#F97316",
+  help: "#DC2626",
+  water: "#0EA5E9",
+  medal: "#EAB308",
+  level: "#8B5CF6",
+  pet: "#22C55E",
+  mission: "#16A34A",
+  goal: "#D91C1C",
+  friend: "#EC4899",
+  like: "#E11D48",
+  comment: "#2563EB",
+};
+const look = (kind: NotifyKind) => ({
+  smallIcon: `ic_stat_${kind}`,
+  iconColor: NOTIFY_COLORS[kind],
 });
 
 /** Faixa de ids reservada aos lembretes de água. */
@@ -58,7 +83,7 @@ export async function syncWaterReminders(h: Hydration | undefined) {
   await LocalNotifications.schedule({
     notifications: reminderTimes(h).map((t, i) => ({
       id: FIRST_ID + i,
-      ...look(),
+      ...look("water"),
       title: "Hora de beber água",
       body: `Que tal um copo de ${h.cupMl} ml agora?`,
       schedule: {
@@ -70,13 +95,18 @@ export async function syncWaterReminders(h: Hydration | undefined) {
 }
 
 /** Notificação na hora (ex.: desafio concluído), se o aparelho permitir. */
-export async function notifyNow(title: string, body: string) {
+export async function notifyNow(title: string, body: string, kind: NotifyKind) {
   if (!remindersSupported()) return;
   if ((await LocalNotifications.checkPermissions()).display !== "granted")
     return;
   await LocalNotifications.schedule({
     notifications: [
-      { ...look(), id: 2000 + Math.floor(Math.random() * 100000), title, body },
+      {
+        ...look(kind),
+        id: 2000 + Math.floor(Math.random() * 100000),
+        title,
+        body,
+      },
     ],
   });
 }

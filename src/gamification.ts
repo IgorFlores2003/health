@@ -23,8 +23,24 @@ export type Medal = {
   progress: number;
 };
 
-const XP_PER_MISSION = 10;
-const XP_PER_LEVEL = 100;
+/** Quanto vale cada coisa (mostrado no app em "Como ganhar XP"). */
+export const XP = {
+  mission: 20,
+  /** Bônus por completar todas as missões do dia. */
+  fullDay: 30,
+  like: 3,
+  comment: 5,
+  post: 15,
+} as const;
+/** Quantas ações sociais por dia rendem XP (evita curtir/descurtir à toa). */
+export const SOCIAL_LIMIT = { like: 5, comment: 5, post: 2 } as const;
+export type SocialKind = keyof typeof SOCIAL_LIMIT;
+
+/**
+ * XP para passar do nível n para o n+1: 30, 40, 50… Começa rápido (dois
+ * dias bons levam do nível 1 ao 5) e vai ficando mais demorado.
+ */
+export const xpToPass = (level: number) => 20 + 10 * level;
 
 export function dailyMissions(state: State, date: string): Mission[] {
   const water = waterGoal(weightAtDate(state, date));
@@ -70,6 +86,24 @@ function activeDays(state: State) {
   );
 }
 
+/** Ações sociais do dia que ainda contam XP (dentro do limite diário). */
+export function socialToday(state: State, date: string, kind: SocialKind) {
+  return (state.social ?? []).filter((x) => x.date === date && x.kind === kind)
+    .length;
+}
+
+/** XP ganho num dia, separado por origem. */
+export function dayXp(state: State, date: string) {
+  const done = dailyMissions(state, date).filter((m) => m.done).length;
+  const missions = done * XP.mission + (done === 5 ? XP.fullDay : 0);
+  const social = (Object.keys(SOCIAL_LIMIT) as SocialKind[]).reduce(
+    (sum, k) =>
+      sum + Math.min(SOCIAL_LIMIT[k], socialToday(state, date, k)) * XP[k],
+    0,
+  );
+  return { missions, social, total: missions + social };
+}
+
 /** Maior sequência de dias seguidos dentro do conjunto. */
 function longestStreak(days: Set<string>) {
   let best = 0;
@@ -89,18 +123,21 @@ function longestStreak(days: Set<string>) {
 }
 
 export function progressLevel(state: State) {
-  const xp = [...activeDays(state)].reduce(
-    (sum, d) =>
-      sum +
-      dailyMissions(state, d).filter((m) => m.done).length * XP_PER_MISSION,
-    0,
-  );
+  const days = new Set([
+    ...activeDays(state),
+    ...(state.completedDays ?? []),
+    ...(state.social ?? []).map((x) => x.date),
+  ]);
+  const xp = [...days].reduce((sum, d) => sum + dayXp(state, d).total, 0);
+  let level = 1;
+  let left = xp;
+  while (left >= xpToPass(level)) left -= xpToPass(level++);
   return {
     xp,
-    level: Math.floor(xp / XP_PER_LEVEL) + 1,
+    level,
     /** Fração do nível atual já completada. */
-    progress: (xp % XP_PER_LEVEL) / XP_PER_LEVEL,
-    toNext: XP_PER_LEVEL - (xp % XP_PER_LEVEL),
+    progress: left / xpToPass(level),
+    toNext: xpToPass(level) - left,
   };
 }
 
@@ -299,68 +336,85 @@ export function otterFitness(people: DayGoals[][]) {
 }
 
 /**
- * Bichinho que evolui com o nível: ovo (1–5 parado, 6–9 tremendo e
- * rachando), a Pipoca nasce no 10 e cresce até o 20; no 21 vem um ovo de
- * crocodilo (21–25 parado, 26–29 balançando), o Tuca nasce no 30 e cresce
- * até o 40.
+ * Bichinho que evolui com o nível, como num jogo: cada forma é um bicho
+ * diferente (ovo → pintinho → galeto → galo; depois ovo de crocodilo →
+ * crocodilinho → crocodilo jovem → crocodilão) e, dentro da forma, cada
+ * nível muda algum detalhe (tamanho, penas, crista, rachaduras…).
  */
+export const PET_FORMS = [
+  { line: "chick", form: "egg", from: 1, label: "Ovo" },
+  { line: "chick", form: "baby", from: 5, label: "Pintinho" },
+  { line: "chick", form: "young", from: 10, label: "Galeto" },
+  { line: "chick", form: "adult", from: 16, label: "Galo" },
+  { line: "croc", form: "egg", from: 23, label: "Ovo de crocodilo" },
+  { line: "croc", form: "baby", from: 27, label: "Crocodilinho" },
+  { line: "croc", form: "young", from: 32, label: "Crocodilo jovem" },
+  { line: "croc", form: "adult", from: 38, label: "Crocodilão" },
+] as const;
 export type PetStage = {
   line: "chick" | "croc";
-  phase: "egg" | "young" | "adult";
-  /** 0 = acabou de nascer, 1 = adulto. */
+  form: "egg" | "baby" | "young" | "adult";
+  /** Quantos níveis já passou dentro da forma (0 = acabou de evoluir). */
+  step: number;
+  /** 0 = acabou de evoluir, 1 = no máximo da forma. */
   growth: number;
   /** Rachaduras no ovo (0 a 4). */
   cracks: number;
   motion: "still" | "shake" | "wobble" | "idle";
   name: string;
+  /** Nome da forma (Pintinho, Galeto…). */
+  formLabel: string;
   label: string;
 };
 export const PET_NAMES = { chick: "Pipoca", croc: "Tuca" } as const;
 
+const FLAVOR = {
+  chick: { baby: "Piu piu!", young: "Ficando forte!", adult: "Cocoricó!" },
+  croc: { baby: "Nhac!", young: "Cada dia maior!", adult: "O rei do rio!" },
+} as const;
+
 export function petStage(level: number): PetStage {
-  const egg = (line: PetStage["line"], start: number): PetStage => {
-    const shaking = level >= start + 5;
+  let i = 0;
+  while (PET_FORMS[i + 1] && level >= PET_FORMS[i + 1].from) i += 1;
+  const f = PET_FORMS[i];
+  const next = PET_FORMS[i + 1];
+  // A última forma continua mudando por mais 6 níveis.
+  const length = (next?.from ?? f.from + 7) - f.from - 1;
+  const step = Math.max(0, level - f.from);
+  const growth = Math.min(1, step / Math.max(1, length));
+  if (f.form === "egg")
     return {
-      line,
-      phase: "egg",
-      growth: 0,
-      cracks: shaking ? Math.min(4, level - (start + 4)) : 0,
-      motion: shaking ? (line === "chick" ? "shake" : "wobble") : "still",
-      name: line === "chick" ? "Ovo" : "Ovo de crocodilo",
-      label: shaking ? "Está quase nascendo!" : "Cuide bem do ovo.",
-    };
-  };
-  const born = (line: PetStage["line"], at: number): PetStage => {
-    const growth = Math.min(1, (level - at) / 10);
-    return {
-      line,
-      phase: growth >= 1 ? "adult" : "young",
+      line: f.line,
+      form: "egg",
+      step,
       growth,
-      cracks: 0,
-      motion: "idle",
-      name: PET_NAMES[line],
-      label:
-        growth >= 1
-          ? line === "chick"
-            ? "Virou uma galinha linda!"
-            : "Um crocodilo adulto e forte!"
-          : `Crescendo: ${Math.round(growth * 100)}%`,
+      cracks: [0, 1, 2, 4][Math.min(3, step)],
+      motion: step < 2 ? "still" : f.line === "chick" ? "shake" : "wobble",
+      name: f.label,
+      formLabel: f.label,
+      label: step < 2 ? "Cuide bem do ovo." : "Está quase nascendo!",
     };
+  return {
+    line: f.line,
+    form: f.form,
+    step,
+    growth,
+    cracks: 0,
+    motion: "idle",
+    name: PET_NAMES[f.line],
+    formLabel: f.label,
+    label: FLAVOR[f.line][f.form],
   };
-  if (level < 10) return egg("chick", 1);
-  if (level <= 20) return born("chick", 10);
-  if (level < 30) return egg("croc", 21);
-  return born("croc", 30);
+}
+
+/** Próxima evolução (nível e forma), ou nada depois do crocodilão. */
+export function nextEvolution(level: number) {
+  return PET_FORMS.find((f) => f.from > level) ?? null;
 }
 
 /** Fases da coleção ("Meus bichinhos"): nível em que cada uma aparece. */
-export const PET_PHASES = [
-  { level: 1, line: "chick", label: "Ovo" },
-  { level: 10, line: "chick", label: "Pipoca filhote" },
-  { level: 15, line: "chick", label: "Pipoca jovem" },
-  { level: 20, line: "chick", label: "Pipoca adulta" },
-  { level: 21, line: "croc", label: "Ovo de crocodilo" },
-  { level: 30, line: "croc", label: "Tuca filhote" },
-  { level: 35, line: "croc", label: "Tuca jovem" },
-  { level: 40, line: "croc", label: "Tuca adulto" },
-] as const;
+export const PET_PHASES = PET_FORMS.map((f) => ({
+  level: f.from,
+  line: f.line,
+  label: f.label,
+}));

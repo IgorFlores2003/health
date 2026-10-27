@@ -58,6 +58,15 @@ export type Water = {
   date: string;
   ml: number;
 };
+/**
+ * Curtida, comentário ou post na comunidade que rendeu XP. O id vem do
+ * post/comentário, então curtir de novo o mesmo post não conta duas vezes.
+ */
+export type SocialAction = {
+  id: string;
+  date: string;
+  kind: "like" | "comment" | "post";
+};
 /** Copo padrão e lembretes de água (agendados no aparelho). */
 export type Hydration = {
   cupMl: number;
@@ -78,6 +87,7 @@ export type State = {
   water?: Water[];
   hydration?: Hydration;
   completedDays?: string[];
+  social?: SocialAction[];
   profileReviewed?: boolean;
   profile: Profile;
   weights: Weight[];
@@ -311,6 +321,11 @@ export function validState(v: unknown): v is State {
       (Array.isArray(s.completedDays) &&
         s.completedDays.every(
           (d) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d),
+        ))) &&
+    (s.social === undefined ||
+      (Array.isArray(s.social) &&
+        s.social.every(
+          (x) => base(x) && ["like", "comment", "post"].includes(x.kind),
         ))) &&
     (s.water === undefined ||
       (Array.isArray(s.water) &&
