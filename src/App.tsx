@@ -11,12 +11,15 @@ import {
 import Celebration, { type CelebrationKind } from "./Celebration";
 import { BirthDateField, BirthdayCard } from "./Birthday";
 import MascotCard from "./Mascot";
+import { PetCollection } from "./Pet";
 import Community from "./Community";
 import { dailyMissions, dayGoals, medals, progressLevel } from "./gamification";
 import { playSuccess } from "./sounds";
 import { registerPush, unregisterPush } from "./push";
 import { listenInvites, takeInvite } from "./invite";
 import Notifications from "./Notifications";
+import Help from "./Help";
+import Tutorial, { STEPS } from "./Tutorial";
 import { lastSeen, loadNotifications } from "./notificationFeed";
 import {
   listenNudges,
@@ -271,6 +274,26 @@ export default function App({ account }: { account: User }) {
   const [section, setSection] = useState<
     "profile" | "appearance" | "water" | "account" | "help"
   >("profile");
+  // Tutorial da Nuvi: aparece na primeira vez; repete em Configurações → Ajuda.
+  const [tutorial, setTutorialState] = useState<number | null>(null);
+  const tutorialKey = `ritmo-tutorial-${account.id}`;
+  const setTutorial = (step: number | null) => {
+    setTutorialState(step);
+    if (step === null)
+      try {
+        localStorage.setItem(tutorialKey, "1");
+      } catch {
+        /* mostra de novo na próxima vez */
+      }
+    else setTab(STEPS[step].tab);
+  };
+  useEffect(() => {
+    try {
+      if (!localStorage.getItem(tutorialKey)) setTutorialState(0);
+    } catch {
+      /* sem armazenamento: não mostra */
+    }
+  }, [tutorialKey]);
   const openProfile = () => {
     setSection("profile");
     setTab("settings");
@@ -1649,280 +1672,296 @@ export default function App({ account }: { account: User }) {
               />
               {section === "profile" && (
                 <>
-                  <div className="max-w-2xl">
-                <Panel>
-                  <CardHeader title="Sobre você" />
-                  <div className="mb-5 flex items-center gap-4">
-                    <Avatar
-                      path={state.profile.photo}
-                      name={state.profile.name}
-                      size={72}
+                  <Panel className="mb-4">
+                    <CardHeader
+                      title="Meus bichinhos"
+                      text="As fases que seu bichinho já viveu. Suba de nível cumprindo as missões do dia."
                     />
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        disabled={busy}
-                        onClick={() => setCameraOpen(true)}
-                      >
-                        <RiCameraLine className="size-5" /> Tirar foto
-                      </button>
-                      <label className="btn-secondary relative">
-                        <RiImageLine className="size-5" /> Galeria
-                        <input
-                          className="absolute inset-0 cursor-pointer opacity-0"
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp"
-                          disabled={busy}
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            e.target.value = "";
-                            if (file) setEditingPhoto(file);
-                          }}
+                    <PetCollection level={level} />
+                  </Panel>
+                  <div className="max-w-2xl">
+                    <Panel>
+                      <CardHeader title="Sobre você" />
+                      <div className="mb-5 flex items-center gap-4">
+                        <Avatar
+                          path={state.profile.photo}
+                          name={state.profile.name}
+                          size={72}
                         />
-                      </label>
-                      {state.profile.photo && (
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          disabled={busy}
-                          onClick={async () => {
-                            try {
-                              const path = state.profile.photo!;
-                              // Abre a original; fotos antigas só têm a editada.
-                              setEditingPhoto(
-                                await downloadPhoto(originalOf(path)).catch(
-                                  () => downloadPhoto(path),
-                                ),
-                              );
-                            } catch (e) {
-                              setNotice(
-                                e instanceof Error
-                                  ? e.message
-                                  : "Não foi possível abrir a foto.",
-                              );
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={busy}
+                            onClick={() => setCameraOpen(true)}
+                          >
+                            <RiCameraLine className="size-5" /> Tirar foto
+                          </button>
+                          <label className="btn-secondary relative">
+                            <RiImageLine className="size-5" /> Galeria
+                            <input
+                              className="absolute inset-0 cursor-pointer opacity-0"
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              disabled={busy}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                if (file) setEditingPhoto(file);
+                              }}
+                            />
+                          </label>
+                          {state.profile.photo && (
+                            <button
+                              type="button"
+                              className="btn-ghost"
+                              disabled={busy}
+                              onClick={async () => {
+                                try {
+                                  const path = state.profile.photo!;
+                                  // Abre a original; fotos antigas só têm a editada.
+                                  setEditingPhoto(
+                                    await downloadPhoto(originalOf(path)).catch(
+                                      () => downloadPhoto(path),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  setNotice(
+                                    e instanceof Error
+                                      ? e.message
+                                      : "Não foi possível abrir a foto.",
+                                  );
+                                }
+                              }}
+                            >
+                              <RiPencilLine className="size-5" /> Editar
+                            </button>
+                          )}
+                          {state.profile.photo && (
+                            <button
+                              type="button"
+                              className="btn-ghost text-ink-500 hover:text-brand-700"
+                              disabled={busy}
+                              onClick={async () => {
+                                if (
+                                  await confirmDialog({
+                                    title: "Remover foto de perfil?",
+                                    confirmLabel: "Remover",
+                                    danger: true,
+                                  })
+                                )
+                                  void changePhoto(null);
+                              }}
+                            >
+                              Remover
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <form className="space-y-4" onSubmit={saveProfile}>
+                        <Field label="Nome">
+                          <input
+                            className="input"
+                            name="name"
+                            maxLength={60}
+                            defaultValue={state.profile.name}
+                            placeholder="Como quer ser chamado(a)"
+                          />
+                        </Field>
+                        <div className="grid grid-cols-2 gap-3">
+                          <Field label="Altura">
+                            <NumberField
+                              name="height"
+                              unit="m"
+                              decimals={2}
+                              factor={100}
+                              min={100}
+                              max={250}
+                              required
+                              defaultValue={state.profile.height}
+                              placeholder="0,00"
+                            />
+                          </Field>
+                          <BirthDateField initial={state.profile.birthDate} />
+                        </div>
+                        <Field label="Gênero">
+                          <select
+                            className="input"
+                            name="gender"
+                            defaultValue={state.profile.gender}
+                          >
+                            {[
+                              "Mulher",
+                              "Homem",
+                              "Não binário",
+                              "Outro",
+                              "Prefiro não informar",
+                              "Não informado",
+                            ].map((x) => (
+                              <option key={x}>{x}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Coeficiente da fórmula basal">
+                          <select
+                            className="input"
+                            name="formulaSex"
+                            defaultValue={state.profile.formulaSex}
+                          >
+                            <option value="female">Feminino</option>
+                            <option value="male">Masculino</option>
+                          </select>
+                          <span className="hint block">
+                            A fórmula Mifflin–St Jeor só tem coeficientes
+                            feminino e masculino, sem relação com identidade de
+                            gênero. É uma estimativa para adultos e pode não
+                            refletir o seu caso.
+                          </span>
+                        </Field>
+                        <Field label="Nível de atividade (inclui exercícios)">
+                          <select
+                            className="input"
+                            name="activity"
+                            defaultValue={state.profile.activity}
+                          >
+                            <option value="1.2">Pouco ativo</option>
+                            <option value="1.375">Levemente ativo</option>
+                            <option value="1.55">Moderadamente ativo</option>
+                            <option value="1.725">Muito ativo</option>
+                          </select>
+                        </Field>
+                        <button className="btn-primary">
+                          <RiCheckLine className="size-5" /> Salvar perfil
+                        </button>
+                      </form>
+                    </Panel>
+                  </div>
+                  <div id="meta" className="mt-10 mb-4 scroll-mt-20">
+                    <h2 className="text-xl font-semibold tracking-tight">
+                      Meta de peso
+                    </h2>
+                    <p className="mt-1 text-ink-500">
+                      Defina um peso alvo e veja uma estimativa de prazo.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <Panel>
+                      <CardHeader title="Objetivo" />
+                      <form
+                        className="space-y-4"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const f = new FormData(e.currentTarget);
+                          const goal = Number(f.get("goal"));
+                          if (!weight) {
+                            setNotice(
+                              "Registre seu peso antes de definir a meta.",
+                            );
+                            return;
+                          }
+                          setState({ ...state, goal, intake: 0 });
+                          setNotice(
+                            goal < weight
+                              ? "Meta salva: as calorias do dia agora miram emagrecer."
+                              : goal > weight
+                                ? "Meta salva: as calorias do dia agora miram ganhar peso."
+                                : "Meta salva: as calorias do dia miram manter o peso.",
+                          );
+                        }}
+                      >
+                        <Field label="Peso desejado">
+                          <NumberField
+                            name="goal"
+                            unit="kg"
+                            decimals={1}
+                            min={20}
+                            max={400}
+                            required
+                            defaultValue={state.goal || null}
+                            placeholder="0,0"
+                          />
+                          <span className="hint block">
+                            Abaixo do peso atual, a meta de calorias é para
+                            emagrecer; acima, para ganhar peso.
+                          </span>
+                        </Field>
+                        <button className="btn-primary" type="submit">
+                          <RiCheckLine className="size-5" /> Salvar meta
+                        </button>
+                      </form>
+                      <dl className="mt-5 divide-y divide-line border-y border-line text-sm">
+                        <div className="flex justify-between gap-4 py-3">
+                          <dt className="text-ink-500">Objetivo</dt>
+                          <dd className="font-medium">
+                            {
+                              {
+                                lose: "Perder peso",
+                                gain: "Ganhar peso",
+                                maintain: "Manter o peso",
+                              }[goalDirection(weight, state.goal)]
                             }
-                          }}
-                        >
-                          <RiPencilLine className="size-5" /> Editar
-                        </button>
-                      )}
-                      {state.profile.photo && (
-                        <button
-                          type="button"
-                          className="btn-ghost text-ink-500 hover:text-brand-700"
-                          disabled={busy}
-                          onClick={async () => {
-                            if (
-                              await confirmDialog({
-                                title: "Remover foto de perfil?",
-                                confirmLabel: "Remover",
-                                danger: true,
-                              })
-                            )
-                              void changePhoto(null);
-                          }}
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
+                          </dd>
+                        </div>
+                        <div className="flex justify-between gap-4 py-3">
+                          <dt className="text-ink-500">
+                            Meta de calorias por dia
+                          </dt>
+                          <dd className="font-semibold tabular-nums">
+                            {target ? `${fmt(target.target)} kcal` : "—"}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p className={note + " mt-3"}>
+                        Calculada pelo app, sem valor manual: gasto do seu nível
+                        de atividade (basal × fator do perfil), menos 500 kcal
+                        para emagrecer ou mais 300 kcal para ganhar peso. Nunca
+                        fica abaixo de {fmt(minimumIntake(bmr, state.profile))}{" "}
+                        kcal (o seu basal ou 1.200 kcal no coeficiente feminino
+                        / 1.500 kcal no masculino, o que for maior). Nos dias em
+                        que seus exercícios passam desse gasto, a meta do dia
+                        sobe. O app não prescreve dietas.
+                      </p>
+                    </Panel>
+                    <Panel>
+                      <CardHeader title="Prazo estimado" />
+                      <div className="flex items-baseline gap-2">
+                        <strong className="text-5xl font-semibold tracking-tight tabular-nums">
+                          {days ? `~${fmt(days)}` : "—"}
+                        </strong>
+                        {days ? (
+                          <span className="text-ink-500">dias</span>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-sm text-ink-500">
+                        {days
+                          ? "Seguindo a meta de calorias todos os dias."
+                          : state.goal && state.goal !== weight
+                            ? "Com a meta no mínimo seguro, a diferença é pequena demais para estimar um prazo."
+                            : "Defina um peso desejado diferente do atual para calcular."}
+                      </p>
+                      <dl className="mt-4 divide-y divide-line border-y border-line text-sm">
+                        <div className="flex justify-between py-3">
+                          <dt className="text-ink-500">Basal estimado</dt>
+                          <dd className="font-medium tabular-nums">
+                            {bmr ? `${fmt(bmr)} kcal/dia` : "—"}
+                          </dd>
+                        </div>
+                        <div className="flex justify-between py-3">
+                          <dt className="text-ink-500">
+                            Gasto diário estimado
+                          </dt>
+                          <dd className="font-medium tabular-nums">
+                            {expenditure ? `${fmt(expenditure)} kcal/dia` : "—"}
+                          </dd>
+                        </div>
+                      </dl>
+                      <p className={note + " mt-4"}>
+                        Considera 7.700 kcal por kg e gasto constante, sem
+                        adaptação do metabolismo, então não é uma data
+                        garantida. Revise a meta com um profissional.
+                      </p>
+                    </Panel>
                   </div>
-                  <form className="space-y-4" onSubmit={saveProfile}>
-                    <Field label="Nome">
-                      <input
-                        className="input"
-                        name="name"
-                        maxLength={60}
-                        defaultValue={state.profile.name}
-                        placeholder="Como quer ser chamado(a)"
-                      />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Altura">
-                        <NumberField
-                          name="height"
-                          unit="m"
-                          decimals={2}
-                          factor={100}
-                          min={100}
-                          max={250}
-                          required
-                          defaultValue={state.profile.height}
-                          placeholder="0,00"
-                        />
-                      </Field>
-                      <BirthDateField initial={state.profile.birthDate} />
-                    </div>
-                    <Field label="Gênero">
-                      <select
-                        className="input"
-                        name="gender"
-                        defaultValue={state.profile.gender}
-                      >
-                        {[
-                          "Mulher",
-                          "Homem",
-                          "Não binário",
-                          "Outro",
-                          "Prefiro não informar",
-                          "Não informado",
-                        ].map((x) => (
-                          <option key={x}>{x}</option>
-                        ))}
-                      </select>
-                    </Field>
-                    <Field label="Coeficiente da fórmula basal">
-                      <select
-                        className="input"
-                        name="formulaSex"
-                        defaultValue={state.profile.formulaSex}
-                      >
-                        <option value="female">Feminino</option>
-                        <option value="male">Masculino</option>
-                      </select>
-                      <span className="hint block">
-                        A fórmula Mifflin–St Jeor só tem coeficientes feminino e
-                        masculino, sem relação com identidade de gênero. É uma
-                        estimativa para adultos e pode não refletir o seu caso.
-                      </span>
-                    </Field>
-                    <Field label="Nível de atividade (inclui exercícios)">
-                      <select
-                        className="input"
-                        name="activity"
-                        defaultValue={state.profile.activity}
-                      >
-                        <option value="1.2">Pouco ativo</option>
-                        <option value="1.375">Levemente ativo</option>
-                        <option value="1.55">Moderadamente ativo</option>
-                        <option value="1.725">Muito ativo</option>
-                      </select>
-                    </Field>
-                    <button className="btn-primary">
-                      <RiCheckLine className="size-5" /> Salvar perfil
-                    </button>
-                  </form>
-                </Panel>
-                  </div>
-              <div id="meta" className="mt-10 mb-4 scroll-mt-20">
-                <h2 className="text-xl font-semibold tracking-tight">
-                  Meta de peso
-                </h2>
-                <p className="mt-1 text-ink-500">
-                  Defina um peso alvo e veja uma estimativa de prazo.
-                </p>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <Panel>
-                  <CardHeader title="Objetivo" />
-                  <form
-                    className="space-y-4"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const f = new FormData(e.currentTarget);
-                      const goal = Number(f.get("goal"));
-                      if (!weight) {
-                        setNotice("Registre seu peso antes de definir a meta.");
-                        return;
-                      }
-                      setState({ ...state, goal, intake: 0 });
-                      setNotice(
-                        goal < weight
-                          ? "Meta salva: as calorias do dia agora miram emagrecer."
-                          : goal > weight
-                            ? "Meta salva: as calorias do dia agora miram ganhar peso."
-                            : "Meta salva: as calorias do dia miram manter o peso.",
-                      );
-                    }}
-                  >
-                    <Field label="Peso desejado">
-                      <NumberField
-                        name="goal"
-                        unit="kg"
-                        decimals={1}
-                        min={20}
-                        max={400}
-                        required
-                        defaultValue={state.goal || null}
-                        placeholder="0,0"
-                      />
-                      <span className="hint block">
-                        Abaixo do peso atual, a meta de calorias é para
-                        emagrecer; acima, para ganhar peso.
-                      </span>
-                    </Field>
-                    <button className="btn-primary" type="submit">
-                      <RiCheckLine className="size-5" /> Salvar meta
-                    </button>
-                  </form>
-                  <dl className="mt-5 divide-y divide-line border-y border-line text-sm">
-                    <div className="flex justify-between gap-4 py-3">
-                      <dt className="text-ink-500">Objetivo</dt>
-                      <dd className="font-medium">
-                        {
-                          {
-                            lose: "Perder peso",
-                            gain: "Ganhar peso",
-                            maintain: "Manter o peso",
-                          }[goalDirection(weight, state.goal)]
-                        }
-                      </dd>
-                    </div>
-                    <div className="flex justify-between gap-4 py-3">
-                      <dt className="text-ink-500">Meta de calorias por dia</dt>
-                      <dd className="font-semibold tabular-nums">
-                        {target ? `${fmt(target.target)} kcal` : "—"}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className={note + " mt-3"}>
-                    Calculada pelo app, sem valor manual: gasto do seu nível de
-                    atividade (basal × fator do perfil), menos 500 kcal para
-                    emagrecer ou mais 300 kcal para ganhar peso. Nunca fica
-                    abaixo de {fmt(minimumIntake(bmr, state.profile))} kcal (o
-                    seu basal ou 1.200 kcal no coeficiente feminino / 1.500 kcal
-                    no masculino, o que for maior). Nos dias em que seus
-                    exercícios passam desse gasto, a meta do dia sobe. O app não
-                    prescreve dietas.
-                  </p>
-                </Panel>
-                <Panel>
-                  <CardHeader title="Prazo estimado" />
-                  <div className="flex items-baseline gap-2">
-                    <strong className="text-5xl font-semibold tracking-tight tabular-nums">
-                      {days ? `~${fmt(days)}` : "—"}
-                    </strong>
-                    {days ? <span className="text-ink-500">dias</span> : null}
-                  </div>
-                  <p className="mt-2 text-sm text-ink-500">
-                    {days
-                      ? "Seguindo a meta de calorias todos os dias."
-                      : state.goal && state.goal !== weight
-                        ? "Com a meta no mínimo seguro, a diferença é pequena demais para estimar um prazo."
-                        : "Defina um peso desejado diferente do atual para calcular."}
-                  </p>
-                  <dl className="mt-4 divide-y divide-line border-y border-line text-sm">
-                    <div className="flex justify-between py-3">
-                      <dt className="text-ink-500">Basal estimado</dt>
-                      <dd className="font-medium tabular-nums">
-                        {bmr ? `${fmt(bmr)} kcal/dia` : "—"}
-                      </dd>
-                    </div>
-                    <div className="flex justify-between py-3">
-                      <dt className="text-ink-500">Gasto diário estimado</dt>
-                      <dd className="font-medium tabular-nums">
-                        {expenditure ? `${fmt(expenditure)} kcal/dia` : "—"}
-                      </dd>
-                    </div>
-                  </dl>
-                  <p className={note + " mt-4"}>
-                    Considera 7.700 kcal por kg e gasto constante, sem adaptação
-                    do metabolismo, então não é uma data garantida. Revise a
-                    meta com um profissional.
-                  </p>
-                </Panel>
-              </div>
                 </>
               )}
               {section === "appearance" && (
@@ -2052,9 +2091,7 @@ export default function App({ account }: { account: User }) {
                   </Panel>
                 </div>
               )}
-              {section === "help" && (
-                <Help onTutorial={() => setTutorial(0)} />
-              )}
+              {section === "help" && <Help onTutorial={() => setTutorial(0)} />}
             </>
           )}
           <footer className="mt-10 border-t border-line pt-5 pb-2 text-xs text-ink-400">
@@ -2098,6 +2135,13 @@ export default function App({ account }: { account: User }) {
           name={firstName}
           age={profileAge(state.profile)}
           onClose={() => setBirthday(false)}
+        />
+      )}
+      {tutorial !== null && state.profileReviewed && (
+        <Tutorial
+          step={tutorial}
+          onStep={setTutorial}
+          onClose={() => setTutorial(null)}
         />
       )}
       {celebration && (

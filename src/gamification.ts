@@ -297,3 +297,70 @@ export function otterFitness(people: DayGoals[][]) {
     }
   return done / (people.length * days.length * 3);
 }
+
+/**
+ * Bichinho que evolui com o nível: ovo (1–5 parado, 6–9 tremendo e
+ * rachando), a Pipoca nasce no 10 e cresce até o 20; no 21 vem um ovo de
+ * crocodilo (21–25 parado, 26–29 balançando), o Tuca nasce no 30 e cresce
+ * até o 40.
+ */
+export type PetStage = {
+  line: "chick" | "croc";
+  phase: "egg" | "young" | "adult";
+  /** 0 = acabou de nascer, 1 = adulto. */
+  growth: number;
+  /** Rachaduras no ovo (0 a 4). */
+  cracks: number;
+  motion: "still" | "shake" | "wobble" | "idle";
+  name: string;
+  label: string;
+};
+export const PET_NAMES = { chick: "Pipoca", croc: "Tuca" } as const;
+
+export function petStage(level: number): PetStage {
+  const egg = (line: PetStage["line"], start: number): PetStage => {
+    const shaking = level >= start + 5;
+    return {
+      line,
+      phase: "egg",
+      growth: 0,
+      cracks: shaking ? Math.min(4, level - (start + 4)) : 0,
+      motion: shaking ? (line === "chick" ? "shake" : "wobble") : "still",
+      name: line === "chick" ? "Ovo" : "Ovo de crocodilo",
+      label: shaking ? "Está quase nascendo!" : "Cuide bem do ovo.",
+    };
+  };
+  const born = (line: PetStage["line"], at: number): PetStage => {
+    const growth = Math.min(1, (level - at) / 10);
+    return {
+      line,
+      phase: growth >= 1 ? "adult" : "young",
+      growth,
+      cracks: 0,
+      motion: "idle",
+      name: PET_NAMES[line],
+      label:
+        growth >= 1
+          ? line === "chick"
+            ? "Virou uma galinha linda!"
+            : "Um crocodilo adulto e forte!"
+          : `Crescendo: ${Math.round(growth * 100)}%`,
+    };
+  };
+  if (level < 10) return egg("chick", 1);
+  if (level <= 20) return born("chick", 10);
+  if (level < 30) return egg("croc", 21);
+  return born("croc", 30);
+}
+
+/** Fases da coleção ("Meus bichinhos"): nível em que cada uma aparece. */
+export const PET_PHASES = [
+  { level: 1, line: "chick", label: "Ovo" },
+  { level: 10, line: "chick", label: "Pipoca filhote" },
+  { level: 15, line: "chick", label: "Pipoca jovem" },
+  { level: 20, line: "chick", label: "Pipoca adulta" },
+  { level: 21, line: "croc", label: "Ovo de crocodilo" },
+  { level: 30, line: "croc", label: "Tuca filhote" },
+  { level: 35, line: "croc", label: "Tuca jovem" },
+  { level: 40, line: "croc", label: "Tuca adulto" },
+] as const;

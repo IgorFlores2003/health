@@ -102,3 +102,24 @@ test("otter gets fitter only when both buddies meet the goals", async () => {
   assert.equal(otterFitness([none]), 0);
   assert.equal(otterFitness([]), 0);
 });
+
+test("pet evolves with the level: eggs, hatching and growth", async () => {
+  const { petStage } = await import("../src/gamification.ts");
+  const s = (n) => petStage(n);
+  assert.deepEqual([s(1).phase, s(5).motion, s(5).cracks], ["egg", "still", 0]);
+  assert.deepEqual([s(6).motion, s(6).cracks, s(9).cracks], ["shake", 1, 4]);
+  assert.deepEqual(
+    [s(10).name, s(10).phase, s(10).growth],
+    ["Pipoca", "young", 0],
+  );
+  assert.deepEqual([s(15).growth, s(20).phase], [0.5, "adult"]);
+  assert.deepEqual(
+    [s(21).line, s(21).phase, s(25).motion],
+    ["croc", "egg", "still"],
+  );
+  assert.deepEqual([s(26).motion, s(29).cracks], ["wobble", 4]);
+  assert.deepEqual(
+    [s(30).name, s(40).phase, s(55).phase],
+    ["Tuca", "adult", "adult"],
+  );
+});
