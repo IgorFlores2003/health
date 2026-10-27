@@ -4,45 +4,44 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { today, type State } from "./domain";
 import { analyzePeriod } from "./report";
 
-const periods = [
-  { id: "7", label: "7 dias" },
-  { id: "30", label: "30 dias" },
-  { id: "90", label: "90 dias" },
-  { id: "all", label: "Tudo" },
-];
-
-function firstDate(state: State) {
+/** Primeira data com algum registro (período "Tudo"). */
+export function firstDate(state: State) {
   const dates = [
     ...state.weights,
     ...state.exercises,
     ...state.pressures,
     ...(state.foods ?? []),
+    ...(state.water ?? []),
   ].map((x) => x.date);
   return dates.length ? dates.sort()[0] : today();
 }
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - (n - 1));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+
+const label = (d: string) =>
+  new Date(d + "T12:00:00").toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 
 /** Plugin nativo (android/.../FileOpenerPlugin.java): abre no leitor de PDF. */
 const FileOpener = registerPlugin<{
   open(options: { uri: string; mime: string }): Promise<void>;
 }>("FileOpener");
 
-/** Gera o PDF com todas as marcações e o resumo do período escolhido. */
+/** Gera o PDF com todas as marcações e o resumo do período do filtro. */
 export default function ReportCard({
   state,
+  from,
+  to,
   onError,
 }: {
   state: State;
+  /** Período do filtro da aba Registros. */
+  from: string;
+  to: string;
   onError: (message: string) => void;
 }) {
-  const [period, setPeriod] = useState("30");
   const [busy, setBusy] = useState(false);
-  const from = period === "all" ? firstDate(state) : daysAgo(Number(period));
-  const to = today();
   const r = useMemo(() => analyzePeriod(state, from, to), [state, from, to]);
   const total =
     r.foods.length + r.exercises.length + r.weights.length + r.pressures.length;
@@ -105,26 +104,14 @@ export default function ReportCard({
               Todas as marcações do período, um resumo da trajetória, os dias
               ótimos, os dias em que pesou a mão e o que dá para melhorar.
             </p>
+            <p className="mt-1 text-sm font-medium text-ink-700">
+              {from === to
+                ? `Dia ${label(from)}`
+                : `De ${label(from)} a ${label(to)}`}
+            </p>
           </div>
         </div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-          <div
-            className="flex rounded-lg border border-line p-0.5"
-            role="radiogroup"
-            aria-label="Período"
-          >
-            {periods.map((p) => (
-              <button
-                key={p.id}
-                role="radio"
-                aria-checked={period === p.id}
-                className={`min-h-9 rounded-md px-3 text-sm font-medium ${period === p.id ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-surface"}`}
-                onClick={() => setPeriod(p.id)}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
           <button
             className="btn-primary"
             disabled={busy || total === 0}

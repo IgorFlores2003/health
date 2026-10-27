@@ -43,8 +43,8 @@ import {
   RiPulseLine,
   RiSideBarFill,
   RiSideBarLine,
-  RiRestaurant2Fill,
-  RiRestaurant2Line,
+  RiCalendarCheckFill,
+  RiCalendarCheckLine,
   RiScales3Line,
   RiUser3Fill,
   RiUser3Line,
@@ -82,7 +82,7 @@ import { confirmDialog } from "./confirm";
 import { useCloudSync, type SyncStatus } from "./sync";
 import Onboarding from "./Onboarding";
 import PressureFields from "./PressureFields";
-import ReportCard from "./ReportCard";
+import ReportCard, { firstDate } from "./ReportCard";
 import WeightFields from "./WeightFields";
 import AccentPicker from "./AccentPicker";
 import { applyAccent, DEFAULT_ACCENT, nearestPreset } from "./theme";
@@ -129,8 +129,8 @@ const tabs: {
     id: "nutrition",
     label: "Diário",
     short: "Diário",
-    icon: RiRestaurant2Line,
-    active: RiRestaurant2Fill,
+    icon: RiCalendarCheckLine,
+    active: RiCalendarCheckFill,
   },
   {
     id: "records",
@@ -389,7 +389,12 @@ export default function App({ account }: { account: User }) {
   const [period, setPeriod] = useState("30");
   // Filtro de dias da aba Registros.
   const [recPeriod, setRecPeriod] = useState("30");
-  const [recDay, setRecDay] = useState(today);
+  const [customFrom, setCustomFrom] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 6);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
+  const [customTo, setCustomTo] = useState(today);
   const [busy, setBusy] = useState(false);
   const [answer, setAnswer] = useState("");
   const [question, setQuestion] = useState("");
@@ -520,17 +525,19 @@ export default function App({ account }: { account: User }) {
         .reduce((s, x) => s + x.minutes, 0),
     };
   });
-  const recFrom = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() - (Number(recPeriod) - 1));
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  })();
-  const inRecords = (date: string) =>
+  // Um período para o relatório e as listas da aba Registros.
+  const recFrom =
     recPeriod === "all"
-      ? true
-      : recPeriod === "day"
-        ? date === recDay
-        : date >= recFrom;
+      ? firstDate(state)
+      : recPeriod === "custom"
+        ? customFrom
+        : (() => {
+            const d = new Date();
+            d.setDate(d.getDate() - (Number(recPeriod) - 1));
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          })();
+  const recTo = recPeriod === "custom" ? customTo : today();
+  const inRecords = (date: string) => date >= recFrom && date <= recTo;
   const recFoods = (state.foods ?? []).filter((f) => inRecords(f.date));
   const recWater = (state.water ?? []).filter((w) => inRecords(w.date));
   async function submitRecord(e: FormEvent<HTMLFormElement>) {
@@ -1280,14 +1287,11 @@ export default function App({ account }: { account: User }) {
                 title="Registros"
                 text="Peso, exercícios, pressão arterial, alimentação e água."
               />
-              <div className="mb-5">
-                <ReportCard state={state} onError={setNotice} />
-              </div>
-              <div className="mb-4 flex flex-wrap items-end gap-3">
+              <div className="mb-5 flex flex-wrap items-end gap-3">
                 <div
                   className="flex flex-wrap rounded-lg border border-line p-0.5"
                   role="radiogroup"
-                  aria-label="Dias dos registros"
+                  aria-label="Período do relatório e dos registros"
                 >
                   {[
                     ["1", "Hoje"],
@@ -1295,7 +1299,7 @@ export default function App({ account }: { account: User }) {
                     ["30", "30 dias"],
                     ["90", "90 dias"],
                     ["all", "Tudo"],
-                    ["day", "Escolher dia"],
+                    ["custom", "Personalizado"],
                   ].map(([id, label]) => (
                     <button
                       key={id}
@@ -1308,18 +1312,48 @@ export default function App({ account }: { account: User }) {
                     </button>
                   ))}
                 </div>
-                {recPeriod === "day" && (
-                  <input
-                    className="input w-auto"
-                    type="date"
-                    aria-label="Dia dos registros"
-                    max={today()}
-                    value={recDay}
-                    onChange={(e) =>
-                      e.target.value && setRecDay(e.target.value)
-                    }
-                  />
+                {recPeriod === "custom" && (
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="block">
+                      <span className="label">De</span>
+                      <input
+                        className="input w-auto"
+                        type="date"
+                        max={customTo}
+                        value={customFrom}
+                        onChange={(e) =>
+                          e.target.value &&
+                          e.target.value <= customTo &&
+                          setCustomFrom(e.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="label">Até</span>
+                      <input
+                        className="input w-auto"
+                        type="date"
+                        min={customFrom}
+                        max={today()}
+                        value={customTo}
+                        onChange={(e) =>
+                          e.target.value &&
+                          e.target.value >= customFrom &&
+                          e.target.value <= today() &&
+                          setCustomTo(e.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
                 )}
+              </div>
+              <div className="mb-5">
+                <ReportCard
+                  state={state}
+                  from={recFrom}
+                  to={recTo}
+                  onError={setNotice}
+                />
               </div>
               <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
                 <button
@@ -1999,7 +2033,7 @@ export default function App({ account }: { account: User }) {
                       <dd className="font-medium">
                         {
                           {
-                            lose: "Emagrecer",
+                            lose: "Perder peso",
                             gain: "Ganhar peso",
                             maintain: "Manter o peso",
                           }[goalDirection(weight, state.goal)]
