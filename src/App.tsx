@@ -14,13 +14,15 @@ import CameraCapture from "./CameraCapture";
 import type { User } from "@supabase/supabase-js";
 import { userStorageKey } from "./access";
 import AccountAccess from "./AccountAccess";
-import { Avatar, removePhotos, uploadPhoto } from "./photos";
+import { Avatar, downloadPhoto, removePhotos, uploadPhoto } from "./photos";
+import PhotoEditor from "./PhotoEditor";
 import { useEffect, useState, useRef, type FormEvent } from "react";
 import type { IconType } from "react-icons";
 import {
   RiAddLine,
   RiArrowRightLine,
   RiCameraLine,
+  RiPencilLine,
   RiComputerLine,
   RiMoonLine,
   RiSunLine,
@@ -201,6 +203,8 @@ export default function App({ account }: { account: User }) {
   }, [tab]);
   const [modal, setModal] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  // Foto escolhida/tirada (ou a atual) aberta no editor antes de salvar.
+  const [editingPhoto, setEditingPhoto] = useState<Blob | null>(null);
   const [mode, setMode] = useState(colorMode);
   // Modo "Sistema" também muda sozinho: acompanha para o ícone do topo.
   const [dark, setDark] = useState(isDark);
@@ -1326,10 +1330,32 @@ export default function App({ account }: { account: User }) {
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             e.target.value = "";
-                            if (file) void changePhoto(file);
+                            if (file) setEditingPhoto(file);
                           }}
                         />
                       </label>
+                      {state.profile.photo && (
+                        <button
+                          type="button"
+                          className="btn-ghost"
+                          disabled={busy}
+                          onClick={async () => {
+                            try {
+                              setEditingPhoto(
+                                await downloadPhoto(state.profile.photo!),
+                              );
+                            } catch (e) {
+                              setNotice(
+                                e instanceof Error
+                                  ? e.message
+                                  : "Não foi possível abrir a foto.",
+                              );
+                            }
+                          }}
+                        >
+                          <RiPencilLine className="size-5" /> Editar
+                        </button>
+                      )}
                       {state.profile.photo && (
                         <button
                           type="button"
@@ -1648,13 +1674,23 @@ export default function App({ account }: { account: User }) {
           </footer>
         </div>
       </main>
+      {editingPhoto && (
+        <PhotoEditor
+          source={editingPhoto}
+          onClose={() => setEditingPhoto(null)}
+          onSave={(file) => {
+            setEditingPhoto(null);
+            void changePhoto(file);
+          }}
+        />
+      )}
       {cameraOpen && (
         <CameraCapture
           title="Foto de perfil"
           onClose={() => setCameraOpen(false)}
           onCapture={(file) => {
             setCameraOpen(false);
-            void changePhoto(file);
+            setEditingPhoto(file);
           }}
         />
       )}

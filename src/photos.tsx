@@ -56,6 +56,14 @@ export async function uploadPhoto(
   return path;
 }
 
+/** Baixa uma foto salva (ex.: para editar a foto de perfil). */
+export async function downloadPhoto(path: string) {
+  if (!supabase) throw Error("Conecte-se para editar a foto.");
+  const { data, error } = await supabase.storage.from(BUCKET).download(path);
+  if (error || !data) throw Error("Não foi possível abrir a foto salva.");
+  return data;
+}
+
 export async function removePhotos(paths: string[] | undefined) {
   if (!supabase || !paths?.length) return;
   paths.forEach((p) => urls.delete(p));
