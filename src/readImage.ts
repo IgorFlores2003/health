@@ -70,6 +70,8 @@ export function fill(
     return false;
   if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
     el.value = String(value);
+    // Campos com máscara (NumberField) atualizam o texto visível.
+    el.dispatchEvent(new Event("fill"));
     return true;
   }
   return false;

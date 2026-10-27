@@ -1,3 +1,4 @@
+import NumberField from "./NumberField";
 import { useEffect, useState } from "react";
 import { RiCameraLine, RiCheckLine, RiSparkling2Line } from "react-icons/ri";
 import { readImage, type MealReading } from "./readImage";
@@ -171,22 +172,16 @@ export default function MealPhoto({
                         aria-label="Alimento"
                         onChange={(e) => set(i, { name: e.target.value })}
                       />
-                      <div className="flex items-center gap-2">
-                        <input
-                          className="input min-h-10 w-24"
-                          type="number"
-                          inputMode="decimal"
-                          min="1"
-                          max="3000"
-                          step="any"
-                          value={x.grams || ""}
-                          aria-label="Gramas"
-                          onChange={(e) =>
-                            set(i, { grams: Number(e.target.value) })
-                          }
-                        />
-                        <span className="text-sm text-ink-500">g</span>
-                      </div>
+                      <NumberField
+                        className="w-28"
+                        unit="g"
+                        min={1}
+                        max={3000}
+                        aria-label="Gramas"
+                        value={x.grams || null}
+                        onChange={(v) => set(i, { grams: v ?? 0 })}
+                        placeholder="0"
+                      />
                     </div>
                     <span className="w-20 shrink-0 text-right text-sm tabular-nums">
                       {kcal((x.grams * x.kcalPer100g) / 100)}

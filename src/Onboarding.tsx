@@ -1,3 +1,4 @@
+import NumberField from "./NumberField";
 import { useState, type FormEvent } from "react";
 import { RiArrowRightLine, RiPulseLine } from "react-icons/ri";
 import { today, type State } from "./domain";
@@ -123,43 +124,40 @@ export default function Onboarding({
           </label>
           <div className="grid grid-cols-2 gap-3">
             <label className="block">
-              <span className="label">Idade (anos)</span>
-              <input
-                className="input"
+              <span className="label">Idade</span>
+              <NumberField
                 name="age"
-                type="number"
-                inputMode="numeric"
-                min="18"
-                max="100"
+                unit="anos"
+                min={18}
+                max={100}
                 required
                 defaultValue={state.profileReviewed ? p.age : undefined}
+                placeholder="30"
               />
             </label>
             <label className="block">
-              <span className="label">Peso (kg)</span>
-              <input
-                className="input"
+              <span className="label">Peso</span>
+              <NumberField
                 name="weight"
-                type="number"
-                inputMode="decimal"
-                min="20"
-                max="400"
-                step="0.1"
+                unit="kg"
+                decimals={1}
+                min={20}
+                max={400}
                 required
+                placeholder="0,0"
               />
             </label>
           </div>
           <label className="block">
-            <span className="label">Peso desejado (kg) · opcional</span>
-            <input
-              className="input"
+            <span className="label">Peso desejado · opcional</span>
+            <NumberField
               name="goal"
-              type="number"
-              inputMode="decimal"
-              min="20"
-              max="400"
-              step="0.1"
+              unit="kg"
+              decimals={1}
+              min={20}
+              max={400}
               defaultValue={state.goal || undefined}
+              placeholder="0,0"
             />
             <span className="hint block">
               Abaixo do seu peso, as calorias do dia miram emagrecer; acima,
@@ -167,17 +165,17 @@ export default function Onboarding({
             </span>
           </label>
           <label className="block">
-            <span className="label">Altura (cm)</span>
-            <input
-              className="input"
+            <span className="label">Altura</span>
+            <NumberField
               name="height"
-              type="number"
-              inputMode="decimal"
-              min="100"
-              max="250"
-              step="0.1"
+              unit="m"
+              decimals={2}
+              factor={100}
+              min={100}
+              max={250}
               required
               defaultValue={state.profileReviewed ? p.height : undefined}
+              placeholder="0,00"
             />
           </label>
           <label className="block">

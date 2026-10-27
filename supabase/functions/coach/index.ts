@@ -47,13 +47,24 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return response({ error: "Método inválido" }, 405);
   const token = req.headers.get("Authorization")?.replace(/^Bearer /, "");
   if (!token) return response({ error: "Não autorizado" }, 401);
+  // Cliente com o token da pessoa: as regras de acesso do banco valem para ele.
   const client = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: `Bearer ${token}` } } },
   );
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user || !data.user.email_confirmed_at)
     return response({ error: "Não autorizado" }, 401);
+  // Limite de uso da IA por pessoa (supabase/migrations/…_security.sql).
+  const quota = await client.rpc("consume_ai_quota");
+  if (quota.error)
+    return response({ error: "Serviço temporariamente indisponível" }, 503);
+  if (quota.data !== true)
+    return response(
+      { error: "Limite de uso da IA atingido. Tente de novo mais tarde." },
+      429,
+    );
   try {
     const raw = await req.text();
     if (raw.length > 3000000)
@@ -251,9 +262,10 @@ Deno.serve(async (req) => {
       .filter(Boolean);
     if (!key || !models.length)
       return response({ error: "Assistente não configurado" }, 503);
-    let result: Response | undefined;
-    for (const model of models) {
-      result = await fetch(
+    // Leituras (foto, áudio, alimento) são extração direta: raciocínio
+    // mínimo, que é o que mais demora. Perguntas usam raciocínio baixo.
+    const call = (model: string, thinking: boolean) =>
+      fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
         {
           method: "POST",
@@ -261,7 +273,7 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
             "x-goog-api-key": key,
           },
-          signal: AbortSignal.timeout(30000),
+          signal: AbortSignal.timeout(25000),
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: instructions }] },
             contents: [
@@ -274,7 +286,14 @@ Deno.serve(async (req) => {
               },
             ],
             generationConfig: {
-              maxOutputTokens: 1800,
+              maxOutputTokens: schema ? 1000 : 1500,
+              ...(thinking
+                ? {
+                    thinkingConfig: {
+                      thinkingLevel: schema ? "minimal" : "low",
+                    },
+                  }
+                : {}),
               ...(schema
                 ? {
                     responseMimeType: "application/json",
@@ -285,6 +304,17 @@ Deno.serve(async (req) => {
           }),
         },
       );
+    let result: Response | undefined;
+    for (const model of models) {
+      try {
+        result = await call(model, true);
+        // Modelo que não aceita o nível de raciocínio: repete sem ele.
+        if (result.status === 400) result = await call(model, false);
+      } catch {
+        // Demorou demais: tenta o próximo modelo da lista.
+        result = undefined;
+        continue;
+      }
       if (![404, 429, 500, 503].includes(result.status)) break;
     }
     if (!result?.ok)

@@ -51,6 +51,8 @@ export function authConfiguration(env, templates) {
       disable_signup: false,
       mailer_autoconfirm: false,
       mailer_secure_email_change_enabled: true,
+      // Mesma regra da tela de cadastro (src/auth.ts), valendo no servidor.
+      password_min_length: 8,
       smtp_admin_email: env.SMTP_FROM_EMAIL,
       smtp_host: env.SMTP_HOST,
       smtp_port: String(port),

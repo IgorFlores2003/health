@@ -1,3 +1,4 @@
+import NumberField from "./NumberField";
 import { useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import { RiChat3Line, RiCheckLine } from "react-icons/ri";
 import MealPhoto from "./MealPhoto";
@@ -10,6 +11,38 @@ const kcal = (n: number | null) =>
   n === null
     ? "—"
     : `${n.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} kcal`;
+
+// Estimativas já feitas ficam no aparelho: o mesmo alimento descrito do
+// mesmo jeito volta na hora, sem chamar a IA de novo.
+const CACHE_KEY = "ritmo-food-estimates";
+const MAX_CACHED = 300;
+type Estimate = { kcalPer100g: number; portionGrams: number | null; note: string };
+const cacheKey = (name: string) =>
+  name.trim().toLowerCase().replace(/\s+/g, " ");
+function readCache(): Record<string, Estimate> {
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+function cachedEstimate(name: string) {
+  return readCache()[cacheKey(name)] ?? null;
+}
+function saveEstimate(name: string, e: Estimate) {
+  try {
+    const entries = Object.entries(readCache()).filter(
+      ([k]) => k !== cacheKey(name),
+    );
+    entries.push([cacheKey(name), e]);
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify(Object.fromEntries(entries.slice(-MAX_CACHED))),
+    );
+  } catch {
+    /* sem espaço: só não guarda */
+  }
+}
 
 /**
  * Registrar ou editar alimento: foto do prato, voz ou à mão (com estimativa
@@ -53,10 +86,15 @@ export default function FoodSheet({
     setError("");
     const id = ++estimateId.current;
     try {
-      const { data, error } = await supabase.functions.invoke("coach", {
-        body: { action: "estimate-food", name: name.trim() },
-      });
+      const cached = cachedEstimate(name);
+      const { data, error } = cached
+        ? { data: cached, error: null }
+        : await supabase.functions.invoke("coach", {
+            body: { action: "estimate-food", name: name.trim() },
+          });
       if (id !== estimateId.current) return;
+      if (!error && !cached && typeof data?.kcalPer100g === "number")
+        saveEstimate(name, data);
       if (!error && data?.kcalPer100g === null) {
         setError(
           typeof data.note === "string"
@@ -208,20 +246,18 @@ export default function FoodSheet({
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
-                  <span className="label">Gramas</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min="0.1"
-                    max="10000"
-                    step="any"
+                  <span className="label">Quantidade</span>
+                  <NumberField
+                    unit="g"
+                    min={0.1}
+                    max={10000}
                     required
-                    value={grams}
-                    onChange={(e) => {
-                      setGrams(e.target.value);
+                    value={grams === "" ? null : Number(grams)}
+                    onChange={(v) => {
+                      setGrams(v === null ? "" : String(v));
                       setGramsFromAi(false);
                     }}
-                    placeholder="Ou deixe a IA estimar"
+                    placeholder="0"
                   />
                   {gramsFromAi && (
                     <span className="hint block">
@@ -230,20 +266,19 @@ export default function FoodSheet({
                   )}
                 </label>
                 <label className="block">
-                  <span className="label">kcal por 100 g</span>
-                  <input
-                    className="input"
-                    type="number"
-                    min="0"
-                    max="900"
-                    step="any"
-                    value={per100}
-                    onChange={(e) => {
-                      setPer100(e.target.value);
+                  <span className="label">Calorias por 100 g</span>
+                  <NumberField
+                    unit="kcal"
+                    decimals={1}
+                    min={0}
+                    max={900}
+                    value={per100 === "" ? null : Number(per100)}
+                    onChange={(v) => {
+                      setPer100(v === null ? "" : String(v));
                       setSource("label");
                       setNote("");
                     }}
-                    placeholder="Do rótulo"
+                    placeholder="0,0"
                   />
                 </label>
               </div>

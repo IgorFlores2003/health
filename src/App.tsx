@@ -95,6 +95,8 @@ import VoiceButton from "./VoiceButton";
 import { readAudio } from "./voice";
 import Videos from "./Videos";
 import { useLegal } from "./Legal";
+import { quickAnswer } from "./quickAnswers";
+import NumberField from "./NumberField";
 function readLocal(localKey: string): State {
   try {
     const s = JSON.parse(localStorage.getItem(localKey) || "null");
@@ -742,6 +744,13 @@ export default function App({ account }: { account: User }) {
   }
   async function ask(e: FormEvent) {
     e.preventDefault();
+    // Perguntas óbvias têm resposta na hora, calculada no aparelho.
+    const quick = quickAnswer(question, state, diaryDate);
+    if (quick) {
+      aiRequest.current += 1;
+      setAnswer(quick);
+      return;
+    }
     if (!supabase || !user) return;
     setBusy(true);
     setAnswer("");
@@ -1804,25 +1813,25 @@ export default function App({ account }: { account: User }) {
                       />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Altura (cm)">
-                        <input
-                          className="input"
+                      <Field label="Altura">
+                        <NumberField
                           name="height"
-                          type="number"
-                          min="100"
-                          max="250"
-                          step="0.1"
+                          unit="m"
+                          decimals={2}
+                          factor={100}
+                          min={100}
+                          max={250}
                           required
                           defaultValue={state.profile.height}
+                          placeholder="0,00"
                         />
                       </Field>
-                      <Field label="Idade (anos)">
-                        <input
-                          className="input"
+                      <Field label="Idade">
+                        <NumberField
                           name="age"
-                          type="number"
-                          min="18"
-                          max="100"
+                          unit="anos"
+                          min={18}
+                          max={100}
                           required
                           defaultValue={state.profile.age}
                         />
@@ -1964,16 +1973,16 @@ export default function App({ account }: { account: User }) {
                       );
                     }}
                   >
-                    <Field label="Peso desejado (kg)">
-                      <input
-                        className="input"
+                    <Field label="Peso desejado">
+                      <NumberField
                         name="goal"
-                        type="number"
-                        min="20"
-                        max="400"
-                        step="0.1"
+                        unit="kg"
+                        decimals={1}
+                        min={20}
+                        max={400}
                         required
-                        defaultValue={state.goal || ""}
+                        defaultValue={state.goal || null}
+                        placeholder="0,0"
                       />
                       <span className="hint block">
                         Abaixo do peso atual, a meta de calorias é para

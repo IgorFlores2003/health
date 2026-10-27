@@ -1,3 +1,4 @@
+import NumberField from "./NumberField";
 import { useEffect, useRef, useState } from "react";
 import {
   EXERCISE_TYPES,
@@ -82,17 +83,15 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       </label>
       {manual && (
         <label className="block">
-          <span className="label">Calorias ativas (kcal)</span>
-          <input
-            className="input"
+          <span className="label">Calorias ativas</span>
+          <NumberField
             name="activeCalories"
-            type="number"
-            min="0"
-            max="10000"
-            step="any"
+            unit="kcal"
+            min={0}
+            max={10000}
             required
             defaultValue={initial?.activeCalories}
-            placeholder="Ex.: 250"
+            placeholder="250"
           />
         </label>
       )}
@@ -117,31 +116,26 @@ export default function ExerciseFields({ initial }: { initial?: Exercise }) {
       </label>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="label">Distância (km)</span>
-          <input
-            className="input"
+          <span className="label">Distância · opcional</span>
+          <NumberField
             name="distanceKm"
-            type="number"
-            inputMode="decimal"
-            min="0.01"
-            max="1000"
-            step="any"
+            unit="km"
+            decimals={2}
+            min={0.01}
+            max={1000}
             defaultValue={initial?.distanceKm}
-            placeholder="Opcional"
+            placeholder="0,00"
           />
         </label>
         <label className="block">
-          <span className="label">Elevação (m)</span>
-          <input
-            className="input"
+          <span className="label">Elevação · opcional</span>
+          <NumberField
             name="elevationM"
-            type="number"
-            inputMode="numeric"
-            min="0"
-            max="10000"
-            step="any"
+            unit="m"
+            min={0}
+            max={10000}
             defaultValue={initial?.elevationM}
-            placeholder="Opcional"
+            placeholder="0"
           />
         </label>
       </div>

@@ -1,3 +1,4 @@
+import NumberField from "./NumberField";
 import { MAX_PHOTOS, type Weight } from "./domain";
 import PhotoField from "./PhotoField";
 import { fill, readImage, type ScaleReading } from "./readImage";
@@ -26,18 +27,16 @@ export default function WeightFields({ initial }: { initial?: Weight }) {
         />
       </div>
       <label className="block">
-        <span className="label">Peso (kg)</span>
-        <input
-          className="input"
+        <span className="label">Peso</span>
+        <NumberField
           name="value"
-          type="number"
-          inputMode="decimal"
-          min="20"
-          max="400"
-          step="any"
+          unit="kg"
+          decimals={1}
+          min={20}
+          max={400}
           required
           defaultValue={initial?.value}
-          placeholder="Ex.: 78,5"
+          placeholder="0,0"
         />
         <span className="hint block">
           Um peso por dia. Registrar de novo na mesma data substitui o anterior.

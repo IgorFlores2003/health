@@ -1,3 +1,4 @@
+import NumberField from "./NumberField";
 import { MAX_PHOTOS, type Pressure } from "./domain";
 import PhotoField from "./PhotoField";
 import { fill, readImage, type PressureReading } from "./readImage";
@@ -30,28 +31,24 @@ export default function PressureFields({ initial }: { initial?: Pressure }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="block">
-          <span className="label">Sistólica (mmHg)</span>
-          <input
-            className="input"
+          <span className="label">Sistólica</span>
+          <NumberField
             name="systolic"
-            type="number"
-            inputMode="numeric"
-            min="50"
-            max="300"
+            unit="mmHg"
+            min={50}
+            max={300}
             required
             defaultValue={initial?.systolic}
             placeholder="120"
           />
         </label>
         <label className="block">
-          <span className="label">Diastólica (mmHg)</span>
-          <input
-            className="input"
+          <span className="label">Diastólica</span>
+          <NumberField
             name="diastolic"
-            type="number"
-            inputMode="numeric"
-            min="30"
-            max="200"
+            unit="mmHg"
+            min={30}
+            max={200}
             required
             defaultValue={initial?.diastolic}
             placeholder="80"
@@ -59,14 +56,12 @@ export default function PressureFields({ initial }: { initial?: Pressure }) {
         </label>
       </div>
       <label className="block">
-        <span className="label">Batimentos (bpm) · opcional</span>
-        <input
-          className="input"
+        <span className="label">Batimentos · opcional</span>
+        <NumberField
           name="pulse"
-          type="number"
-          inputMode="numeric"
-          min="20"
-          max="250"
+          unit="bpm"
+          min={20}
+          max={250}
           defaultValue={initial?.pulse}
           placeholder="72"
         />
