@@ -137,34 +137,55 @@ export function minimumIntake(bmr: number | null, p: Profile) {
   const floor = p.formulaSex === "male" ? 1500 : 1200;
   return Math.max(floor, bmr ?? 0);
 }
-/**
- * Meta de consumo automática: base diária (basal × 1,2, rotina leve; os
- * exercícios do dia somam depois), menos 500 kcal quando a meta de peso é
- * perder; nunca abaixo de minimumIntake.
- */
-export function suggestedIntake(weight: number, goal: number, p: Profile) {
-  const bmr = basal(weight, p);
-  if (bmr === null) return null;
-  const baseline = Math.round(bmr * 1.2);
-  const target = goal > 0 && goal < weight ? baseline - 500 : baseline;
-  return Math.round(Math.max(target, minimumIntake(bmr, p)) / 10) * 10;
+export type GoalDirection = "lose" | "gain" | "maintain";
+/** Perder, ganhar ou manter, pelo peso desejado em relação ao atual. */
+export function goalDirection(weight: number, goal: number): GoalDirection {
+  if (!(goal > 0) || !(weight > 0)) return "maintain";
+  return goal < weight ? "lose" : goal > weight ? "gain" : "maintain";
 }
+/** Ajuste diário sobre o gasto: −500 kcal para perder, +300 kcal para ganhar. */
+export const GOAL_ADJUST: Record<GoalDirection, number> = {
+  lose: -500,
+  gain: 300,
+  maintain: 0,
+};
+/**
+ * Meta de consumo do dia, sempre calculada pelo app: gasto estimado do dia
+ * mais o ajuste do objetivo, arredondada a 10 kcal e nunca abaixo de
+ * minimumIntake.
+ */
+export function intakeTarget(
+  spend: number,
+  weight: number,
+  goal: number,
+  bmr: number | null,
+  p: Profile,
+) {
+  const direction = goalDirection(weight, goal);
+  const raw = spend + GOAL_ADJUST[direction];
+  const floor = minimumIntake(bmr, p);
+  return {
+    direction,
+    floor,
+    /** O ajuste para perder bateu no mínimo seguro. */
+    limited: raw < floor,
+    target: Math.round(Math.max(raw, floor) / 10) * 10,
+  };
+}
+/**
+ * Dias estimados até o peso desejado com um consumo constante: precisa de
+ * déficit para perder ou superávit para ganhar, entre 100 e 1.000 kcal/dia.
+ */
 export function projection(
   weight: number,
   goal: number,
   expenditure: number,
   intake: number,
 ) {
-  const deficit = expenditure - intake;
-  if (
-    goal <= 0 ||
-    goal >= weight ||
-    intake <= 0 ||
-    deficit < 100 ||
-    deficit > 1000
-  )
-    return null;
-  return Math.ceil(((weight - goal) * 7700) / deficit);
+  if (goal <= 0 || goal === weight || intake <= 0) return null;
+  const needed = goal > weight ? intake - expenditure : expenditure - intake;
+  if (needed < 100 || needed > 1000) return null;
+  return Math.ceil((Math.abs(weight - goal) * 7700) / needed);
 }
 /** Limite aceito ao validar dados já salvos (registros antigos podiam ter 6). */
 export const MAX_EXERCISE_PHOTOS = 6;

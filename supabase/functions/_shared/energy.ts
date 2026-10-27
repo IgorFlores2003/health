@@ -1,8 +1,8 @@
 import {
   basal,
   byDate,
-  minimumIntake,
-  suggestedIntake,
+  GOAL_ADJUST,
+  intakeTarget,
   type State,
   type Exercise,
   type Food,
@@ -120,6 +120,9 @@ export function dailyEnergy(state: State, date: string) {
   const weight = weightAtDate(state, date);
   const bmr = state.profileReviewed ? basal(weight, state.profile) : null;
   const baseline = bmr === null ? null : Math.round(bmr * 1.2);
+  // Gasto pelo nível de atividade do perfil (já inclui treinos habituais).
+  const habitual =
+    bmr === null ? null : Math.round(bmr * state.profile.activity);
   const foodMissing = foods.filter((f) => foodCalories(f) === null).length;
   const exerciseValues = exercises.map((e) => ({
     ...e,
@@ -131,7 +134,9 @@ export function dailyEnergy(state: State, date: string) {
   const intake = foods.reduce((sum, f) => sum + (foodCalories(f) ?? 0), 0);
   const active = exerciseValues.reduce((sum, e) => sum + (e.calories ?? 0), 0);
   const expenditure =
-    baseline === null || exerciseMissing > 0 ? null : baseline + active;
+    baseline === null || exerciseMissing > 0
+      ? null
+      : Math.max(habitual!, baseline + active);
   const completed = (state.completedDays ?? []).includes(date);
   const complete =
     completed &&
@@ -156,6 +161,7 @@ export function dailyEnergy(state: State, date: string) {
     weight,
     bmr,
     baseline,
+    habitual,
     intake,
     active,
     expenditure,
@@ -176,10 +182,10 @@ export function reopenDay(state: State, date: string) {
   return (state.completedDays ?? []).filter((d) => d !== date);
 }
 /**
- * Quanto ainda dá para comer no dia.
- * Meta base = consumo diário definido na aba Meta ou, sem ele, a meta
- * automática (suggestedIntake). Nunca abaixo do mínimo seguro
- * (minimumIntake). Exercícios do dia somam ao que está disponível.
+ * Quanto ainda dá para comer no dia. A meta é sempre calculada: gasto do dia
+ * (o maior entre basal × nível de atividade do perfil e basal × 1,2 +
+ * exercícios registrados) mais o ajuste do objetivo de peso (perder, ganhar
+ * ou manter), nunca abaixo do mínimo seguro.
  */
 export function dailyBudget(state: State, date: string) {
   const day = dailyEnergy(state, date);
@@ -191,32 +197,24 @@ export function dailyBudget(state: State, date: string) {
         ? ("profile" as const)
         : ("weight" as const),
     };
-  const floor = minimumIntake(day.bmr, state.profile);
-  const goal = state.intake > 0 ? state.intake : null;
-  const target =
-    goal === null
-      ? suggestedIntake(day.weight, state.goal, state.profile)!
-      : Math.max(goal, floor);
-  const available = target + day.active;
-  const losing = state.goal > 0 && state.goal < day.weight;
+  const logged = day.baseline + day.active;
+  const spend = Math.max(day.habitual!, logged);
+  const t = intakeTarget(spend, day.weight, state.goal, day.bmr, state.profile);
   return {
     ...day,
     ready: true as const,
-    source: goal ? ("goal" as const) : ("auto" as const),
-    target,
-    floor,
-    available,
+    spend,
+    /** De onde veio o gasto: nível de atividade do perfil ou exercícios do dia. */
+    spendSource:
+      logged > day.habitual! ? ("exercises" as const) : ("profile" as const),
+    direction: t.direction,
+    adjust: GOAL_ADJUST[t.direction],
+    floor: t.floor,
+    limited: t.limited,
+    target: t.target,
+    available: t.target,
     consumed: day.intake,
-    remaining: available - day.intake,
-    /** Por que a meta automática tem esse valor. */
-    autoReason:
-      target <= floor + 10
-        ? ("floor" as const)
-        : losing
-          ? ("loss" as const)
-          : ("maintain" as const),
-    /** A meta manual estava abaixo do mínimo e foi elevada até ele. */
-    raised: goal !== null && goal < floor,
+    remaining: t.target - day.intake,
   };
 }
 /** Água bebida no dia, em ml. */

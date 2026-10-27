@@ -73,14 +73,29 @@ export default function CalorieBudget({
         <dl className="mt-5 divide-y divide-line text-sm">
           <Row
             label={
-              b.source === "goal"
-                ? "Meta de consumo (definida por você)"
-                : "Meta de consumo (automática)"
+              b.spendSource === "exercises"
+                ? "Gasto do dia (com seus exercícios)"
+                : "Gasto do dia (seu nível de atividade)"
             }
-            value={kcal(b.target)}
+            value={kcal(b.spend)}
           />
-          <Row label="Exercícios do dia" value={`+ ${kcal(b.active)}`} />
-          <Row label="Disponível hoje" value={kcal(b.available)} strong />
+          <Row
+            label={
+              b.direction === "lose"
+                ? "Para emagrecer"
+                : b.direction === "gain"
+                  ? "Para ganhar peso"
+                  : "Para manter o peso"
+            }
+            value={
+              b.adjust > 0
+                ? `+ ${kcal(b.adjust)}`
+                : b.adjust < 0
+                  ? `− ${kcal(-b.adjust)}`
+                  : kcal(0)
+            }
+          />
+          <Row label="Meta de hoje" value={kcal(b.available)} strong />
           <Row label="Consumido" value={`− ${kcal(b.consumed)}`} />
           <Row
             label={over ? "Acima do disponível" : "Restante"}
@@ -139,15 +154,13 @@ function Notes({
       `${b.foodMissing} alimento(s) sem calorias não entraram na conta.`,
     b.exerciseMissing > 0 &&
       `${b.exerciseMissing} exercício(s) sem calorias não foram somados.`,
-    b.raised &&
-      `Sua meta de consumo está abaixo do mínimo seguro (${kcal(b.floor)}), então usamos o mínimo. Para comer menos que isso, só com acompanhamento profissional.`,
-    b.source === "auto" &&
-      {
-        floor:
-          "Meta automática: o mínimo seguro para você (nunca abaixo do basal).",
-        loss: "Meta automática: gasto estimado menos 500 kcal, para perder peso sem passar do mínimo seguro.",
-        maintain: "Meta automática: gasto estimado para manter o peso.",
-      }[b.autoReason],
+    b.limited &&
+      `A meta ficou no mínimo seguro para você (${kcal(b.floor)}): nunca abaixo do seu basal nem de 1.200 kcal (coeficiente feminino) / 1.500 kcal (masculino). Comer menos que isso só com acompanhamento profissional.`,
+    b.direction === "maintain" &&
+      "Defina seu peso desejado em Perfil para a meta mirar emagrecer ou ganhar peso.",
+    b.spendSource === "exercises"
+      ? "Seus exercícios de hoje passaram do gasto previsto pelo nível de atividade, então a meta subiu."
+      : "Exercícios registrados só aumentam a meta quando passam do gasto previsto pelo seu nível de atividade.",
   ].filter(Boolean) as string[];
   return (
     <div className="mt-4 space-y-1 text-[13px] leading-relaxed text-ink-500">
