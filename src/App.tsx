@@ -1,7 +1,15 @@
 import DailyDiary, { balanceLabels } from "./DailyDiary";
 import CalorieBudget from "./CalorieBudget";
 import ExerciseFields from "./ExerciseFields";
-import { dailyEnergy, foodCalories, reopenDay } from "./energy";
+import {
+  dailyBudget,
+  dailyEnergy,
+  foodCalories,
+  reopenDay,
+  waterOn,
+  weightAtDate,
+} from "./energy";
+import Celebration, { type CelebrationKind } from "./Celebration";
 import FoodSheet from "./FoodSheet";
 import CameraCapture from "./CameraCapture";
 import type { User } from "@supabase/supabase-js";
@@ -21,6 +29,9 @@ import {
   RiArrowRightLine,
   RiArrowRightSLine,
   RiCameraLine,
+  RiComputerLine,
+  RiMoonLine,
+  RiSunLine,
   RiImageLine,
   RiChat3Fill,
   RiChat3Line,
@@ -65,6 +76,7 @@ import {
 import {
   basal,
   byDate,
+  waterGoal,
   currentWeight,
   durationLabel,
   foodUnit,
@@ -89,7 +101,13 @@ import PressureFields from "./PressureFields";
 import ReportCard, { firstDate } from "./ReportCard";
 import WeightFields from "./WeightFields";
 import AccentPicker from "./AccentPicker";
-import { applyAccent, DEFAULT_ACCENT, nearestPreset } from "./theme";
+import {
+  applyAccent,
+  applyColorMode,
+  colorMode,
+  DEFAULT_ACCENT,
+  nearestPreset,
+} from "./theme";
 import { setAppIcon } from "./appIcon";
 import RichText from "./RichText";
 import { HydrationSettings, LitersInput, WaterCard } from "./Water";
@@ -337,7 +355,7 @@ function SyncBadge({ status, label }: { status: SyncStatus; label?: boolean }) {
   );
 }
 const note = "text-[13px] leading-relaxed text-ink-500";
-const axisTick = { fontSize: 12, fill: "#a1a1aa" };
+const axisTick = { fontSize: 12, fill: "var(--color-ink-400)" };
 export default function App({ account }: { account: User }) {
   const localKey = userStorageKey(account.id);
   const user = account.email || "";
@@ -360,6 +378,7 @@ export default function App({ account }: { account: User }) {
   }, [tab]);
   const [modal, setModal] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [mode, setMode] = useState(colorMode);
   const [foodSheet, setFoodSheet] = useState<{
     food?: Food;
   } | null>(null);
@@ -405,6 +424,42 @@ export default function App({ account }: { account: User }) {
   const [question, setQuestion] = useState("");
   const [diaryDate, setDiaryDate] = useState(today);
   const sync = useCloudSync(account.id, state, setState);
+  // Metas batidas: avisa só na hora em que a meta é alcançada.
+  const [celebration, setCelebration] = useState<CelebrationKind | null>(null);
+  const goals = (() => {
+    const day = today();
+    const water = waterGoal(weightAtDate(state, day));
+    const budget = dailyBudget(state, day);
+    const start = byDate(state.weights)[0]?.value ?? 0;
+    const now = currentWeight(state);
+    return {
+      day,
+      water: !!water && waterOn(state, day) >= water,
+      calories: budget.ready && budget.consumed >= budget.available,
+      weight:
+        state.goal > 0 &&
+        !!start &&
+        start !== state.goal &&
+        (state.goal < start ? now <= state.goal : now >= state.goal),
+    };
+  })();
+  const reached = useRef<typeof goals | null>(null);
+  useEffect(() => {
+    const before = reached.current;
+    if (sync.status === "loading") return;
+    reached.current = goals;
+    // Primeira leitura ou virada do dia: só registra o estado atual.
+    if (!before || before.day !== goals.day) return;
+    if (goals.weight && !before.weight) {
+      setCelebration("rocket");
+      setNotice("Você chegou ao seu peso desejado! Parabéns!");
+    } else if (goals.water && !before.water) {
+      setCelebration("confetti");
+      setNotice("Meta de água de hoje batida!");
+    } else if (goals.calories && !before.calories)
+      setNotice("Você chegou à meta de calorias de hoje.");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [goals.day, goals.water, goals.calories, goals.weight, sync.status]);
   useEffect(() => {
     applyAccent(state.accent);
     try {
@@ -1084,7 +1139,7 @@ export default function App({ account }: { account: User }) {
                               />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid vertical={false} stroke="#ececef" />
+                          <CartesianGrid vertical={false} stroke="var(--color-line)" />
                           <XAxis
                             dataKey="date"
                             axisLine={false}
@@ -1109,7 +1164,7 @@ export default function App({ account }: { account: User }) {
                             dot={{
                               r: 3,
                               fill: "var(--color-brand-600)",
-                              stroke: "white",
+                              stroke: "var(--color-white)",
                               strokeWidth: 2,
                             }}
                           />
@@ -1186,7 +1241,7 @@ export default function App({ account }: { account: User }) {
                         data={exerciseChart}
                         margin={{ left: -25, right: 0 }}
                       >
-                        <CartesianGrid vertical={false} stroke="#ececef" />
+                        <CartesianGrid vertical={false} stroke="var(--color-line)" />
                         <XAxis
                           dataKey="dia"
                           axisLine={false}
@@ -1951,8 +2006,34 @@ export default function App({ account }: { account: User }) {
                   <Panel>
                     <CardHeader
                       title="Aparência"
-                      text="Escolha a cor do app."
+                      text="Tema e cor do app."
                     />
+                    <div
+                      className="mb-5 flex rounded-lg border border-line p-0.5"
+                      role="radiogroup"
+                      aria-label="Tema"
+                    >
+                      {(
+                        [
+                          ["system", "Sistema", RiComputerLine],
+                          ["light", "Claro", RiSunLine],
+                          ["dark", "Escuro", RiMoonLine],
+                        ] as const
+                      ).map(([id, label, Icon]) => (
+                        <button
+                          key={id}
+                          role="radio"
+                          aria-checked={mode === id}
+                          className={`flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-md px-3 text-sm font-medium ${mode === id ? "bg-brand-600 text-white" : "text-ink-700 hover:bg-surface"}`}
+                          onClick={() => {
+                            setMode(id);
+                            applyColorMode(id);
+                          }}
+                        >
+                          <Icon className="size-4" /> {label}
+                        </button>
+                      ))}
+                    </div>
                     <AccentPicker
                       value={state.accent ?? DEFAULT_ACCENT}
                       onChange={(hex) =>
@@ -2131,6 +2212,12 @@ export default function App({ account }: { account: User }) {
           date={tab === "nutrition" ? diaryDate : today()}
           food={foodSheet.food}
           onClose={() => setFoodSheet(null)}
+        />
+      )}
+      {celebration && (
+        <Celebration
+          kind={celebration}
+          onDone={() => setCelebration(null)}
         />
       )}
       {notice && (

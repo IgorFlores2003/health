@@ -44,13 +44,29 @@ const contrastWithWhite = (c: RGB) => 1.05 / (luminance(c) + 0.05);
  * Escala completa. O tom 600 (botões com texto branco) é escurecido até ter
  * contraste mínimo de 4,5:1, para cores claras continuarem legíveis.
  */
-export function palette(hex: string): Record<string, string> {
+export function palette(hex: string, dark = false): Record<string, string> {
   let base = toRgb(isHex(hex) ? hex : DEFAULT_ACCENT);
   for (let i = 0; i < 20 && contrastWithWhite(base) < 4.5; i++)
     base = mix(base, [0, 0, 0], 0.08);
   const white: RGB = [255, 255, 255];
   const black: RGB = [0, 0, 0];
-  const steps: [string, RGB][] = [
+  // Modo escuro: tons de fundo (50–300) puxados para o cartão escuro e tons
+  // de texto (700–900) clareados, para continuarem legíveis.
+  const card: RGB = [23, 23, 26];
+  const steps: [string, RGB][] = dark
+    ? [
+        ["50", mix(base, card, 0.82)],
+        ["100", mix(base, card, 0.7)],
+        ["200", mix(base, card, 0.55)],
+        ["300", mix(base, card, 0.38)],
+        ["400", mix(base, white, 0.3)],
+        ["500", mix(base, white, 0.15)],
+        ["600", base],
+        ["700", mix(base, white, 0.28)],
+        ["800", mix(base, white, 0.42)],
+        ["900", mix(base, white, 0.56)],
+      ]
+    : [
     ["50", mix(base, white, 0.93)],
     ["100", mix(base, white, 0.86)],
     ["200", mix(base, white, 0.72)],
@@ -65,9 +81,44 @@ export function palette(hex: string): Record<string, string> {
   return Object.fromEntries(steps.map(([k, c]) => [k, toHex(c)]));
 }
 
+export type ColorMode = "system" | "light" | "dark";
+const MODE_KEY = "ritmo-theme";
+let accent: string | undefined;
+export function colorMode(): ColorMode {
+  try {
+    const m = localStorage.getItem(MODE_KEY);
+    return m === "light" || m === "dark" ? m : "system";
+  } catch {
+    return "system";
+  }
+}
+const systemDark = () =>
+  typeof matchMedia !== "undefined" &&
+  matchMedia("(prefers-color-scheme: dark)").matches;
+export const isDark = () =>
+  colorMode() === "dark" || (colorMode() === "system" && systemDark());
+
+/** Claro/escuro (preferência deste aparelho) e a cor recalculada para ele. */
+export function applyColorMode(mode?: ColorMode) {
+  if (mode)
+    try {
+      if (mode === "system") localStorage.removeItem(MODE_KEY);
+      else localStorage.setItem(MODE_KEY, mode);
+    } catch {
+      /* fica só nesta sessão */
+    }
+  const dark = isDark();
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  document
+    .querySelector('meta[name="theme-color"]')
+    ?.setAttribute("content", dark ? "#17171a" : "#ffffff");
+  applyAccent(accent);
+}
+
 /** Aplica a cor no app inteiro e no ícone da aba do navegador. */
 export function applyAccent(hex: string | undefined) {
-  const p = palette(hex || DEFAULT_ACCENT);
+  accent = hex;
+  const p = palette(hex || DEFAULT_ACCENT, isDark());
   const root = document.documentElement.style;
   for (const [k, v] of Object.entries(p))
     root.setProperty(`--color-brand-${k}`, v);

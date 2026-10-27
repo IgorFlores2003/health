@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { RiCameraLine, RiCheckLine, RiSparkling2Line } from "react-icons/ri";
 import { readImage, type MealReading } from "./readImage";
 import { readAudio } from "./voice";
+import { looksLiquid } from "./domain";
 import VoiceButton from "./VoiceButton";
 
 type Item = MealReading["items"][number] & { on: boolean };
@@ -49,7 +50,14 @@ export default function MealPhoto({
     try {
       const r = await load();
       if (!r.items?.length) throw Error(empty);
-      setItems(r.items.map((x) => ({ ...x, on: true })));
+      // Função antiga no servidor não diz se é líquido: deduz pelo nome.
+      setItems(
+        r.items.map((x) => ({
+          ...x,
+          liquid: x.liquid ?? looksLiquid(x.name),
+          on: true,
+        })),
+      );
       setNote(r.note);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível ler.");

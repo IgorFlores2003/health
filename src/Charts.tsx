@@ -14,8 +14,8 @@ import {
 import { byDate, waterGoal, type State } from "./domain";
 import { dailyBudget, waterOn, weightAtDate } from "./energy";
 
-const axisTick = { fontSize: 12, fill: "#a1a1aa" };
-const grid = <CartesianGrid vertical={false} stroke="#ececef" />;
+const axisTick = { fontSize: 12, fill: "var(--color-ink-400)" };
+const grid = <CartesianGrid vertical={false} stroke="var(--color-line)" />;
 const key = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const label = (date: string) =>
@@ -96,7 +96,7 @@ export function WaterChart({ state, days }: { state: State; days: number }) {
               y={goal}
               stroke="var(--color-brand-800)"
               strokeDasharray="4 4"
-              label={{ value: "meta", position: "insideTopRight", fontSize: 11, fill: "#71717a" }}
+              label={{ value: "meta", position: "insideTopRight", fontSize: 11, fill: "var(--color-ink-500)" }}
             />
           )}
           <Bar dataKey="agua" fill="var(--color-brand-600)" radius={[4, 4, 0, 0]} maxBarSize={28} />
@@ -124,7 +124,7 @@ export function PressureChart({ state, days }: { state: State; days: number }) {
       dataKey={dataKey}
       stroke={color}
       strokeWidth={2}
-      dot={{ r: 3, fill: color, stroke: "white", strokeWidth: 2 }}
+      dot={{ r: 3, fill: color, stroke: "var(--color-white)", strokeWidth: 2 }}
     />
   );
   return (
@@ -144,8 +144,8 @@ export function PressureChart({ state, days }: { state: State; days: number }) {
             formatter={(v) => (v === "sistolica" ? "Sistólica" : "Diastólica")}
             wrapperStyle={{ fontSize: 12 }}
           />
-          <ReferenceLine y={140} stroke="#d4d4d8" strokeDasharray="4 4" />
-          <ReferenceLine y={90} stroke="#d4d4d8" strokeDasharray="4 4" />
+          <ReferenceLine y={140} stroke="var(--color-ink-400)" strokeDasharray="4 4" />
+          <ReferenceLine y={90} stroke="var(--color-ink-400)" strokeDasharray="4 4" />
           {line("sistolica", "var(--color-brand-700)")}
           {line("diastolica", "var(--color-brand-400)")}
         </LineChart>

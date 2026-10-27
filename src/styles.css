@@ -24,6 +24,24 @@
   --color-ink-400: #a1a1aa;
   --color-line: #ececef;
   --color-surface: #fafafa;
+  /* Foguete ao bater a meta de peso (Celebration.tsx). */
+  --animate-rocket: rocket 2.6s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+  @keyframes rocket {
+    0% {
+      transform: translate(-50%, 30%) rotate(-45deg) scale(0.8);
+      opacity: 0;
+    }
+    15% {
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      transform: translate(-50%, -120vh) rotate(-45deg) scale(1.1);
+      opacity: 0;
+    }
+  }
 }
 
 @layer base {
@@ -128,4 +146,50 @@ input[type="number"]::-webkit-outer-spin-button {
     transition: none !important;
     animation: none !important;
   }
+}
+
+/*
+ * Modo escuro (data-theme="dark" em <html>, ver theme.ts). Os neutros são
+ * trocados pelos tons escuros; "white" é a cor dos cartões e do fundo, então
+ * bg-white/bg-white/95 viram escuros e o texto branco é mantido à parte.
+ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-white: #17171a;
+  --color-ink-900: #f4f4f5;
+  --color-ink-700: #d4d4d8;
+  --color-ink-500: #a1a1aa;
+  --color-ink-400: #7c7c86;
+  --color-line: #2c2c31;
+  --color-surface: #212125;
+}
+:root[data-theme="dark"] body {
+  background-color: #0f0f11;
+}
+:root[data-theme="dark"] .text-white {
+  color: #fff;
+}
+:root[data-theme="dark"] .text-white\/70 {
+  color: rgb(255 255 255 / 0.7);
+}
+/* Aviso flutuante, fundo do vídeo e da câmera: continuam escuros. */
+:root[data-theme="dark"] .bg-ink-900 {
+  background-color: #2c2c31;
+}
+:root[data-theme="dark"] .bg-ink-900\/40 {
+  background-color: rgb(0 0 0 / 0.6);
+}
+:root[data-theme="dark"] .bg-emerald-50 {
+  background-color: #10241b;
+}
+:root[data-theme="dark"] .text-emerald-800 {
+  color: #6ee7b7;
+}
+/* Gráficos (Recharts). */
+:root[data-theme="dark"] .recharts-default-tooltip {
+  background-color: var(--color-surface) !important;
+  border-color: var(--color-line) !important;
+}
+:root[data-theme="dark"] .recharts-tooltip-label {
+  color: var(--color-ink-900);
 }

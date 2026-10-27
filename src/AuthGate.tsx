@@ -111,10 +111,10 @@ export default function AuthGate() {
           <RiPulseLine className="size-8" />
           Ritmo
         </div>
-        <p className="max-w-xs text-lg leading-relaxed text-brand-50">
+        <p className="max-w-xs text-lg leading-relaxed text-white">
           Peso, alimentação, exercícios e pressão arterial em um só lugar.
         </p>
-        <p className="flex items-center gap-2 text-sm text-brand-100">
+        <p className="flex items-center gap-2 text-sm text-white opacity-80">
           <RiShieldCheckLine className="size-5" />
           Seus registros ficam na sua conta.
         </p>

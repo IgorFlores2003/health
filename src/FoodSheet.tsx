@@ -6,6 +6,7 @@ import Sheet from "./Sheet";
 import { reopenDay } from "./energy";
 import {
   foodUnit,
+  looksLiquid,
   today,
   validState,
   type Food,
@@ -125,7 +126,11 @@ export default function FoodSheet({
         throw Error();
       setPer100(String(data.kcalPer100g));
       setSource("ai");
-      if (typeof data.liquid === "boolean") setUnit(data.liquid ? "ml" : "g");
+      setUnit(
+        (typeof data.liquid === "boolean" ? data.liquid : looksLiquid(name))
+          ? "ml"
+          : "g",
+      );
       // Sem balança: usa o peso médio das unidades descritas ("3 ovos"),
       // sem sobrescrever gramas que a pessoa pesou.
       if (

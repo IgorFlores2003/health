@@ -247,6 +247,22 @@ export function isPhotoPath(v: unknown): v is string {
     )
   );
 }
+const LIQUIDS = new Set(
+  "leite suco cafe cha refrigerante agua cerveja vinho sopa caldo vitamina achocolatado energetico kefir bebida drink shake smoothie isotonico limonada caipirinha cachaca vodka whisky gin rum coca guarana mate chimarrao cappuccino capuccino latte espresso expresso batida milkshake".split(
+    " ",
+  ),
+);
+
+export function looksLiquid(name: string) {
+  const n = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+  if (/\b(em po|condensado|creme de leite)\b/.test(n)) return false;
+  if (/^(iogurte|bebida) (liquido|lactea)/.test(n)) return true;
+  return LIQUIDS.has(n.split(/[^a-z]+/)[0]);
+}
 /** Unidade da quantidade de um alimento ("g" ou "ml"). */
 export const foodUnit = (f: { unit?: "g" | "ml" }) => f.unit ?? "g";
 export const byDate = <T extends { date: string }>(items: T[]) =>
