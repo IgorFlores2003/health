@@ -28,9 +28,17 @@ export type Comment = {
   text: string;
   /** GIF do GIPHY (endereço da imagem). */
   gif: string | null;
+  /** Foto (caminho no bucket, pasta comments). */
+  photo: string | null;
+  /** Reação com ícone (chave de stickers.ts). */
+  sticker: string | null;
   created_at: string;
 };
-const COMMENT_COLUMNS = "id, post_id, parent_id, author, text, gif, created_at";
+export type CommentExtra = Partial<
+  Pick<Comment, "gif" | "photo" | "sticker"> & { parent: string | null }
+>;
+const COMMENT_COLUMNS =
+  "id, post_id, parent_id, author, text, gif, photo, sticker, created_at";
 export type Post = {
   id: string;
   author: string;
@@ -214,11 +222,11 @@ export async function autoPost(
 export async function deletePost(id: string) {
   check(await db().from("posts").delete().eq("id", id));
 }
-/** Comentário (ou resposta, com parent) de texto, GIF ou os dois. */
+/** Comentário (ou resposta, com parent): texto, GIF, foto e/ou reação. */
 export async function addComment(
   postId: string,
   text: string,
-  extra: { parent?: string | null; gif?: string | null } = {},
+  extra: CommentExtra = {},
 ) {
   const saved = check(
     await db()
@@ -228,6 +236,8 @@ export async function addComment(
         text: text.trim(),
         parent_id: extra.parent ?? null,
         gif: extra.gif ?? null,
+        photo: extra.photo ?? null,
+        sticker: extra.sticker ?? null,
       })
       .select(COMMENT_COLUMNS)
       .single(),

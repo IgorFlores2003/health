@@ -3,9 +3,11 @@ import {
   RiAlarmWarningLine,
   RiArrowDownSLine,
   RiArrowUpSLine,
+  RiCameraLine,
   RiChat3Line,
   RiCloseLine,
   RiDeleteBin6Line,
+  RiEmotionLine,
   RiFileGifLine,
   RiFlagLine,
   RiHeart3Fill,
@@ -27,10 +29,13 @@ import {
   Avatar,
   downloadPhoto,
   PhotoStrip,
+  removePhotos,
   toBase64,
   uploadPhoto,
 } from "./photos";
+import CameraCapture from "./CameraCapture";
 import GifPicker from "./GifPicker";
+import { STICKERS } from "./stickers";
 import { gifsEnabled } from "./giphy";
 import PhotoEditor from "./PhotoEditor";
 import {
@@ -48,6 +53,7 @@ import {
   requestFriend,
   setLike,
   type Comment,
+  type CommentExtra,
   type Friendship,
   type Post,
   type SocialProfile,
@@ -325,7 +331,12 @@ export default function Community({
         if (on && p.author !== userId) onXp("like", p.id);
       },
     );
-  const comment = (p: Post, text: string, extra: CommentExtra = {}) => {
+  const comment = (
+    p: Post,
+    text: string,
+    extra: CommentExtra = {},
+    photo?: Blob,
+  ) => {
     // Id provisório até o servidor devolver o comentário salvo.
     const tmp = `tmp-${Date.now()}`;
     return optimistic(
@@ -341,12 +352,17 @@ export default function Community({
               author: userId,
               text: text.trim(),
               gif: extra.gif ?? null,
+              photo: null,
+              sticker: extra.sticker ?? null,
               created_at: new Date().toISOString(),
             },
           ],
         })),
       async () => {
-        const saved = await addComment(p.id, text, extra);
+        const saved = await addComment(p.id, text, {
+          ...extra,
+          photo: photo ? await uploadPhoto(userId, "comments", photo) : null,
+        });
         if (p.author !== userId) onXp("comment", saved.id);
         patchPost(p.id, (x) => ({
           ...x,
@@ -355,14 +371,21 @@ export default function Community({
       },
     );
   };
-  const removeComment = (p: Post, id: string) =>
+  const removeComment = (p: Post, c: Comment) =>
     optimistic(
       () =>
         patchPost(p.id, (x) => ({
           ...x,
-          comments: x.comments.filter((c) => c.id !== id && c.parent_id !== id),
+          comments: x.comments.filter(
+            (y) => y.id !== c.id && y.parent_id !== c.id,
+          ),
         })),
-      () => deleteComment(id),
+      async () => {
+        await deleteComment(c.id);
+        // A foto é apagada só pelo dono (o bucket só deixa ele).
+        if (c.photo && c.author === userId)
+          await removePhotos([c.photo]).catch(() => undefined);
+      },
     );
   const person = (id: string) =>
     id === userId ? me : people.find((p) => p.user_id === id);
@@ -632,8 +655,10 @@ export default function Community({
                   onCollapse={(on) => collapse(p.id, on)}
                   onOpenPerson={setProfile}
                   onLike={(on) => void like(p, on)}
-                  onComment={(text, extra) => void comment(p, text, extra)}
-                  onDeleteComment={(id) => void removeComment(p, id)}
+                  onComment={(text, extra, photo) =>
+                    void comment(p, text, extra, photo)
+                  }
+                  onDeleteComment={(c) => void removeComment(p, c)}
                   onDelete={() =>
                     optimistic(
                       () => setFeed((f) => f.filter((x) => x.id !== p.id)),
@@ -1045,8 +1070,6 @@ function Composer({
   );
 }
 
-type CommentExtra = { parent?: string | null; gif?: string | null };
-
 function PostCard({
   post,
   focused,
@@ -1072,8 +1095,8 @@ function PostCard({
   onCollapse: (on: boolean) => void;
   onOpenPerson: (id: string) => void;
   onLike: (on: boolean) => void;
-  onComment: (text: string, extra?: CommentExtra) => void;
-  onDeleteComment: (id: string) => void;
+  onComment: (text: string, extra: CommentExtra, photo?: Blob) => void;
+  onDeleteComment: (comment: Comment) => void;
   onDelete: () => void;
   onReport: (
     target: { post_id?: string; comment_id?: string },
@@ -1086,15 +1109,30 @@ function PostCard({
     if (focused) setOpen(true);
   }, [focused]);
   const [comment, setComment] = useState("");
-  // Comentário sendo respondido e a escolha de GIF.
+  // Comentário sendo respondido, foto anexada e o que está aberto para
+  // escolher (reação, GIF ou câmera).
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
-  const [picking, setPicking] = useState(false);
+  const [picking, setPicking] = useState<"" | "sticker" | "gif" | "camera">("");
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [preview, setPreview] = useState("");
+  useEffect(() => {
+    if (!photo) return setPreview("");
+    const url = URL.createObjectURL(photo);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
   const input = useRef<HTMLInputElement>(null);
-  const send = (gif?: string) => {
-    if (!comment.trim() && !gif) return;
-    onComment(comment, { parent: replyTo?.id ?? null, gif: gif ?? null });
+  const send = (extra: Pick<CommentExtra, "gif" | "sticker"> = {}) => {
+    if (!comment.trim() && !photo && !extra.gif && !extra.sticker) return;
+    onComment(
+      comment,
+      { ...extra, parent: replyTo?.id ?? null },
+      photo ?? undefined,
+    );
     setComment("");
+    setPhoto(null);
     setReplyTo(null);
+    setPicking("");
   };
   // Respostas ficam sob o comentário de cima da conversa (um nível só).
   const byId = new Map(post.comments.map((c) => [c.id, c]));
@@ -1118,7 +1156,7 @@ function PostCard({
       setReplyTo(c);
       input.current?.focus();
     },
-    onDelete: () => onDeleteComment(c.id),
+    onDelete: () => onDeleteComment(c),
     onReport: () => askReport({ comment_id: c.id }),
   });
   const KindIcon =
@@ -1291,6 +1329,19 @@ function PostCard({
                   </button>
                 </p>
               )}
+              {preview && (
+                <div className="relative inline-block">
+                  <img src={preview} alt="" className="max-h-32 rounded-lg" />
+                  <button
+                    type="button"
+                    className="icon-btn absolute top-1 right-1 size-8 bg-white/90"
+                    aria-label="Remover foto"
+                    onClick={() => setPhoto(null)}
+                  >
+                    <RiCloseLine className="size-4" />
+                  </button>
+                </div>
+              )}
               <form
                 className="flex gap-2"
                 onSubmit={(e) => {
@@ -1308,30 +1359,89 @@ function PostCard({
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                 />
-                {gifsEnabled() && (
-                  <button
-                    type="button"
-                    className="icon-btn size-11 shrink-0"
-                    aria-label="Enviar GIF"
-                    title="GIF"
-                    onClick={() => setPicking(true)}
-                  >
-                    <RiFileGifLine className="size-6" />
-                  </button>
-                )}
                 <button
                   className="btn-secondary shrink-0"
-                  disabled={!comment.trim()}
+                  disabled={!comment.trim() && !photo}
                 >
                   Enviar
                 </button>
               </form>
-              {picking && (
+              <div className="flex flex-wrap gap-1">
+                <button
+                  type="button"
+                  className={`btn-ghost min-h-9 px-2 text-sm ${picking === "sticker" ? "text-brand-600" : "text-ink-500"}`}
+                  aria-expanded={picking === "sticker"}
+                  onClick={() =>
+                    setPicking(picking === "sticker" ? "" : "sticker")
+                  }
+                >
+                  <RiEmotionLine className="size-5" /> Reagir
+                </button>
+                {gifsEnabled() && (
+                  <button
+                    type="button"
+                    className="btn-ghost min-h-9 px-2 text-sm text-ink-500"
+                    onClick={() => setPicking("gif")}
+                  >
+                    <RiFileGifLine className="size-5" /> GIF
+                  </button>
+                )}
+                <label className="btn-ghost relative min-h-9 px-2 text-sm text-ink-500">
+                  <RiImageLine className="size-5" /> Galeria
+                  <input
+                    className="absolute inset-0 cursor-pointer opacity-0"
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (f) setPhoto(f);
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn-ghost min-h-9 px-2 text-sm text-ink-500"
+                  onClick={() => setPicking("camera")}
+                >
+                  <RiCameraLine className="size-5" /> Câmera
+                </button>
+              </div>
+              {picking === "sticker" && (
+                <ul
+                  className="grid grid-cols-7 gap-1 rounded-lg bg-surface p-2"
+                  aria-label="Reações"
+                >
+                  {Object.entries(STICKERS).map(
+                    ([key, [Icon, label, color]]) => (
+                      <li key={key}>
+                        <button
+                          type="button"
+                          className="grid size-10 place-items-center rounded-lg hover:bg-white"
+                          aria-label={label}
+                          title={label}
+                          onClick={() => send({ sticker: key })}
+                        >
+                          <Icon className={`size-7 ${color}`} />
+                        </button>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
+              {picking === "gif" && (
                 <GifPicker
-                  onClose={() => setPicking(false)}
-                  onPick={(url) => {
-                    setPicking(false);
-                    send(url);
+                  onClose={() => setPicking("")}
+                  onPick={(url) => send({ gif: url })}
+                />
+              )}
+              {picking === "camera" && (
+                <CameraCapture
+                  title="Foto do comentário"
+                  onClose={() => setPicking("")}
+                  onCapture={(file) => {
+                    setPhoto(file);
+                    setPicking("");
                   }}
                 />
               )}
@@ -1361,12 +1471,25 @@ function CommentRow({
 }) {
   // Ainda indo para o servidor (ver comment() em Community).
   const sending = c.id.startsWith("tmp-");
+  const [Sticker, stickerLabel, stickerColor] =
+    (c.sticker && STICKERS[c.sticker]) || [];
   return (
     <div
       className={`flex items-start gap-2 rounded-lg bg-surface p-2.5 ${sending ? "opacity-60" : ""}`}
     >
       <span className="min-w-0 flex-1 text-sm">
         <strong className="font-medium">{name}</strong> {c.text}
+        {Sticker && (
+          <Sticker
+            className={`mt-1 block size-10 ${stickerColor}`}
+            aria-label={stickerLabel}
+          />
+        )}
+        {c.photo && (
+          <span className="block [&_img]:size-auto [&_img]:max-h-48 [&_img]:max-w-full">
+            <PhotoStrip paths={[c.photo]} />
+          </span>
+        )}
         {c.gif && (
           <img
             src={c.gif}

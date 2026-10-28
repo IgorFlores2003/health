@@ -43,6 +43,7 @@ export async function uploadPhoto(
   folder:
     | "profile"
     | "posts"
+    | "comments"
     | `exercises/${string}`
     | `pressures/${string}`
     | `weights/${string}`,

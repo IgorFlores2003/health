@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
     } else if (input.comment) {
       const { data: c } = await admin
         .from("comments")
-        .select("id, post_id, parent_id, text, gif")
+        .select("id, post_id, parent_id, text, gif, photo, sticker")
         .eq("id", id)
         .eq("author", me)
         .gte("created_at", recent())
@@ -171,7 +171,13 @@ Deno.serve(async (req) => {
                 .single()
             : Promise.resolve({ data: null }),
         ]);
-        const body = c.text ? short(c.text) : "Enviou um GIF";
+        const body = c.text
+          ? short(c.text)
+          : c.photo
+            ? "Enviou uma foto"
+            : c.sticker
+              ? "Reagiu"
+              : "Enviou um GIF";
         // Quem teve o comentário respondido recebe "respondeu"; o dono do
         // post, "comentou" (uma notificação por pessoa).
         const replyTo = parent?.author !== me ? parent?.author : undefined;

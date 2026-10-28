@@ -124,7 +124,9 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
       postIds.length
         ? db
             .from("comments")
-            .select("id, post_id, parent_id, author, text, created_at")
+            .select(
+              "id, post_id, parent_id, author, text, gif, photo, sticker, created_at",
+            )
             .in("post_id", postIds)
             .neq("author", userId)
         : Promise.resolve({ data: [] }),
@@ -161,7 +163,7 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
   const { data: replies } = myComments.length
     ? await db
         .from("comments")
-        .select("id, post_id, author, text, created_at")
+        .select("id, post_id, author, text, gif, photo, sticker, created_at")
         .in("parent_id", myComments)
         .neq("author", userId)
     : { data: [] };
@@ -195,7 +197,15 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
         make: (name) => `${name} aceitou seu pedido de amizade.`,
       });
   }
-  const said = (text: string) => (text ? `: ${text}` : " com um GIF.");
+  /** O que foi dito: o texto, ou o tipo de anexo quando não há texto. */
+  const said = (c: { text: string; photo?: string; sticker?: string }) =>
+    c.text
+      ? `: ${c.text}`
+      : c.photo
+        ? " com uma foto."
+        : c.sticker
+          ? " com uma reação."
+          : " com um GIF.";
   for (const p of posts.data ?? [])
     out.push({
       id: `post:${p.id}`,
@@ -221,7 +231,7 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
       from: r.author,
       at: r.created_at,
       post: r.post_id,
-      make: (name) => `${name} respondeu seu comentário${said(r.text)}`,
+      make: (name) => `${name} respondeu seu comentário${said(r)}`,
     });
   for (const c of comments.data ?? [])
     if (!replied.has(c.id))
@@ -231,8 +241,7 @@ export async function loadNotifications(userId: string): Promise<Notice[]> {
         from: c.author,
         at: c.created_at,
         post: c.post_id,
-        make: (name) =>
-          `${name} comentou em ${postLabel(c.post_id)}${said(c.text)}`,
+        make: (name) => `${name} comentou em ${postLabel(c.post_id)}${said(c)}`,
       });
   for (const l of likes.data ?? [])
     out.push({
