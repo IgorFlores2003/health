@@ -11,6 +11,7 @@ import {
 import Celebration, { type CelebrationKind } from "./Celebration";
 import { BirthDateField, BirthdayCard } from "./Birthday";
 import MascotCard from "./Mascot";
+import Medals from "./Medals";
 import { PetCollection } from "./Pet";
 import ProfileHero from "./ProfileHero";
 import Community from "./Community";
@@ -30,7 +31,12 @@ import { listenInvites, takeInvite } from "./invite";
 import Notifications from "./Notifications";
 import Help from "./Help";
 import Tutorial, { STEPS } from "./Tutorial";
-import { lastSeen, loadNotifications } from "./notificationFeed";
+import {
+  lastSeen,
+  loadNotifications,
+  targetFor,
+  type Target,
+} from "./notificationFeed";
 import {
   listenNudges,
   markSeen,
@@ -169,7 +175,12 @@ import { applyAppIcon, appIconPending, setAppIcon } from "./appIcon";
 import RichText from "./RichText";
 import { HydrationSettings, LitersInput, WaterCard } from "./Water";
 import { CalorieChart, PressureChart, WaterChart } from "./Charts";
-import { notifyNow, syncWaterReminders, type NotifyKind } from "./reminders";
+import {
+  listenNotificationTaps,
+  notifyNow,
+  syncWaterReminders,
+  type NotifyKind,
+} from "./reminders";
 import VoiceButton from "./VoiceButton";
 import { readAudio } from "./voice";
 import Videos from "./Videos";
@@ -289,6 +300,19 @@ export default function App({ account }: { account: User }) {
     setSocialSection(section);
     setTab("community");
   };
+  // Ao trocar de tela (ou de seção do Social), começa do topo.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [tab, socialSection]);
+  // Post a abrir no feed, vindo de uma notificação.
+  const [focusPost, setFocusPost] = useState<string | null>(null);
+  const clearFocusPost = useCallback(() => setFocusPost(null), []);
+  /** Abre a tela de uma notificação (da aba, local ou push). */
+  const openTarget = useCallback((t: Target) => {
+    if (t.section) setSocialSection(t.section);
+    setFocusPost(t.post ?? null);
+    setTab(t.tab);
+  }, []);
   // Seção aberta em Configurações.
   const [section, setSection] = useState<
     "appearance" | "water" | "account" | "help"
@@ -514,12 +538,12 @@ export default function App({ account }: { account: User }) {
         .map((e) => ({
           id: `exercise:${e.id}`,
           kind: "activity" as const,
-          text: `🏃 ${e.type}: ${durationLabel(e.minutes)}${e.distanceKm ? ` · ${num(e.distanceKm)} km` : ""}`,
+          text: `${e.type}: ${durationLabel(e.minutes)}${e.distanceKm ? ` · ${num(e.distanceKm)} km` : ""}`,
         })),
       ...earned.map((m) => ({
         id: `medal:${account.id}:${m.id}`,
         kind: "medal" as const,
-        text: `${m.icon} Conquistei a medalha "${m.title}": ${m.text}`,
+        text: `Conquistei a medalha "${m.title}": ${m.text}`,
       })),
     ];
     let seen: string[] | null = null;
@@ -562,7 +586,7 @@ export default function App({ account }: { account: User }) {
       );
       void playSuccess();
       void notifyNow(
-        help ? `🆘 ${who} pediu sua ajuda!` : `${who} puxou sua orelha`,
+        help ? `${who} pediu sua ajuda!` : `${who} puxou sua orelha`,
         n.message,
         help ? "help" : "nudge",
       ).catch(() => undefined);
@@ -575,14 +599,31 @@ export default function App({ account }: { account: User }) {
   // Número no sino: novidades desde a última vez que a aba foi aberta.
   const [unread, setUnread] = useState(0);
   const clearUnread = useCallback(() => setUnread(0), []);
+  // Já mostradas neste uso do app (null: ainda não carregou nenhuma vez).
+  const shown = useRef<Set<string> | null>(null);
   const refreshUnread = useCallback(async () => {
     const seen = lastSeen(account.id);
-    const list = await loadNotifications(account.id).catch(() => []);
-    setUnread(list.filter((n) => n.at && n.at > seen).length);
+    // Sem internet: mantém o número de antes.
+    const list = await loadNotifications(account.id).catch(() => null);
+    if (!list) return;
+    const fresh = list.filter((n) => n.at && n.at > seen);
+    setUnread(fresh.length);
+    // Novidade com o app aberto (post, comentário, curtida…): avisa na hora.
+    // Puxões e pedidos de ajuda já têm o aviso deles.
+    const news = fresh.filter(
+      (n) =>
+        shown.current &&
+        !shown.current.has(n.id) &&
+        n.kind !== "nudge" &&
+        n.kind !== "help",
+    );
+    shown.current = new Set(list.map((n) => n.id));
+    if (news.length && document.visibilityState === "visible")
+      setNotice(news[0].text);
   }, [account.id]);
   useEffect(() => {
     void refreshUnread();
-    const id = setInterval(() => void refreshUnread(), 60000);
+    const id = setInterval(() => void refreshUnread(), 30000);
     const visible = () =>
       document.visibilityState === "visible" && void refreshUnread();
     document.addEventListener("visibilitychange", visible);
@@ -605,10 +646,16 @@ export default function App({ account }: { account: User }) {
     void listenInvites(open).then((s) => (stop = s));
     return () => stop();
   }, []);
-  // Push no Android: puxões de orelha chegam mesmo com o app fechado.
+  // Push no Android: puxões, comentários, curtidas e posts chegam mesmo com
+  // o app fechado. Tocar numa notificação (push ou local) abre a tela dela.
   useEffect(() => {
-    void registerPush().catch(() => undefined);
-  }, [account.id]);
+    const open = (kind?: string, post?: string) =>
+      openTarget(targetFor(kind, post));
+    void registerPush(open).catch(() => undefined);
+    let stop = () => {};
+    void listenNotificationTaps(open).then((s) => (stop = s));
+    return () => stop();
+  }, [account.id, openTarget]);
   // Aniversário: bolo, confete e música uma vez por ano neste aparelho.
   const [birthday, setBirthday] = useState(false);
   useEffect(() => {
@@ -1241,11 +1288,7 @@ export default function App({ account }: { account: User }) {
                 </button>
               </div>
               <div className="mb-4">
-                <MascotCard
-                  state={state}
-                  date={today()}
-                  onShare={(text) => shareToFriends(text)}
-                />
+                <MascotCard state={state} date={today()} />
               </div>
               <div className="mb-4">
                 <Panel className="p-2">
@@ -1547,9 +1590,7 @@ export default function App({ account }: { account: User }) {
           {tab === "notifications" && (
             <Notifications
               userId={account.id}
-              onOpen={(n) =>
-                openSocial(n.kind.startsWith("otter") ? "otter" : "friends")
-              }
+              onOpen={(n) => openTarget(targetFor(n.kind, n.post))}
               onSeen={clearUnread}
             />
           )}
@@ -1575,6 +1616,8 @@ export default function App({ account }: { account: User }) {
                 <Videos />
               ) : (
                 <Community
+                  focus={focusPost}
+                  onFocused={clearFocusPost}
                   section={socialSection}
                   invite={invite}
                   userId={account.id}
@@ -1745,6 +1788,7 @@ export default function App({ account }: { account: User }) {
                 onPokedex={() => setPokedex(true)}
               />
               <div className="max-w-2xl">
+                <Medals state={state} onShare={shareToFriends} />
                 <Panel>
                   <CardHeader title="Sobre você" />
                   <div className="mb-5">

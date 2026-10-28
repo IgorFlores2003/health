@@ -17,7 +17,9 @@ export type NotifyKind =
   | "goal"
   | "friend"
   | "like"
-  | "comment";
+  | "comment"
+  | "reply"
+  | "post";
 export const NOTIFY_COLORS: Record<NotifyKind, string> = {
   nudge: "#F97316",
   help: "#DC2626",
@@ -30,6 +32,8 @@ export const NOTIFY_COLORS: Record<NotifyKind, string> = {
   friend: "#EC4899",
   like: "#E11D48",
   comment: "#2563EB",
+  reply: "#0EA5E9",
+  post: "#4F46E5",
 };
 const look = (kind: NotifyKind) => ({
   smallIcon: `ic_stat_${kind}`,
@@ -84,6 +88,7 @@ export async function syncWaterReminders(h: Hydration | undefined) {
     notifications: reminderTimes(h).map((t, i) => ({
       id: FIRST_ID + i,
       ...look("water"),
+      extra: { kind: "water" },
       title: "Hora de beber água",
       body: `Que tal um copo de ${h.cupMl} ml agora?`,
       schedule: {
@@ -94,8 +99,16 @@ export async function syncWaterReminders(h: Hydration | undefined) {
   });
 }
 
-/** Notificação na hora (ex.: desafio concluído), se o aparelho permitir. */
-export async function notifyNow(title: string, body: string, kind: NotifyKind) {
+/**
+ * Notificação na hora (ex.: desafio concluído), se o aparelho permitir. O
+ * tipo (e o post) vão junto para abrir a tela certa ao tocar.
+ */
+export async function notifyNow(
+  title: string,
+  body: string,
+  kind: NotifyKind,
+  post?: string,
+) {
   if (!remindersSupported()) return;
   if ((await LocalNotifications.checkPermissions()).display !== "granted")
     return;
@@ -106,7 +119,21 @@ export async function notifyNow(title: string, body: string, kind: NotifyKind) {
         id: 2000 + Math.floor(Math.random() * 100000),
         title,
         body,
+        extra: { kind, post },
       },
     ],
   });
+}
+
+/** Ao tocar numa notificação local: devolve o tipo e o post dela. */
+export async function listenNotificationTaps(
+  onOpen: (kind?: string, post?: string) => void,
+) {
+  if (!remindersSupported()) return () => {};
+  const handle = await LocalNotifications.addListener(
+    "localNotificationActionPerformed",
+    ({ notification }) =>
+      onOpen(notification.extra?.kind, notification.extra?.post),
+  );
+  return () => void handle.remove();
 }

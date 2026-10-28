@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { RiCake2Fill, RiMusic2Line } from "react-icons/ri";
 import { ageOn, dateKey, today } from "./domain";
 import Sheet from "./Sheet";
 import { playNotes } from "./sounds";
@@ -81,9 +82,10 @@ export function BirthdayCard({
   return (
     <Sheet title="Feliz aniversário!" onClose={onClose}>
       <div className="flex flex-col items-center text-center">
-        <span className="animate-bounce text-[88px] leading-none" aria-hidden>
-          🎂
-        </span>
+        <RiCake2Fill
+          className="size-[88px] animate-bounce text-brand-600"
+          aria-hidden
+        />
         <h3 className="mt-4 text-2xl font-semibold tracking-tight">
           Parabéns{name ? `, ${name}` : ""}!
         </h3>
@@ -96,7 +98,8 @@ export function BirthdayCard({
             className="btn-secondary"
             onClick={() => void playHappyBirthday().then(setPlayed)}
           >
-            {played ? "Tocar de novo" : "Tocar parabéns"} 🎵
+            <RiMusic2Line className="size-5" />
+            {played ? "Tocar de novo" : "Tocar parabéns"}
           </button>
           <button className="btn-primary" onClick={onClose}>
             Obrigado!

@@ -15,7 +15,6 @@ import { dailyBudget, waterOn, weightAtDate } from "./energy.ts";
 export type Mission = { id: string; label: string; done: boolean };
 export type Medal = {
   id: string;
-  icon: string;
   title: string;
   text: string;
   earned: boolean;
@@ -170,14 +169,12 @@ export function medals(state: State): Medal[] {
     (state.goal < start ? now <= state.goal : now >= state.goal);
   const medal = (
     id: string,
-    icon: string,
     title: string,
     text: string,
     value: number,
     target: number,
   ): Medal => ({
     id,
-    icon,
     title,
     text,
     earned: value >= target,
@@ -186,23 +183,14 @@ export function medals(state: State): Medal[] {
   return [
     medal(
       "first",
-      "👣",
       "Primeiro passo",
       "Registrou o primeiro peso.",
       weights.length,
       1,
     ),
-    medal(
-      "week",
-      "🔥",
-      "Uma semana",
-      "7 dias seguidos com registros.",
-      streak,
-      7,
-    ),
+    medal("week", "Uma semana", "7 dias seguidos com registros.", streak, 7),
     medal(
       "month",
-      "🏆",
       "Um mês firme",
       "30 dias seguidos com registros.",
       streak,
@@ -210,7 +198,6 @@ export function medals(state: State): Medal[] {
     ),
     medal(
       "water1",
-      "💧",
       "Hidratado",
       "Bateu a meta de água pela primeira vez.",
       waterDays,
@@ -218,47 +205,23 @@ export function medals(state: State): Medal[] {
     ),
     medal(
       "water7",
-      "🌊",
       "Fonte de água",
       "Bateu a meta de água em 7 dias.",
       waterDays,
       7,
     ),
-    medal(
-      "diary",
-      "📒",
-      "Diário em dia",
-      "Fechou 7 dias no diário.",
-      closed,
-      7,
-    ),
+    medal("diary", "Diário em dia", "Fechou 7 dias no diário.", closed, 7),
     medal(
       "athlete",
-      "🏃",
       "Atleta da semana",
       "150 min de exercício em 7 dias.",
       weekMinutes,
       150,
     ),
-    medal(
-      "kg1",
-      "⚖️",
-      "Primeiro quilo",
-      "1 kg na direção da sua meta.",
-      moved,
-      1,
-    ),
-    medal(
-      "kg5",
-      "🚀",
-      "Cinco quilos",
-      "5 kg na direção da sua meta.",
-      moved,
-      5,
-    ),
+    medal("kg1", "Primeiro quilo", "1 kg na direção da sua meta.", moved, 1),
+    medal("kg5", "Cinco quilos", "5 kg na direção da sua meta.", moved, 5),
     medal(
       "goal",
-      "🥇",
       "Meta alcançada",
       "Chegou ao peso desejado.",
       reached ? 1 : 0,

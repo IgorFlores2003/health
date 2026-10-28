@@ -4,19 +4,34 @@ import {
   RiArrowDownSLine,
   RiArrowUpSLine,
   RiChat3Line,
+  RiCloseLine,
   RiDeleteBin6Line,
+  RiFileGifLine,
   RiFlagLine,
   RiHeart3Fill,
   RiHeart3Line,
   RiImageAddLine,
+  RiImageLine,
   RiLifebuoyFill,
   RiLifebuoyLine,
+  RiMedalFill,
+  RiReplyLine,
+  RiRunFill,
   RiShareLine,
   RiUserAddLine,
+  RiWifiOffLine,
 } from "react-icons/ri";
 import { confirmDialog } from "./confirm";
 import Sheet from "./Sheet";
-import { Avatar, PhotoStrip, uploadPhoto } from "./photos";
+import {
+  Avatar,
+  downloadPhoto,
+  PhotoStrip,
+  toBase64,
+  uploadPhoto,
+} from "./photos";
+import GifPicker from "./GifPicker";
+import { gifsEnabled } from "./giphy";
 import PhotoEditor from "./PhotoEditor";
 import {
   acceptFriend,
@@ -27,10 +42,12 @@ import {
   findByCode,
   loadFeed,
   loadNetwork,
+  postText,
   removeFriend,
   report,
   requestFriend,
   setLike,
+  type Comment,
   type Friendship,
   type Post,
   type SocialProfile,
@@ -66,14 +83,50 @@ function saveList(key: string, list: string[]) {
   }
 }
 
-/** Compartilha fora do app (WhatsApp etc.) ou copia o texto. */
-export async function shareText(text: string) {
+/** Última versão do Social, para mostrar sem internet. */
+type SocialCache = Awaited<ReturnType<typeof loadNetwork>> & { feed: Post[] };
+function readCache(key: string): SocialCache | null {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null");
+  } catch {
+    return null;
+  }
+}
+function writeCache(key: string, cache: SocialCache) {
+  try {
+    localStorage.setItem(key, JSON.stringify(cache));
+  } catch {
+    /* só não fica guardado para usar sem internet */
+  }
+}
+
+/**
+ * Compartilha fora do app (WhatsApp etc.) ou copia o texto. Com foto, ela
+ * vai junto quando o aparelho permite enviar arquivos.
+ */
+export async function shareText(text: string, photo?: Blob) {
   const { Capacitor } = await import("@capacitor/core");
   if (Capacitor.isNativePlatform()) {
     const { Share } = await import("@capacitor/share");
-    await Share.share({ text });
-  } else if (navigator.share) await navigator.share({ text });
-  else {
+    if (photo) {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      const file = await Filesystem.writeFile({
+        path: "ritmo-post.jpg",
+        data: toBase64(new Uint8Array(await photo.arrayBuffer())),
+        directory: Directory.Cache,
+      });
+      await Share.share({ text, files: [file.uri] });
+    } else await Share.share({ text });
+  } else if (navigator.share) {
+    const files = photo
+      ? [new File([photo], "ritmo-post.jpg", { type: "image/jpeg" })]
+      : [];
+    await navigator.share(
+      files.length && navigator.canShare?.({ files })
+        ? { text, files }
+        : { text },
+    );
+  } else {
     await navigator.clipboard.writeText(text);
     return "copied";
   }
@@ -93,7 +146,12 @@ export default function Community({
   invite,
   section,
   onXp,
+  focus,
+  onFocused,
 }: {
+  /** Post a abrir (veio de uma notificação). */
+  focus?: string | null;
+  onFocused: () => void;
   /** Ganha XP por curtir/comentar posts de amigos e por publicar. */
   onXp: (kind: "like" | "comment" | "post", id: string) => void;
   /** Tela dentro de Social: amigos (feed) ou a lontra. */
@@ -113,11 +171,20 @@ export default function Community({
   onDraftUsed: () => void;
   onNotice: (text: string) => void;
 }) {
-  const [me, setMe] = useState<SocialProfile | null>(null);
-  const [friendships, setFriendships] = useState<Friendship[]>([]);
-  const [people, setPeople] = useState<SocialProfile[]>([]);
-  const [feed, setFeed] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Última versão carregada, guardada neste aparelho: sem internet, o feed
+  // e os amigos continuam aparecendo.
+  const cacheKey = `ritmo-social-cache-${userId}`;
+  const [cache] = useState(() => readCache(cacheKey));
+  const [me, setMe] = useState<SocialProfile | null>(cache?.me ?? null);
+  const [friendships, setFriendships] = useState<Friendship[]>(
+    cache?.friendships ?? [],
+  );
+  const [people, setPeople] = useState<SocialProfile[]>(cache?.people ?? []);
+  const [feed, setFeed] = useState<Post[]>(cache?.feed ?? []);
+  const [loading, setLoading] = useState(!cache);
+  const [offline, setOffline] = useState(false);
+  // A primeira busca no servidor terminou (deu certo ou não).
+  const [fetched, setFetched] = useState(false);
   // Pedidos de ajuda dos amigos ainda não respondidos (some ao puxar a orelha).
   const answeredKey = `ritmo-help-answered-${userId}`;
   const [help, setHelp] = useState<Nudge[]>([]);
@@ -154,6 +221,8 @@ export default function Community({
       setFriendships(net.friendships);
       setPeople(net.people);
       setFeed(posts);
+      setOffline(false);
+      writeCache(cacheKey, { ...net, feed: posts });
       const answered = readList(answeredKey);
       setHelp(
         (await helpRequests(userId).catch(() => [])).filter(
@@ -161,15 +230,54 @@ export default function Community({
         ),
       );
     } catch (e) {
-      onNotice(e instanceof Error ? e.message : "Falha ao carregar.");
+      if (!navigator.onLine) setOffline(true);
+      else onNotice(e instanceof Error ? e.message : "Falha ao carregar.");
     } finally {
       setLoading(false);
+      setFetched(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, onNotice]);
   useEffect(() => {
     void refresh();
+    const online = () => void refresh();
+    const lost = () => setOffline(true);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", lost);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("offline", lost);
+    };
   }, [refresh]);
+
+  // Minimizar o feed inteiro (lembrado neste aparelho).
+  const feedHiddenKey = `ritmo-feed-hidden-${userId}`;
+  const [feedHidden, setFeedHiddenState] = useState(
+    () => readList(feedHiddenKey).length > 0,
+  );
+  const setFeedHidden = (on: boolean) => {
+    setFeedHiddenState(on);
+    saveList(feedHiddenKey, on ? ["1"] : []);
+  };
+  // Post aberto por uma notificação: mostra o feed, abre e desce até ele.
+  const [focused, setFocused] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focus || !fetched) return;
+    onFocused();
+    if (!feed.some((p) => p.id === focus)) {
+      onNotice("Esse post não está mais disponível.");
+      return;
+    }
+    setFeedHidden(false);
+    collapse(focus, false);
+    setFocused(focus);
+    requestAnimationFrame(() =>
+      document
+        .getElementById(`post-${focus}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, fetched]);
 
   /** Executa e recarrega; devolve se deu certo (o erro vira aviso). */
   const run = async (action: () => Promise<unknown>, done?: string) => {
@@ -217,7 +325,7 @@ export default function Community({
         if (on && p.author !== userId) onXp("like", p.id);
       },
     );
-  const comment = (p: Post, text: string) => {
+  const comment = (p: Post, text: string, extra: CommentExtra = {}) => {
     // Id provisório até o servidor devolver o comentário salvo.
     const tmp = `tmp-${Date.now()}`;
     return optimistic(
@@ -229,14 +337,16 @@ export default function Community({
             {
               id: tmp,
               post_id: p.id,
+              parent_id: extra.parent ?? null,
               author: userId,
               text: text.trim(),
+              gif: extra.gif ?? null,
               created_at: new Date().toISOString(),
             },
           ],
         })),
       async () => {
-        const saved = await addComment(p.id, text);
+        const saved = await addComment(p.id, text, extra);
         if (p.author !== userId) onXp("comment", saved.id);
         patchPost(p.id, (x) => ({
           ...x,
@@ -250,7 +360,7 @@ export default function Community({
       () =>
         patchPost(p.id, (x) => ({
           ...x,
-          comments: x.comments.filter((c) => c.id !== id),
+          comments: x.comments.filter((c) => c.id !== id && c.parent_id !== id),
         })),
       () => deleteComment(id),
     );
@@ -311,6 +421,27 @@ export default function Community({
       </PersonRow>
     ));
 
+  /** Compartilha fora do app com o autor, o texto e a foto do post. */
+  const sharePost = async (p: Post) => {
+    const author = p.author === userId ? null : person(p.author)?.name;
+    const text = [
+      author ? `${author} no Ritmo:` : null,
+      postText(p),
+      "Compartilhado do Ritmo",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+    const photo = p.photo
+      ? await downloadPhoto(p.photo).catch(() => undefined)
+      : undefined;
+    await shareText(text, photo).then(
+      (r) => r === "copied" && onNotice("Texto copiado para compartilhar."),
+      (e) => {
+        if (!(e instanceof Error && /cancel|abort/i.test(e.message + e.name)))
+          onNotice("Não foi possível compartilhar agora.");
+      },
+    );
+  };
   return (
     <>
       {section === "otter" ? (
@@ -447,6 +578,35 @@ export default function Community({
               }
               onNotice={onNotice}
             />
+            {offline && (
+              <p className="flex items-center gap-2 rounded-lg bg-surface px-3 py-2.5 text-sm text-ink-500">
+                <RiWifiOffLine className="size-5 shrink-0" />
+                Sem conexão. Mostrando o que foi carregado por último; curtir,
+                comentar e publicar voltam com a internet.
+              </p>
+            )}
+            {feed.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-base font-semibold">
+                  Feed · {feed.length} post{feed.length === 1 ? "" : "s"}
+                </h2>
+                <button
+                  className="btn-ghost text-sm text-ink-500"
+                  aria-expanded={!feedHidden}
+                  onClick={() => setFeedHidden(!feedHidden)}
+                >
+                  {feedHidden ? (
+                    <>
+                      <RiArrowDownSLine className="size-5" /> Mostrar feed
+                    </>
+                  ) : (
+                    <>
+                      <RiArrowUpSLine className="size-5" /> Minimizar feed
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
             {loading ? (
               <p className="py-10 text-center text-sm text-ink-500">
                 Carregando…
@@ -460,17 +620,19 @@ export default function Community({
                 </p>
               </Panel>
             ) : (
+              !feedHidden &&
               feed.map((p) => (
                 <PostCard
                   key={p.id}
                   post={p}
+                  focused={focused === p.id}
                   userId={userId}
                   person={person}
                   collapsed={collapsed.includes(p.id)}
                   onCollapse={(on) => collapse(p.id, on)}
                   onOpenPerson={setProfile}
                   onLike={(on) => void like(p, on)}
-                  onComment={(text) => void comment(p, text)}
+                  onComment={(text, extra) => void comment(p, text, extra)}
                   onDeleteComment={(id) => void removeComment(p, id)}
                   onDelete={() =>
                     optimistic(
@@ -484,11 +646,7 @@ export default function Community({
                       "Denúncia enviada. Obrigado por avisar.",
                     )
                   }
-                  onShare={() =>
-                    shareText(`${p.text}\n\nCompartilhado do Ritmo`).catch(
-                      () => undefined,
-                    )
-                  }
+                  onShare={() => sharePost(p)}
                 />
               ))
             )}
@@ -887,8 +1045,11 @@ function Composer({
   );
 }
 
+type CommentExtra = { parent?: string | null; gif?: string | null };
+
 function PostCard({
   post,
+  focused,
   userId,
   person,
   collapsed,
@@ -902,6 +1063,8 @@ function PostCard({
   onShare,
 }: {
   post: Post;
+  /** Aberto por uma notificação: comentários abertos e destaque. */
+  focused?: boolean;
   userId: string;
   person: (id: string) => SocialProfile | null | undefined;
   /** Minimizado: só o autor e o começo do texto. */
@@ -909,7 +1072,7 @@ function PostCard({
   onCollapse: (on: boolean) => void;
   onOpenPerson: (id: string) => void;
   onLike: (on: boolean) => void;
-  onComment: (text: string) => void;
+  onComment: (text: string, extra?: CommentExtra) => void;
   onDeleteComment: (id: string) => void;
   onDelete: () => void;
   onReport: (
@@ -918,8 +1081,52 @@ function PostCard({
   ) => void;
   onShare: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!focused);
+  useEffect(() => {
+    if (focused) setOpen(true);
+  }, [focused]);
   const [comment, setComment] = useState("");
+  // Comentário sendo respondido e a escolha de GIF.
+  const [replyTo, setReplyTo] = useState<Comment | null>(null);
+  const [picking, setPicking] = useState(false);
+  const input = useRef<HTMLInputElement>(null);
+  const send = (gif?: string) => {
+    if (!comment.trim() && !gif) return;
+    onComment(comment, { parent: replyTo?.id ?? null, gif: gif ?? null });
+    setComment("");
+    setReplyTo(null);
+  };
+  // Respostas ficam sob o comentário de cima da conversa (um nível só).
+  const byId = new Map(post.comments.map((c) => [c.id, c]));
+  const root = (c: Comment): Comment | undefined => {
+    let at: Comment | undefined = c;
+    for (let i = 0; at?.parent_id && i < 20; i++) at = byId.get(at.parent_id);
+    return at;
+  };
+  const threads = post.comments
+    .filter((c) => !c.parent_id)
+    .map((c) => ({
+      comment: c,
+      replies: post.comments.filter((r) => r.parent_id && root(r)?.id === c.id),
+    }));
+  const nameOf = (id: string) =>
+    person(id)?.name ?? `Amigo(a) de ${author?.name ?? "alguém"}`;
+  const rowProps = (c: Comment) => ({
+    name: nameOf(c.author),
+    canDelete: c.author === userId || mine,
+    onReply: () => {
+      setReplyTo(c);
+      input.current?.focus();
+    },
+    onDelete: () => onDeleteComment(c.id),
+    onReport: () => askReport({ comment_id: c.id }),
+  });
+  const KindIcon =
+    post.kind === "medal"
+      ? RiMedalFill
+      : post.kind === "activity"
+        ? RiRunFill
+        : null;
   // Conta as curtidas feitas aqui, só para tocar a animação.
   const [pop, setPop] = useState(0);
   const author = person(post.author);
@@ -941,7 +1148,10 @@ function PostCard({
       onReport(target, "Conteúdo impróprio");
   };
   return (
-    <Panel>
+    <Panel
+      className={`scroll-mt-20 ${focused ? "ring-2 ring-brand-300" : ""}`}
+      id={`post-${post.id}`}
+    >
       <div className="flex items-center gap-1">
         <button
           className="-my-1 -ml-1 flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left hover:bg-surface"
@@ -957,7 +1167,7 @@ function PostCard({
             </strong>
             <small className="block truncate text-[13px] text-ink-500">
               {collapsed && post.text
-                ? post.text
+                ? postText(post)
                 : `${ago(post.created_at)}${post.kind === "medal" ? " · conquista" : post.kind === "activity" ? " · atividade" : ""}`}
             </small>
           </span>
@@ -998,8 +1208,14 @@ function PostCard({
       {!collapsed && (
         <>
           {post.text && (
-            <p className="mt-3 text-[15px] leading-relaxed whitespace-pre-wrap">
-              {post.text}
+            <p className="mt-3 flex items-start gap-2 text-[15px] leading-relaxed whitespace-pre-wrap">
+              {KindIcon && (
+                <KindIcon
+                  className="mt-0.5 size-5 shrink-0 text-brand-600"
+                  aria-hidden
+                />
+              )}
+              <span className="min-w-0">{postText(post)}</span>
             </p>
           )}
           {post.photo && (
@@ -1048,62 +1264,61 @@ function PostCard({
           </div>
           {open && (
             <div className="mt-2 space-y-2">
-              {post.comments.map((c) => {
-                const who = person(c.author);
-                const canDelete = c.author === userId || mine;
-                // Ainda indo para o servidor (ver comment() em Community).
-                const sending = c.id.startsWith("tmp-");
-                return (
-                  <div
-                    key={c.id}
-                    className={`flex items-start gap-2 rounded-lg bg-surface p-2.5 ${sending ? "opacity-60" : ""}`}
+              {threads.map(({ comment: c, replies }) => (
+                <div key={c.id} className="space-y-1.5">
+                  <CommentRow comment={c} {...rowProps(c)} />
+                  {replies.length > 0 && (
+                    <div className="ml-6 space-y-1.5 border-l-2 border-line pl-2">
+                      {replies.map((r) => (
+                        <CommentRow key={r.id} comment={r} {...rowProps(r)} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {replyTo && (
+                <p className="flex items-center gap-2 text-[13px] text-ink-500">
+                  <RiReplyLine className="size-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">
+                    Respondendo a {nameOf(replyTo.author)}
+                  </span>
+                  <button
+                    className="icon-btn size-8"
+                    aria-label="Cancelar resposta"
+                    onClick={() => setReplyTo(null)}
                   >
-                    <span className="min-w-0 flex-1 text-sm">
-                      <strong className="font-medium">
-                        {who?.name ?? `Amigo(a) de ${author?.name ?? "alguém"}`}
-                      </strong>{" "}
-                      {c.text}
-                      <small className="block text-xs text-ink-400">
-                        {ago(c.created_at)}
-                      </small>
-                    </span>
-                    <button
-                      className="icon-btn size-8"
-                      disabled={sending}
-                      aria-label={
-                        canDelete ? "Apagar comentário" : "Denunciar comentário"
-                      }
-                      onClick={() =>
-                        canDelete
-                          ? onDeleteComment(c.id)
-                          : askReport({ comment_id: c.id })
-                      }
-                    >
-                      {canDelete ? (
-                        <RiDeleteBin6Line className="size-4" />
-                      ) : (
-                        <RiFlagLine className="size-4" />
-                      )}
-                    </button>
-                  </div>
-                );
-              })}
+                    <RiCloseLine className="size-4" />
+                  </button>
+                </p>
+              )}
               <form
                 className="flex gap-2"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!comment.trim()) return;
-                  onComment(comment);
-                  setComment("");
+                  send();
                 }}
               >
                 <input
+                  ref={input}
                   className="input"
-                  placeholder="Escreva um comentário"
+                  placeholder={
+                    replyTo ? "Escreva uma resposta" : "Escreva um comentário"
+                  }
                   maxLength={500}
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                 />
+                {gifsEnabled() && (
+                  <button
+                    type="button"
+                    className="icon-btn size-11 shrink-0"
+                    aria-label="Enviar GIF"
+                    title="GIF"
+                    onClick={() => setPicking(true)}
+                  >
+                    <RiFileGifLine className="size-6" />
+                  </button>
+                )}
                 <button
                   className="btn-secondary shrink-0"
                   disabled={!comment.trim()}
@@ -1111,11 +1326,80 @@ function PostCard({
                   Enviar
                 </button>
               </form>
+              {picking && (
+                <GifPicker
+                  onClose={() => setPicking(false)}
+                  onPick={(url) => {
+                    setPicking(false);
+                    send(url);
+                  }}
+                />
+              )}
             </div>
           )}
         </>
       )}
     </Panel>
+  );
+}
+
+/** Um comentário (ou resposta): texto e/ou GIF, responder e apagar/denunciar. */
+function CommentRow({
+  comment: c,
+  name,
+  canDelete,
+  onReply,
+  onDelete,
+  onReport,
+}: {
+  comment: Comment;
+  name: string;
+  canDelete: boolean;
+  onReply: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}) {
+  // Ainda indo para o servidor (ver comment() em Community).
+  const sending = c.id.startsWith("tmp-");
+  return (
+    <div
+      className={`flex items-start gap-2 rounded-lg bg-surface p-2.5 ${sending ? "opacity-60" : ""}`}
+    >
+      <span className="min-w-0 flex-1 text-sm">
+        <strong className="font-medium">{name}</strong> {c.text}
+        {c.gif && (
+          <img
+            src={c.gif}
+            alt="GIF"
+            loading="lazy"
+            className="mt-1.5 max-h-40 rounded-lg"
+          />
+        )}
+        <span className="mt-0.5 flex items-center gap-3 text-xs text-ink-400">
+          {ago(c.created_at)}
+          {!sending && (
+            <button
+              className="font-medium text-ink-500 hover:text-ink-700"
+              onClick={onReply}
+            >
+              Responder
+            </button>
+          )}
+        </span>
+      </span>
+      <button
+        className="icon-btn size-8"
+        disabled={sending}
+        aria-label={canDelete ? "Apagar comentário" : "Denunciar comentário"}
+        onClick={canDelete ? onDelete : onReport}
+      >
+        {canDelete ? (
+          <RiDeleteBin6Line className="size-4" />
+        ) : (
+          <RiFlagLine className="size-4" />
+        )}
+      </button>
+    </div>
   );
 }
 
@@ -1269,7 +1553,11 @@ function FriendProfile({
           {posts.slice(0, 10).map((p) => (
             <li key={p.id} className="py-2.5 text-sm">
               <p className="line-clamp-3 whitespace-pre-wrap">
-                {p.text || "📷 Foto"}
+                {postText(p) || (
+                  <span className="inline-flex items-center gap-1 text-ink-500">
+                    <RiImageLine className="size-4" /> Foto
+                  </span>
+                )}
               </p>
               <small className="text-xs text-ink-500">
                 {ago(p.created_at)} · {p.likes.length} curtida

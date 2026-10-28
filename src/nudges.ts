@@ -1,4 +1,5 @@
 import type { DayGoals } from "./gamification";
+import { pushNotify } from "./push";
 import { supabase } from "./supabase";
 
 /** "Puxar orelha" (supabase/migrations/…_nudges.sql). */
@@ -17,21 +18,21 @@ export type Nudge = {
 /** Sugestões para o pedido de ajuda (a pessoa também pode escrever). */
 export const HELP_MESSAGES = [
   "Me puxa a orelha! Estou perdendo o foco hoje.",
-  "Me cobra a água de hoje, por favor! 💧",
-  "Me chama para treinar, estou sem ânimo. 💪",
-  "Estou com vontade de comer besteira, me segura! 🍫",
+  "Me cobra a água de hoje, por favor!",
+  "Me chama para treinar, estou sem ânimo.",
+  "Estou com vontade de comer besteira, me segura!",
 ];
 
 /** Mensagem motivacional conforme a meta que está faltando. */
 export function nudgeMessage(goals: DayGoals | undefined) {
   const options = !goals?.water
     ? [
-        "Bora lá! Cadê a água de hoje? 💧",
+        "Bora lá! Cadê a água de hoje?",
         "Ei, um copo de água agora! A lontra agradece.",
       ]
     : !goals?.exercise
       ? [
-          "Bora treinar? Só falta você! 💪",
+          "Bora treinar? Só falta você!",
           "Partiu mexer o corpo? A lontra está te esperando na academia.",
         ]
       : [
@@ -64,9 +65,7 @@ export async function sendNudge(
     );
   // Push para o celular do amigo (mesmo com o app fechado); se falhar, o
   // puxão continua guardado e aparece quando ele abrir o app.
-  void supabase.functions
-    .invoke("notify", { body: { nudge: data.id } })
-    .catch(() => undefined);
+  pushNotify({ nudge: data.id });
 }
 
 /**

@@ -2,11 +2,29 @@ import { Capacitor } from "@capacitor/core";
 import { supabase } from "./supabase";
 
 /**
- * Push (Firebase Cloud Messaging) no Android: o aparelho se registra e
- * guarda o endereço em push_tokens. Assim o puxão de orelha chega mesmo com
- * o app fechado (função supabase/functions/notify).
+ * Pede o push de uma ação para os amigos (função supabase/functions/notify):
+ * puxão, comentário, curtida ou post. Se falhar, a ação já está salva e
+ * aparece na aba Notificações deles.
  */
-export async function registerPush() {
+export function pushNotify(
+  body:
+    | { nudge: string }
+    | { comment: string }
+    | { like: string }
+    | { post: string },
+) {
+  void supabase?.functions.invoke("notify", { body }).catch(() => undefined);
+}
+
+/**
+ * Push (Firebase Cloud Messaging) no Android: o aparelho se registra e
+ * guarda o endereço em push_tokens. Assim puxões, comentários, curtidas e
+ * posts chegam mesmo com o app fechado. Ao tocar na notificação, onOpen
+ * recebe o tipo e o post para abrir a tela certa.
+ */
+export async function registerPush(
+  onOpen: (kind?: string, post?: string) => void,
+) {
   if (!supabase || Capacitor.getPlatform() !== "android") return;
   const db = supabase;
   const { PushNotifications } = await import("@capacitor/push-notifications");
@@ -19,6 +37,11 @@ export async function registerPush() {
   await PushNotifications.addListener("registration", ({ value }) => {
     void db.rpc("save_push_token", { t: value, p: "android" });
   });
+  await PushNotifications.addListener(
+    "pushNotificationActionPerformed",
+    ({ notification }) =>
+      onOpen(notification.data?.kind, notification.data?.post),
+  );
   await PushNotifications.register();
 }
 

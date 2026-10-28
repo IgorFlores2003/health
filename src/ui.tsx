@@ -31,11 +31,17 @@ export function Field({
 export function Panel({
   children,
   className = "",
+  id,
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
 }) {
-  return <section className={"card min-w-0 " + className}>{children}</section>;
+  return (
+    <section id={id} className={"card min-w-0 " + className}>
+      {children}
+    </section>
+  );
 }
 export function CardHeader({
   title,

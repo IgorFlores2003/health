@@ -1,3 +1,4 @@
+import { pushNotify } from "./push";
 import { supabase } from "./supabase";
 
 /**
@@ -21,10 +22,15 @@ export type Friendship = {
 export type Comment = {
   id: string;
   post_id: string;
+  /** Comentário respondido (null: comentário direto no post). */
+  parent_id: string | null;
   author: string;
   text: string;
+  /** GIF do GIPHY (endereço da imagem). */
+  gif: string | null;
   created_at: string;
 };
+const COMMENT_COLUMNS = "id, post_id, parent_id, author, text, gif, created_at";
 export type Post = {
   id: string;
   author: string;
@@ -36,12 +42,24 @@ export type Post = {
   comments: Comment[];
 };
 
+/**
+ * Texto do post para mostrar. Posts automáticos antigos começavam com um
+ * emoji; o app agora usa ícones, então ele é tirado na hora de exibir.
+ */
+export function postText(p: Pick<Post, "text" | "kind">) {
+  return p.kind === "post"
+    ? p.text
+    : p.text.replace(/^[\p{Extended_Pictographic}\uFE0F\u200D\s]+/u, "");
+}
+
 function db() {
   if (!supabase) throw Error("Conecte-se para usar a comunidade.");
   return supabase;
 }
 function check<T>({ data, error }: { data: T; error: unknown }) {
   if (!error) return data;
+  if (!navigator.onLine)
+    throw Error("Sem conexão. Tente de novo quando a internet voltar.");
   const code = (error as { code?: string }).code;
   // Tabela ausente: a migração da comunidade não foi aplicada no servidor.
   if (code === "42P01" || code === "PGRST205")
@@ -134,7 +152,7 @@ export async function loadFeed(): Promise<Post[]> {
     db().from("likes").select("post_id, user_id").in("post_id", ids),
     db()
       .from("comments")
-      .select("id, post_id, author, text, created_at")
+      .select(COMMENT_COLUMNS)
       .in("post_id", ids)
       .order("created_at"),
   ]);
@@ -159,6 +177,7 @@ export async function createPost(
       .select("id, author, text, photo, kind, created_at")
       .single(),
   ) as Omit<Post, "likes" | "comments">;
+  pushNotify({ post: row.id });
   return { ...row, likes: [], comments: [] } as Post;
 }
 
@@ -184,26 +203,37 @@ export async function autoPost(
   text: string,
   kind: "medal" | "activity",
 ) {
+  const id = await stableId(key);
   check(
     await db()
       .from("posts")
-      .upsert(
-        { id: await stableId(key), text, kind },
-        { onConflict: "id", ignoreDuplicates: true },
-      ),
+      .upsert({ id, text, kind }, { onConflict: "id", ignoreDuplicates: true }),
   );
+  pushNotify({ post: id });
 }
 export async function deletePost(id: string) {
   check(await db().from("posts").delete().eq("id", id));
 }
-export async function addComment(postId: string, text: string) {
-  return check(
+/** Comentário (ou resposta, com parent) de texto, GIF ou os dois. */
+export async function addComment(
+  postId: string,
+  text: string,
+  extra: { parent?: string | null; gif?: string | null } = {},
+) {
+  const saved = check(
     await db()
       .from("comments")
-      .insert({ post_id: postId, text: text.trim() })
-      .select("id, post_id, author, text, created_at")
+      .insert({
+        post_id: postId,
+        text: text.trim(),
+        parent_id: extra.parent ?? null,
+        gif: extra.gif ?? null,
+      })
+      .select(COMMENT_COLUMNS)
       .single(),
   ) as Comment;
+  pushNotify({ comment: saved.id });
+  return saved;
 }
 export async function deleteComment(id: string) {
   check(await db().from("comments").delete().eq("id", id));
@@ -218,6 +248,7 @@ export async function setLike(postId: string, userId: string, on: boolean) {
           .eq("post_id", postId)
           .eq("user_id", userId),
   );
+  if (on) pushNotify({ like: postId });
 }
 export async function report(
   target: { post_id?: string; comment_id?: string },

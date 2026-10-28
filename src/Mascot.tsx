@@ -1,12 +1,11 @@
 import { useState } from "react";
-import { RiMedalLine, RiStarLine } from "react-icons/ri";
+import { RiStarLine } from "react-icons/ri";
 import type { State } from "./domain";
 import { PetArt } from "./Pet";
 import {
   dailyMissions,
   dayXp,
   mascotMood,
-  medals,
   nextEvolution,
   petStage,
   progressLevel,
@@ -16,25 +15,19 @@ import {
 import Sheet from "./Sheet";
 import { CheckItem } from "./ui";
 
-/** Card do Início: mascote, nível, missões do dia e medalhas. */
+/** Card do Início: mascote, nível e missões do dia (medalhas ficam no Perfil). */
 export default function MascotCard({
   state,
   date,
-  onShare,
 }: {
   state: State;
   date: string;
-  /** Compartilhar uma medalha com os amigos. */
-  onShare?: (text: string) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [rules, setRules] = useState(false);
   const mood = mascotMood(state, date);
   const level = progressLevel(state);
   const pet = petStage(level.level);
   const missions = dailyMissions(state, date);
-  const all = medals(state);
-  const earned = all.filter((m) => m.earned).length;
   const next = nextEvolution(level.level);
   const todayXp = dayXp(state, date);
   return (
@@ -100,12 +93,6 @@ export default function MascotCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           className="btn-secondary flex-1 sm:flex-none"
-          onClick={() => setOpen(true)}
-        >
-          <RiMedalLine className="size-5" /> Medalhas · {earned}/{all.length}
-        </button>
-        <button
-          className="btn-secondary flex-1 sm:flex-none"
           onClick={() => setRules(true)}
         >
           <RiStarLine className="size-5" /> Como ganhar XP
@@ -146,49 +133,6 @@ export default function MascotCard({
             demorados. Hoje você já ganhou {todayXp.missions} XP com missões e{" "}
             {todayXp.social} XP com amigos.
           </p>
-        </Sheet>
-      )}
-      {open && (
-        <Sheet title="Medalhas" onClose={() => setOpen(false)}>
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {all.map((m) => (
-              <li
-                key={m.id}
-                className={`flex flex-col items-center rounded-xl border p-4 text-center ${m.earned ? "border-brand-200 bg-brand-50" : "border-line"}`}
-              >
-                <span
-                  className={`text-4xl ${m.earned ? "" : "opacity-30 grayscale"}`}
-                  aria-hidden
-                >
-                  {m.icon}
-                </span>
-                <strong className="mt-2 text-sm">{m.title}</strong>
-                <span className="mt-1 text-[13px] text-ink-500">{m.text}</span>
-                {m.earned ? (
-                  onShare && (
-                    <button
-                      className="btn-ghost mt-2 text-sm"
-                      onClick={() => {
-                        setOpen(false);
-                        onShare(
-                          `${m.icon} Conquistei a medalha "${m.title}": ${m.text}`,
-                        );
-                      }}
-                    >
-                      Compartilhar
-                    </button>
-                  )
-                ) : (
-                  <span className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-line">
-                    <span
-                      className="block h-full rounded-full bg-brand-400"
-                      style={{ width: `${m.progress * 100}%` }}
-                    />
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
         </Sheet>
       )}
     </section>
