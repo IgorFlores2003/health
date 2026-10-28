@@ -6,7 +6,7 @@ import type {
   ScaleReading,
 } from "./readImage";
 import { toBase64 } from "./photos";
-import { supabase } from "./supabase";
+import { AI_OFFLINE, supabase } from "./supabase";
 
 /** Limite da gravação: 60 s em WAV 16 kHz cabem no limite da função. */
 export const MAX_SECONDS = 60;
@@ -100,6 +100,7 @@ export async function readAudio(
   audio: Blob,
 ) {
   if (!supabase) throw Error("Conecte-se para usar o áudio com a IA.");
+  if (!navigator.onLine) throw Error(AI_OFFLINE);
   const { data, error } = await supabase.functions.invoke("coach", {
     body: {
       action: "read-audio",

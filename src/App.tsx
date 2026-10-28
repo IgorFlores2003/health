@@ -28,6 +28,7 @@ import {
 import { playSuccess } from "./sounds";
 import { registerPush, unregisterPush } from "./push";
 import { listenInvites, takeInvite } from "./invite";
+import { flushOutbox } from "./outbox";
 import Notifications from "./Notifications";
 import Help from "./Help";
 import Tutorial, { STEPS } from "./Tutorial";
@@ -54,6 +55,7 @@ import AccountAccess from "./AccountAccess";
 import {
   Avatar,
   downloadPhoto,
+  flushPhotos,
   originalOf,
   removePhotos,
   uploadPhoto,
@@ -143,7 +145,7 @@ import {
   type Food,
   type State,
 } from "./domain";
-import { supabase } from "./supabase";
+import { AI_OFFLINE, supabase } from "./supabase";
 import { confirmDialog } from "./confirm";
 import { useCloudSync } from "./sync";
 import { AccountMenu, SyncBadge } from "./AccountMenu";
@@ -549,6 +551,9 @@ export default function App({ account }: { account: User }) {
     let seen: string[] | null = null;
     try {
       seen = JSON.parse(localStorage.getItem(key) || "null");
+      // Sem internet: deixa para quando a rede voltar (a sincronização muda
+      // de status e roda isto de novo).
+      if (seen && !navigator.onLine) return;
       localStorage.setItem(
         key,
         JSON.stringify([
@@ -646,6 +651,17 @@ export default function App({ account }: { account: User }) {
     void listenInvites(open).then((s) => (stop = s));
     return () => stop();
   }, []);
+  // O que foi feito sem internet (fotos e ações do Social) sobe ao abrir o
+  // app e quando a rede volta, em qualquer tela.
+  useEffect(() => {
+    const flush = () =>
+      void flushPhotos()
+        .then(() => flushOutbox(account.id))
+        .catch(() => undefined);
+    flush();
+    window.addEventListener("online", flush);
+    return () => window.removeEventListener("online", flush);
+  }, [account.id]);
   // Push no Android: puxões, comentários, curtidas e posts chegam mesmo com
   // o app fechado. Tocar numa notificação (push ou local) abre a tela dela.
   useEffect(() => {
@@ -1022,6 +1038,7 @@ export default function App({ account }: { account: User }) {
       return;
     }
     if (!supabase || !user) return;
+    if (!navigator.onLine) return setNotice(AI_OFFLINE);
     setBusy(true);
     setAnswer("");
     const requestId = ++aiRequest.current;

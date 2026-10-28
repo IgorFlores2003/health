@@ -42,8 +42,19 @@ export default function AuthGate() {
       setChecking(false);
       return;
     }
+    // Sem internet: confia na sessão guardada neste aparelho (já validada
+    // antes) para abrir o app; tudo fica salvo e sobe quando a rede voltar.
+    const offlineEntry = () => {
+      if (!active || !hasConfirmedEmail(session.user)) return false;
+      active = false;
+      clearTimeout(timer);
+      setVerified(session.user);
+      setChecking(false);
+      return true;
+    };
     setChecking(true);
     const timer = setTimeout(() => {
+      if (!navigator.onLine && offlineEntry()) return;
       if (active) {
         active = false;
         setChecking(false);
@@ -52,10 +63,19 @@ export default function AuthGate() {
         );
       }
     }, 15000);
+    if (!navigator.onLine) {
+      offlineEntry();
+      return () => {
+        active = false;
+        clearTimeout(timer);
+      };
+    }
     void supabase.auth
       .getUser(session.access_token)
       .then(({ data, error }) => {
         if (!active) return;
+        // Falha de rede (não é sessão inválida): entra com a sessão guardada.
+        if (error?.name === "AuthRetryableFetchError" && offlineEntry()) return;
         if (error || !data.user) {
           setError(
             "Não foi possível validar sua sessão. Tente novamente ou entre com sua conta.",
@@ -68,6 +88,7 @@ export default function AuthGate() {
         } else setVerified(data.user);
       })
       .catch(() => {
+        if (offlineEntry()) return;
         if (active)
           setError("Não foi possível validar sua sessão. Confira sua conexão.");
       })

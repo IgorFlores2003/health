@@ -36,14 +36,11 @@ import {
 import CameraCapture from "./CameraCapture";
 import GifPicker from "./GifPicker";
 import { STICKERS } from "./stickers";
+import { enqueue, flushOutbox, isTmp, tmpId, type Op } from "./outbox";
 import { gifsEnabled } from "./giphy";
 import PhotoEditor from "./PhotoEditor";
 import {
   acceptFriend,
-  addComment,
-  createPost,
-  deleteComment,
-  deletePost,
   findByCode,
   loadFeed,
   loadNetwork,
@@ -51,7 +48,6 @@ import {
   removeFriend,
   report,
   requestFriend,
-  setLike,
   type Comment,
   type CommentExtra,
   type Friendship,
@@ -213,6 +209,12 @@ export default function Community({
 
   const refresh = useCallback(async () => {
     try {
+      // Envia antes o que foi feito sem internet.
+      const dropped = await flushOutbox(userId);
+      if (dropped)
+        onNotice(
+          "Algumas ações feitas sem internet não puderam ser enviadas (o post pode ter sido apagado).",
+        );
       const [first, posts] = await Promise.all([
         loadNetwork(userId),
         loadFeed(),
@@ -228,7 +230,6 @@ export default function Community({
       setPeople(net.people);
       setFeed(posts);
       setOffline(false);
-      writeCache(cacheKey, { ...net, feed: posts });
       const answered = readList(answeredKey);
       setHelp(
         (await helpRequests(userId).catch(() => [])).filter(
@@ -285,6 +286,56 @@ export default function Community({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, fetched]);
 
+  // Guarda o que está na tela (com o que ainda vai subir) para abrir sem
+  // internet do jeito que ficou.
+  useEffect(() => {
+    if (fetched || cache)
+      writeCache(cacheKey, { me, friendships, people, feed });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me, friendships, people, feed, fetched]);
+  /** Troca o comentário/post provisório pelo salvo no servidor. */
+  const replaceSaved = useCallback((tmp: string, saved: Comment | Post) => {
+    setFeed((f) =>
+      "post_id" in saved
+        ? f.map((p) =>
+            p.id === saved.post_id || p.id === tmp
+              ? {
+                  ...p,
+                  comments: p.comments.map((c) =>
+                    c.id === tmp
+                      ? saved
+                      : c.parent_id === tmp
+                        ? { ...c, parent_id: saved.id }
+                        : c,
+                  ),
+                }
+              : p,
+          )
+        : f.map((p) =>
+            p.id === tmp
+              ? {
+                  ...p,
+                  id: saved.id,
+                  comments: p.comments.map((c) => ({
+                    ...c,
+                    post_id: saved.id,
+                  })),
+                }
+              : p,
+          ),
+    );
+  }, []);
+  /**
+   * Ação do feed: entra na fila do aparelho e é enviada na hora se houver
+   * internet; sem internet, fica guardada e sobe quando a rede voltar.
+   */
+  const act = async (op: Op) => {
+    enqueue(userId, op);
+    if (await flushOutbox(userId, replaceSaved))
+      throw Error("Não foi possível concluir.");
+    if (!navigator.onLine) setOffline(true);
+  };
+
   /** Executa e recarrega; devolve se deu certo (o erro vira aviso). */
   const run = async (action: () => Promise<unknown>, done?: string) => {
     try {
@@ -327,18 +378,27 @@ export default function Community({
             : x.likes.filter((u) => u !== userId),
         })),
       async () => {
-        await setLike(p.id, userId, on);
         if (on && p.author !== userId) onXp("like", p.id);
+        await act({ type: "like", post: p.id, on });
       },
     );
-  const comment = (
+  const comment = async (
     p: Post,
     text: string,
     extra: CommentExtra = {},
-    photo?: Blob,
+    file?: Blob,
   ) => {
     // Id provisório até o servidor devolver o comentário salvo.
-    const tmp = `tmp-${Date.now()}`;
+    const tmp = tmpId();
+    // Sem internet, a foto fica no aparelho e sobe depois (photos.tsx).
+    let photo: string | null = null;
+    try {
+      photo = file ? await uploadPhoto(userId, "comments", file) : null;
+    } catch (e) {
+      onNotice(e instanceof Error ? e.message : "Falha ao enviar a foto.");
+      return false;
+    }
+    const full = { ...extra, photo };
     return optimistic(
       () =>
         patchPost(p.id, (x) => ({
@@ -352,22 +412,21 @@ export default function Community({
               author: userId,
               text: text.trim(),
               gif: extra.gif ?? null,
-              photo: null,
+              photo,
               sticker: extra.sticker ?? null,
               created_at: new Date().toISOString(),
             },
           ],
         })),
       async () => {
-        const saved = await addComment(p.id, text, {
-          ...extra,
-          photo: photo ? await uploadPhoto(userId, "comments", photo) : null,
+        if (p.author !== userId) onXp("comment", tmp);
+        await act({
+          type: "comment",
+          tmp,
+          post: p.id,
+          text: text.trim(),
+          extra: full,
         });
-        if (p.author !== userId) onXp("comment", saved.id);
-        patchPost(p.id, (x) => ({
-          ...x,
-          comments: x.comments.map((c) => (c.id === tmp ? saved : c)),
-        }));
       },
     );
   };
@@ -381,7 +440,7 @@ export default function Community({
           ),
         })),
       async () => {
-        await deleteComment(c.id);
+        await act({ type: "deleteComment", id: c.id });
         // A foto é apagada só pelo dono (o bucket só deixa ele).
         if (c.photo && c.author === userId)
           await removePhotos([c.photo]).catch(() => undefined);
@@ -582,23 +641,37 @@ export default function Community({
               userId={userId}
               draft={draft}
               onDraftUsed={onDraftUsed}
-              onPost={(text, photo) =>
-                // Entra no topo do feed sem recarregar tudo.
-                createPost(text, photo).then(
-                  (post) => {
-                    setFeed((f) => [post, ...f]);
-                    onXp("post", post.id);
-                    onNotice("Publicado para seus amigos.");
-                    return true;
-                  },
-                  (e) => {
+              onPost={(text, photo) => {
+                // Entra no topo do feed na hora; sobe agora ou quando a
+                // internet voltar.
+                const tmp = tmpId();
+                onXp("post", tmp);
+                return optimistic(
+                  () =>
+                    setFeed((f) => [
+                      {
+                        id: tmp,
+                        author: userId,
+                        text: text.trim(),
+                        photo,
+                        kind: "post",
+                        created_at: new Date().toISOString(),
+                        likes: [],
+                        comments: [],
+                      },
+                      ...f,
+                    ]),
+                  () => act({ type: "post", tmp, text: text.trim(), photo }),
+                ).then((ok) => {
+                  if (ok)
                     onNotice(
-                      e instanceof Error ? e.message : "Falha ao publicar.",
+                      navigator.onLine
+                        ? "Publicado para seus amigos."
+                        : "Salvo. Vai para seus amigos quando a internet voltar.",
                     );
-                    return false;
-                  },
-                )
-              }
+                  return ok;
+                });
+              }}
               onNotice={onNotice}
             />
             {offline && (
@@ -662,7 +735,7 @@ export default function Community({
                   onDelete={() =>
                     optimistic(
                       () => setFeed((f) => f.filter((x) => x.id !== p.id)),
-                      () => deletePost(p.id),
+                      () => act({ type: "deletePost", id: p.id }),
                     ).then((ok) => ok && onNotice("Post apagado."))
                   }
                   onReport={(target, reason) =>
@@ -1470,7 +1543,7 @@ function CommentRow({
   onReport: () => void;
 }) {
   // Ainda indo para o servidor (ver comment() em Community).
-  const sending = c.id.startsWith("tmp-");
+  const sending = isTmp(c.id);
   const [Sticker, stickerLabel, stickerColor] =
     (c.sticker && STICKERS[c.sticker]) || [];
   return (

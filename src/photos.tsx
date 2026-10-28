@@ -6,6 +6,66 @@ const MAX_SIDE = 1600;
 const URL_TTL = 60 * 60;
 const urls = new Map<string, { url: string; expires: number }>();
 
+/**
+ * Fotos salvas sem internet: ficam no IndexedDB deste aparelho com o caminho
+ * definitivo e sobem em flushPhotos() quando a rede volta. Enquanto isso, o
+ * app mostra a cópia local.
+ */
+const pending = new Map<string, Blob>();
+function photoStore(mode: IDBTransactionMode) {
+  return new Promise<IDBObjectStore>((ok, fail) => {
+    const req = indexedDB.open("ritmo-photos", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("pending");
+    req.onsuccess = () =>
+      ok(req.result.transaction("pending", mode).objectStore("pending"));
+    req.onerror = () => fail(req.error);
+  });
+}
+const done = (req: IDBRequest) =>
+  new Promise<void>((ok, fail) => {
+    req.onsuccess = () => ok();
+    req.onerror = () => fail(req.error);
+  });
+const pendingReady: Promise<void> = photoStore("readonly")
+  .then(
+    (store) =>
+      new Promise<void>((ok) => {
+        const req = store.openCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) return ok();
+          pending.set(String(cursor.key), cursor.value as Blob);
+          cursor.continue();
+        };
+        req.onerror = () => ok();
+      }),
+  )
+  .catch(() => undefined);
+async function keepPending(path: string, blob: Blob) {
+  await done((await photoStore("readwrite")).put(blob, path));
+  pending.set(path, blob);
+}
+async function dropPending(path: string) {
+  pending.delete(path);
+  await done((await photoStore("readwrite")).delete(path)).catch(
+    () => undefined,
+  );
+}
+
+/** Envia as fotos que ficaram guardadas sem internet. */
+export async function flushPhotos() {
+  await pendingReady;
+  if (!supabase || !navigator.onLine) return;
+  for (const [path, blob] of [...pending]) {
+    const { error } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, blob, { contentType: "image/jpeg" });
+    // Já existe: subiu numa tentativa anterior.
+    if (!error || /exist|duplicate/i.test(error.message))
+      await dropPending(path);
+  }
+}
+
 /** Reduz a foto no aparelho antes do envio (fotos de celular passam de 5 MB). */
 async function compress(file: Blob): Promise<Blob> {
   if (!file.type.startsWith("image/"))
@@ -53,10 +113,18 @@ export async function uploadPhoto(
 ) {
   if (!supabase) throw Error("Conecte-se para enviar fotos.");
   const path = at ?? `${userId}/${folder}/${crypto.randomUUID()}.jpg`;
+  const blob = await compress(file);
+  // Sem internet: guarda no aparelho e envia quando a rede voltar.
+  if (!navigator.onLine) {
+    await keepPending(path, blob);
+    return path;
+  }
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, await compress(file), { contentType: "image/jpeg" });
-  if (error) throw Error("Não foi possível enviar a foto. Tente novamente.");
+    .upload(path, blob, { contentType: "image/jpeg" });
+  if (error && !navigator.onLine) await keepPending(path, blob);
+  else if (error)
+    throw Error("Não foi possível enviar a foto. Tente novamente.");
   return path;
 }
 
@@ -66,6 +134,9 @@ export const originalOf = (path: string) =>
 
 /** Baixa uma foto salva (ex.: para editar a foto de perfil). */
 export async function downloadPhoto(path: string) {
+  await pendingReady;
+  const local = pending.get(path);
+  if (local) return local;
   if (!supabase) throw Error("Conecte-se para editar a foto.");
   const { data, error } = await supabase.storage.from(BUCKET).download(path);
   if (error || !data) throw Error("Não foi possível abrir a foto salva.");
@@ -75,6 +146,7 @@ export async function downloadPhoto(path: string) {
 export async function removePhotos(paths: string[] | undefined) {
   if (!supabase || !paths?.length) return;
   paths.forEach((p) => urls.delete(p));
+  await Promise.all(paths.map(dropPending));
   await supabase.storage.from(BUCKET).remove(paths);
 }
 
@@ -84,10 +156,9 @@ export function usePhotoUrls(paths: string[] | undefined) {
   const [map, setMap] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!supabase || !key) return;
+    const db = supabase;
     let active = true;
-    const now = Date.now();
     const list = key.split("|");
-    const missing = list.filter((p) => (urls.get(p)?.expires ?? 0) <= now);
     const publish = () =>
       active &&
       setMap(
@@ -95,22 +166,30 @@ export function usePhotoUrls(paths: string[] | undefined) {
           list.flatMap((p) => (urls.has(p) ? [[p, urls.get(p)!.url]] : [])),
         ),
       );
-    if (!missing.length) {
-      publish();
-      return;
-    }
-    void supabase.storage
-      .from(BUCKET)
-      .createSignedUrls(missing, URL_TTL)
-      .then(({ data }) => {
-        for (const item of data || [])
-          if (item.path && item.signedUrl)
-            urls.set(item.path, {
-              url: item.signedUrl,
-              expires: now + (URL_TTL - 60) * 1000,
-            });
-        publish();
-      });
+    void pendingReady.then(() => {
+      const now = Date.now();
+      // Foto ainda não enviada: mostra a cópia guardada no aparelho.
+      for (const p of list)
+        if (pending.has(p) && !urls.has(p))
+          urls.set(p, {
+            url: URL.createObjectURL(pending.get(p)!),
+            expires: Infinity,
+          });
+      const missing = list.filter((p) => (urls.get(p)?.expires ?? 0) <= now);
+      if (!missing.length) return publish();
+      void db.storage
+        .from(BUCKET)
+        .createSignedUrls(missing, URL_TTL)
+        .then(({ data }) => {
+          for (const item of data || [])
+            if (item.path && item.signedUrl)
+              urls.set(item.path, {
+                url: item.signedUrl,
+                expires: now + (URL_TTL - 60) * 1000,
+              });
+          publish();
+        });
+    });
     return () => {
       active = false;
     };

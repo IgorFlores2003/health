@@ -1,6 +1,6 @@
 import { today } from "./domain";
 import { photoBase64 } from "./photos";
-import { supabase } from "./supabase";
+import { AI_OFFLINE, supabase } from "./supabase";
 
 export type ExerciseReading = {
   type: string | null;
@@ -48,6 +48,7 @@ export async function readImage(
   file: File,
 ) {
   if (!supabase) throw Error("Conecte-se para ler a imagem com a IA.");
+  if (!navigator.onLine) throw Error(AI_OFFLINE);
   const { data, error } = await supabase.functions.invoke("coach", {
     body: {
       action: "read-image",

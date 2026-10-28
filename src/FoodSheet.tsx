@@ -19,7 +19,7 @@ import {
   type Food,
   type State,
 } from "./domain";
-import { supabase } from "./supabase";
+import { AI_OFFLINE, supabase } from "./supabase";
 import Choice from "./Choice";
 
 // Estimativas já feitas ficam no aparelho: o mesmo alimento descrito do
@@ -100,11 +100,12 @@ export default function FoodSheet({
   const [error, setError] = useState("");
   async function estimate() {
     if (!supabase || busy) return;
+    const cached = cachedEstimate(name);
+    if (!cached && !navigator.onLine) return setError(AI_OFFLINE);
     setBusy(true);
     setError("");
     const id = ++estimateId.current;
     try {
-      const cached = cachedEstimate(name);
       const { data, error } = cached
         ? { data: cached, error: null }
         : await supabase.functions.invoke("coach", {
