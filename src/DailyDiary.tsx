@@ -149,7 +149,7 @@ export default function DailyDiary({
           counter={steps}
         />
       </div>
-      <div className="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
+      <div className="mb-4 grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <DiaryCard
           title="Alimentação"
           fold="diary-food"

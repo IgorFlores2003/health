@@ -163,6 +163,7 @@ import {
   Field,
   PageTitle,
   Panel,
+  FoldAllButton,
   QuickAction,
   Stat,
   Tile,
@@ -1359,6 +1360,9 @@ export default function App({ account }: { account: User }) {
           </div>
         </header>
         <div className="px-4 py-6 md:px-8 md:py-8">
+          <div className="-mt-3 mb-3 flex min-h-0 justify-end empty:hidden md:-mt-4">
+            <FoldAllButton />
+          </div>
           {tab === "overview" && (
             <>
               <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">

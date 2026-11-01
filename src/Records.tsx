@@ -455,7 +455,7 @@ export default function Records({
           </p>
         </Panel>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-3">
           {days.slice(0, shown).map((date) => {
             const parts = visible.flatMap((s) => {
               const r = section(s.id, date);
@@ -465,26 +465,26 @@ export default function Records({
               <Panel key={date} fold={`day-${date}`} foldPersist={false}>
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
-                    <h2 className="font-semibold">{dayTitle(date)}</h2>
+                    <h2 className="text-lg font-semibold">{dayTitle(date)}</h2>
                     <p className="mt-0.5 text-[13px] text-ink-500">
                       {parts.map((p) => p.summary).join(" · ")}
                     </p>
                   </div>
                   <FoldToggle title={dayTitle(date)} />
                 </div>
-                <div className="mt-3 grid gap-4">
+                <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4">
                   {parts.map((p) => (
-                    <div key={p.id}>
-                        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+                    <div key={p.id} className="min-w-0">
+                        <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-ink-700">
                           <span className="grid size-7 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-4">
                             {p.icon}
                           </span>
                           {p.label}
-                          <span className="ml-auto font-normal text-ink-500 tabular-nums">
+                          <span className="ml-auto shrink-0 font-normal text-ink-500 tabular-nums">
                             {p.summary}
                           </span>
                         </h3>
-                      <ul className="mt-1 divide-y divide-line border-l-2 border-brand-100 pl-3">
+                      <ul className="mt-1 min-w-0 divide-y divide-line border-l-2 border-brand-100 pl-3">
                         {p.rows}
                       </ul>
                     </div>
@@ -562,13 +562,13 @@ function Row({
 }) {
   const ref = useFlash<HTMLLIElement>(highlight);
   return (
-    <li ref={ref} className="-ml-1 flex flex-wrap items-start gap-x-2 rounded-lg py-2.5 pl-1">
+    <li ref={ref} className="flex min-w-0 flex-wrap items-start gap-x-1 rounded-lg py-2.5">
       <button
         className="min-w-0 flex-1 text-left disabled:cursor-default"
         disabled={!onEdit}
         onClick={onEdit}
       >
-        <span className="flex items-baseline justify-between gap-3">
+        <span className="flex min-w-0 items-baseline justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2">
             <strong className="truncate text-sm font-medium">{title}</strong>
             {badge}
@@ -587,10 +587,10 @@ function Row({
           </small>
         )}
       </button>
-      <span className="-my-1 -mr-2 flex shrink-0">
+      <span className="-my-1.5 flex shrink-0">
         {onEdit && (
           <button
-            className="icon-btn hover:text-brand-600"
+            className="icon-btn size-9 hover:text-brand-600"
             aria-label={`Editar ${title}`}
             onClick={onEdit}
           >
@@ -598,7 +598,7 @@ function Row({
           </button>
         )}
         <button
-          className="icon-btn hover:text-brand-600"
+          className="icon-btn size-9 hover:text-brand-600"
           aria-label={`Excluir ${title}`}
           onClick={onDelete}
         >

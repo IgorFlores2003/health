@@ -2,14 +2,16 @@ import {
   createContext,
   useContext,
   useEffect,
+  useReducer,
   useRef,
-  useState,
   type ReactNode,
 } from "react";
 import {
   RiAddLine,
   RiArrowDownSLine,
   RiArrowUpSLine,
+  RiContractUpDownLine,
+  RiExpandUpDownLine,
   RiArrowRightSLine,
   RiCheckboxBlankCircleLine,
   RiCheckboxCircleFill,
@@ -42,45 +44,82 @@ export function Field({
  * para todas as telas que usam o mesmo id.
  */
 const FOLD_KEY = "ritmo-folded";
+/** Minimizados lembrados no aparelho e os que valem só nesta sessão. */
+let saved: Set<string> | null = null;
+const session = new Set<string>();
+/** Cards minimizáveis na tela agora (id → se a escolha é lembrada). */
+const mounted = new Map<string, boolean>();
 const foldListeners = new Set<() => void>();
-function readFolded(): string[] {
-  try {
-    const v = JSON.parse(localStorage.getItem(FOLD_KEY) || "[]");
-    return Array.isArray(v) ? v : [];
-  } catch {
-    return [];
+function savedSet() {
+  if (!saved)
+    try {
+      const v = JSON.parse(localStorage.getItem(FOLD_KEY) || "[]");
+      saved = new Set(Array.isArray(v) ? v : []);
+    } catch {
+      saved = new Set();
+    }
+  return saved;
+}
+const isFolded = (id: string, persist: boolean) =>
+  persist ? savedSet().has(id) : session.has(id);
+function setFolded(ids: [string, boolean][], value: boolean) {
+  for (const [id, persist] of ids) {
+    const set = persist ? savedSet() : session;
+    if (value) set.add(id);
+    else set.delete(id);
   }
+  try {
+    localStorage.setItem(FOLD_KEY, JSON.stringify([...savedSet()]));
+  } catch {
+    /* sem armazenamento: vale só agora */
+  }
+  foldListeners.forEach((f) => f());
+}
+function useFoldStore() {
+  const [, render] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    foldListeners.add(render);
+    return () => {
+      foldListeners.delete(render);
+    };
+  }, []);
 }
 export function useFold(id?: string, persist = true) {
-  const [local, setLocal] = useState(false);
-  const [saved, setSaved] = useState(() =>
-    id && persist ? readFolded().includes(id) : false,
-  );
+  useFoldStore();
   useEffect(() => {
-    if (!id || !persist) return;
-    const sync = () => setSaved(readFolded().includes(id));
-    foldListeners.add(sync);
+    if (!id) return;
+    mounted.set(id, persist);
+    foldListeners.forEach((f) => f());
     return () => {
-      foldListeners.delete(sync);
+      mounted.delete(id);
+      foldListeners.forEach((f) => f());
     };
   }, [id, persist]);
-  const folded = persist ? saved : local;
-  const toggle = () => {
-    if (!id) return;
-    if (!persist) return setLocal((f) => !f);
-    const list = readFolded().filter((x) => x !== id);
-    try {
-      localStorage.setItem(
-        FOLD_KEY,
-        JSON.stringify(folded ? list : [...list, id]),
-      );
-    } catch {
-      /* sem armazenamento: vale só agora */
-    }
-    setSaved(!folded);
-    foldListeners.forEach((f) => f());
-  };
+  const folded = id ? isFolded(id, persist) : false;
+  const toggle = () => id && setFolded([[id, persist]], !folded);
   return [folded, toggle] as const;
+}
+/**
+ * Minimizar/expandir todos os cards da tela aberta. Só aparece quando a
+ * tela tem cards minimizáveis.
+ */
+export function FoldAllButton() {
+  useFoldStore();
+  const all = [...mounted];
+  if (!all.length) return null;
+  const anyOpen = all.some(([id, persist]) => !isFolded(id, persist));
+  const Icon = anyOpen ? RiContractUpDownLine : RiExpandUpDownLine;
+  return (
+    <button
+      type="button"
+      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-line px-2.5 text-[13px] font-medium text-ink-700 hover:bg-surface"
+      onClick={() => setFolded(all, anyOpen)}
+      aria-label={anyOpen ? "Minimizar todos os cards" : "Expandir todos os cards"}
+    >
+      <Icon className="size-4" />
+      {anyOpen ? "Minimizar tudo" : "Expandir tudo"}
+    </button>
+  );
 }
 const FoldContext = createContext<{
   folded: boolean;
