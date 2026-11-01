@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { RiFireLine } from "react-icons/ri";
 import { dailyBudget } from "./energy";
 import { kcal, type State } from "./domain";
+import { FoldToggle, Panel } from "./ui";
 
 export default function CalorieBudget({
   state,
@@ -21,7 +22,7 @@ export default function CalorieBudget({
   const b = dailyBudget(state, date);
   if (!b.ready)
     return (
-      <section className="card">
+      <Panel fold="calories">
         <Title />
         <p className="mt-2 text-sm text-ink-500">
           {b.reason === "profile"
@@ -34,12 +35,12 @@ export default function CalorieBudget({
         >
           {b.reason === "profile" ? "Completar perfil" : "Registrar peso"}
         </button>
-      </section>
+      </Panel>
     );
   const over = b.remaining < 0;
   const used = Math.min(100, (b.consumed / b.available) * 100);
   return (
-    <section className="card">
+    <Panel fold="calories">
       <Title />
       <div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
         <p className="text-ink-500">
@@ -104,7 +105,7 @@ export default function CalorieBudget({
       )}
       {!compact && <Notes b={b} />}
       {children}
-    </section>
+    </Panel>
   );
 }
 
@@ -115,6 +116,7 @@ function Title() {
         <RiFireLine className="size-[18px]" />
       </span>
       <h2 className="font-semibold">Calorias do dia</h2>
+      <FoldToggle title="Calorias do dia" />
     </div>
   );
 }

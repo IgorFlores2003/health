@@ -9,6 +9,7 @@ import {
 import { waterOn, weightAtDate } from "./energy";
 import { allowReminders, remindersSupported } from "./reminders";
 import Choice from "./Choice";
+import { FoldToggle, Panel } from "./ui";
 import NumberField from "./NumberField";
 
 // 190 ml = copo americano; 250 ml = copo de requeijão.
@@ -51,10 +52,13 @@ export function WaterCard({
   state,
   setState,
   date,
+  flash,
 }: {
   state: State;
   setState: Dispatch<SetStateAction<State>>;
   date: string;
+  /** Água acabou de ser registrada: destaca o card. */
+  flash?: boolean;
 }) {
   const h = state.hydration ?? defaultHydration;
   const goal = waterGoal(weightAtDate(state, date));
@@ -76,12 +80,13 @@ export function WaterCard({
       hydration: { ...(s.hydration ?? defaultHydration), cupMl },
     }));
   return (
-    <section className="card">
+    <Panel fold="water" highlight={flash}>
       <div className="flex items-center gap-2">
         <span className="grid size-8 place-items-center rounded-lg bg-brand-50 text-brand-600">
           <RiDropLine className="size-[18px]" />
         </span>
         <h2 className="font-semibold">Água</h2>
+        <FoldToggle title="Água" />
       </div>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-x-6 gap-y-1">
         <p className="text-3xl font-semibold tracking-tight tabular-nums">
@@ -160,7 +165,7 @@ export function WaterCard({
           restrição de líquidos.
         </p>
       )}
-    </section>
+    </Panel>
   );
 }
 

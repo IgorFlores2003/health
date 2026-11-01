@@ -22,6 +22,7 @@ import { confirmDialog } from "./confirm";
 import FoodSheet from "./FoodSheet";
 import { WaterCard } from "./Water";
 import StepsCard from "./StepsCard";
+import { FoldToggle, Panel, Tile, useFlash } from "./ui";
 import type { StepCounterState } from "./steps";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import {
@@ -49,6 +50,8 @@ export default function DailyDiary({
   onProfile,
   onWeight,
   steps,
+  highlight,
+  onSaved,
 }: {
   state: State;
   setState: Dispatch<SetStateAction<State>>;
@@ -60,6 +63,10 @@ export default function DailyDiary({
   onProfile: () => void;
   onWeight: () => void;
   steps: StepCounterState;
+  /** Id do registro recém-salvo, para destacar. */
+  highlight?: string | null;
+  /** Alimento salvo aqui: o App destaca. */
+  onSaved?: (id: string) => void;
 }) {
   const day = dailyEnergy(state, date);
   const pressures = state.pressures.filter((p) => p.date === date);
@@ -103,16 +110,22 @@ export default function DailyDiary({
         onExercise={onExercise}
         onAnalyze={onAnalyze}
       />
-      <div className="mb-4 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-        <button className="btn-primary" onClick={() => open()}>
-          <RiAddLine size={18} /> Alimento
-        </button>
-        <button className="btn-secondary" onClick={() => onExercise()}>
-          <RiAddLine size={18} /> Exercício
-        </button>
-        <button className="btn-secondary" onClick={() => onPressure()}>
-          <RiAddLine size={18} /> Pressão
-        </button>
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:max-w-md">
+        <Tile
+          icon={<RiRestaurant2Line />}
+          label="+ Alimento"
+          onClick={() => open()}
+        />
+        <Tile
+          icon={<RiFootprintLine />}
+          label="+ Exercício"
+          onClick={() => onExercise()}
+        />
+        <Tile
+          icon={<RiHeartPulseLine />}
+          label="+ Pressão"
+          onClick={() => onPressure()}
+        />
       </div>
       <div className="mb-4 grid gap-4 lg:grid-cols-3">
         <CalorieBudget
@@ -121,7 +134,14 @@ export default function DailyDiary({
           onProfile={onProfile}
           onWeight={onWeight}
         />
-        <WaterCard state={state} setState={setState} date={date} />
+        <WaterCard
+          state={state}
+          setState={setState}
+          date={date}
+          flash={
+            !!highlight && (state.water ?? []).some((w) => w.id === highlight)
+          }
+        />
         <StepsCard
           state={state}
           setState={setState}
@@ -132,6 +152,7 @@ export default function DailyDiary({
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <DiaryCard
           title="Alimentação"
+          fold="diary-food"
           text="Inclua preparo, marca, molhos e bebidas."
           addLabel="Alimento"
           onAdd={() => open()}
@@ -141,6 +162,7 @@ export default function DailyDiary({
           {day.foods.map((food) => (
             <DiaryRow
               key={food.id}
+              highlight={highlight === food.id}
               title={food.name}
               detail={`${food.grams.toLocaleString("pt-BR")} ${foodUnit(food)} · ${
                 foodCalories(food) === null
@@ -180,11 +202,13 @@ export default function DailyDiary({
             date={date}
             food={foodSheet.food}
             onClose={() => setFoodSheet(null)}
+            onSaved={(ids) => onSaved?.(ids[0])}
           />
         )}
         <div className="grid min-w-0 content-start gap-4">
           <DiaryCard
             title="Exercícios"
+            fold="diary-exercise"
             text="Calorias informadas ou estimadas pela atividade."
             addLabel="Exercício"
             onAdd={() => onExercise()}
@@ -194,6 +218,7 @@ export default function DailyDiary({
             {day.exercises.map((ex) => (
               <DiaryRow
                 key={ex.id}
+                highlight={highlight === ex.id}
                 title={ex.type}
                 detail={`${ex.minutes ? `${durationLabel(ex.minutes)} · ` : ""}${
                   ex.distanceKm ? `${ex.distanceKm} km · ` : ""
@@ -234,6 +259,7 @@ export default function DailyDiary({
           </DiaryCard>
           <DiaryCard
             title="Pressão arterial"
+            fold="diary-pressure"
             text="Medições do dia, com a foto do aparelho se quiser."
             addLabel="Pressão"
             onAdd={() => onPressure()}
@@ -243,6 +269,7 @@ export default function DailyDiary({
             {pressures.map((p) => (
               <DiaryRow
                 key={p.id}
+                highlight={highlight === p.id}
                 title={`${p.systolic}/${p.diastolic} mmHg`}
                 detail={p.pulse ? `${p.pulse} bpm` : undefined}
                 onEdit={() => onPressure(p.id)}
@@ -313,6 +340,7 @@ export default function DailyDiary({
  */
 function DiaryCard({
   title,
+  fold,
   text,
   addLabel,
   onAdd,
@@ -321,6 +349,7 @@ function DiaryCard({
   children,
 }: {
   title: string;
+  fold: string;
   text: string;
   addLabel: string;
   onAdd: () => void;
@@ -329,15 +358,29 @@ function DiaryCard({
   children: ReactNode[];
 }) {
   return (
-    <section className="card min-w-0">
+    <Panel fold={fold}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-base font-semibold">{title}</h2>
+          <h2 className="text-base font-semibold">
+            {title}
+            {children.length > 0 && (
+              <span className="ml-1.5 font-normal text-ink-400">
+                ({children.length})
+              </span>
+            )}
+          </h2>
           <p className="mt-0.5 text-sm text-ink-500">{text}</p>
         </div>
-        <button className="btn-secondary shrink-0" onClick={onAdd}>
-          <RiAddLine size={18} /> {addLabel}
-        </button>
+        <span className="flex shrink-0 items-start gap-1">
+          <button
+            className="btn-secondary min-h-10 shrink-0 px-3"
+            onClick={onAdd}
+            aria-label={`Adicionar ${addLabel.toLowerCase()}`}
+          >
+            <RiAddLine className="size-5" /> Adicionar
+          </button>
+          <FoldToggle title={title} />
+        </span>
       </div>
       {children.length ? (
         <div>{children}</div>
@@ -349,7 +392,7 @@ function DiaryCard({
           {empty}
         </div>
       )}
-    </section>
+    </Panel>
   );
 }
 
@@ -358,16 +401,22 @@ function DiaryRow({
   detail,
   onEdit,
   onDelete,
+  highlight,
   children,
 }: {
+  highlight?: boolean;
   title: string;
   detail?: string;
   onEdit: () => void;
   onDelete: () => void;
   children?: ReactNode;
 }) {
+  const ref = useFlash<HTMLDivElement>(highlight);
   return (
-    <div className="flex items-start justify-between gap-2 border-b border-line py-3 last:border-b-0">
+    <div
+      ref={ref}
+      className="-mx-2 flex items-start justify-between gap-2 rounded-lg border-b border-line px-2 py-3 last:border-b-0"
+    >
       <div className="min-w-0">
         <strong className="block truncate text-sm font-medium">{title}</strong>
         {detail && (
@@ -501,25 +550,31 @@ export function DayStatus({
     // Início: só aparece enquanto falta algo.
     if (day.complete) return null;
     return (
-      <section className="card mb-4 flex flex-col gap-3 border-brand-200 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="font-semibold">Diário de hoje: {balanceLabels[day.status].toLowerCase()}</h2>
-          <p className="mt-0.5 text-sm text-ink-500">
+      <Panel fold="day-status-home" className="mb-4 border-brand-200">
+        <div className="flex items-start gap-2">
+          <h2 className="font-semibold">
+            Diário de hoje: {balanceLabels[day.status].toLowerCase()}
+          </h2>
+          <FoldToggle title="pendências de hoje" />
+        </div>
+        <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-ink-500">
             {missing.length
               ? `Falta: ${missing.map((m) => m.text.toLowerCase()).join(", ")}.`
               : "Tudo registrado? Marque o dia como completo para ver o saldo."}
           </p>
+          <button className="btn-secondary shrink-0" onClick={onOpenDiary}>
+            Abrir diário <RiArrowRightLine className="size-4" />
+          </button>
         </div>
-        <button className="btn-secondary shrink-0" onClick={onOpenDiary}>
-          Abrir diário <RiArrowRightLine className="size-4" />
-        </button>
-      </section>
+      </Panel>
     );
   }
   return (
-    <section className="card mb-4">
+    <Panel fold="day-status" className="mb-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
+        <div className="flex min-w-0 items-start gap-2 sm:flex-1">
+          <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold">{balanceLabels[day.status]}</h2>
           <p className="mt-0.5 text-sm text-ink-500">
             {day.complete
@@ -528,12 +583,21 @@ export function DayStatus({
                 ? "Para saber se houve déficit, resolva o que falta:"
                 : "Tudo certo nos registros. Falta só marcar o dia como completo."}
           </p>
+          </div>
+          <span className="sm:hidden">
+            <FoldToggle title="situação do dia" />
+          </span>
         </div>
+        <span className="flex shrink-0 items-start gap-1">
         {onAnalyze && (
           <button className="btn-secondary shrink-0" onClick={onAnalyze}>
             <RiChat3Line size={18} /> Analisar meu dia
           </button>
         )}
+          <span className="hidden sm:block">
+            <FoldToggle title="situação do dia" />
+          </span>
+        </span>
       </div>
       {!day.complete && (
         <ul className="mt-3 grid gap-1 sm:grid-cols-2">
@@ -572,6 +636,6 @@ export function DayStatus({
           ingredientes podem mudar as calorias.
         </p>
       )}
-    </section>
+    </Panel>
   );
 }

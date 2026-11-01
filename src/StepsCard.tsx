@@ -4,6 +4,7 @@ import NumberField from "./NumberField";
 import { kcal, num, today, type State } from "./domain";
 import { stepEnergy, stepsOn, weightAtDate } from "./energy";
 import { setSteps, type StepCounterState } from "./steps";
+import { FoldToggle, Panel } from "./ui";
 
 /** Referência de passos por dia mostrada na barra (não é uma meta do app). */
 const REFERENCE = 8000;
@@ -29,9 +30,9 @@ export default function StepsCard({
   const pct = Math.min(100, (count / REFERENCE) * 100);
   const isToday = date === today();
   return (
-    <section className="card">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
+    <Panel fold="steps">
+      <div className="flex items-center gap-2">
+        <div className="mr-auto flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-brand-50 text-brand-600">
             <RiFootprintLine className="size-[18px]" />
           </span>
@@ -48,6 +49,7 @@ export default function StepsCard({
             <RiPencilLine className="size-4" /> {count ? "Corrigir" : "Informar"}
           </button>
         )}
+        <FoldToggle title="Passos" />
       </div>
       {editing ? (
         <form
@@ -166,6 +168,6 @@ export default function StepsCard({
           {counter.error}
         </p>
       )}
-    </section>
+    </Panel>
   );
 }

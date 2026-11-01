@@ -5,15 +5,20 @@ import {
   type SetStateAction,
 } from "react";
 import {
-  RiAddLine,
   RiCloseLine,
   RiDeleteBin6Line,
+  RiDropLine,
+  RiFootprintLine,
+  RiHeartPulseLine,
   RiPencilLine,
+  RiRestaurant2Line,
+  RiRunLine,
+  RiScales3Line,
 } from "react-icons/ri";
+import { pressureLevel } from "./Charts";
 import Choice from "./Choice";
 import { confirmDialog } from "./confirm";
 import {
-  byDate,
   daysAgo,
   durationLabel,
   foodUnit,
@@ -23,24 +28,59 @@ import {
   type Food,
   type State,
 } from "./domain";
-import { foodCalories, reopenDay } from "./energy";
+import { foodCalories, reopenDay, stepEnergy, weightAtDate } from "./energy";
 import { PhotoStrip, removePhotos } from "./photos";
 import ReportCard, { firstDate } from "./ReportCard";
-import { dateLabel, PageTitle, Panel } from "./ui";
+import { setSteps } from "./steps";
+import { FoldToggle, PageTitle, Panel, Tile, useFlash } from "./ui";
 
 type Kind = "weight" | "exercise" | "pressure" | "water";
-const dayLabel = (d: string) => `${dateLabel(d)} ${d.slice(0, 4)}`;
-/** Datas dos itens, da mais recente para a mais antiga. */
-const daysOf = <T extends { date: string }>(items: T[]) =>
-  [...new Set(items.map((x) => x.date))].sort().reverse();
+type View = "day" | "food" | "exercise" | "weight" | "pressure" | "water" | "steps";
+const SECTIONS: { id: Exclude<View, "day">; label: string; icon: ReactNode }[] =
+  [
+    { id: "food", label: "Refeições", icon: <RiRestaurant2Line /> },
+    { id: "exercise", label: "Exercícios", icon: <RiRunLine /> },
+    { id: "weight", label: "Peso", icon: <RiScales3Line /> },
+    { id: "pressure", label: "Pressão", icon: <RiHeartPulseLine /> },
+    { id: "water", label: "Água", icon: <RiDropLine /> },
+    { id: "steps", label: "Passos", icon: <RiFootprintLine /> },
+  ];
+/** Dias mostrados de uma vez (o resto aparece com "Mostrar mais"). */
+const PAGE = 10;
 
-/** Aba Registros: um filtro de período para o relatório e todas as listas. */
+/** "Hoje", "Ontem" ou "sábado, 01 de novembro" (com o ano se for outro). */
+function dayTitle(date: string) {
+  if (date === today()) return "Hoje";
+  if (date === daysAgo(1)) return "Ontem";
+  const d = new Date(date + "T12:00:00");
+  const text = d.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    ...(date.slice(0, 4) !== today().slice(0, 4) ? { year: "numeric" } : {}),
+  });
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+const shortDate = (date: string) =>
+  new Date(date + "T12:00:00").toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+
+/**
+ * Aba Registros: o relatório do período e o histórico separado por dia, com
+ * uma seção por tipo de registro (ou só um tipo, pelo filtro).
+ */
 export default function Records({
   state,
   setState,
   onEdit,
   onFood,
   onError,
+  view: rawView,
+  onView,
+  highlight,
 }: {
   state: State;
   setState: Dispatch<SetStateAction<State>>;
@@ -49,10 +89,19 @@ export default function Records({
   /** Abre o formulário de alimento (novo ou edição). */
   onFood: (food?: Food) => void;
   onError: (message: string) => void;
+  /** Filtro do histórico (fica no App para abrir já no tipo salvo). */
+  view: string;
+  onView: (view: string) => void;
+  /** Id do registro recém-salvo, para destacar. */
+  highlight?: string | null;
 }) {
+  const view = (
+    ["day", ...SECTIONS.map((s) => s.id)].includes(rawView) ? rawView : "day"
+  ) as View;
   const [period, setPeriod] = useState("30");
   const [customFrom, setCustomFrom] = useState(() => daysAgo(6));
   const [customTo, setCustomTo] = useState(today);
+  const [shown, setShown] = useState(PAGE);
   const from =
     period === "all"
       ? firstDate(state)
@@ -62,8 +111,20 @@ export default function Records({
   const to = period === "custom" ? customTo : today();
   const inPeriod = <T extends { date: string }>(items: T[] = []) =>
     items.filter((x) => x.date >= from && x.date <= to);
-  const foods = inPeriod(state.foods);
-  const water = inPeriod(state.water);
+  const lists = {
+    food: inPeriod(state.foods),
+    exercise: inPeriod(state.exercises),
+    weight: inPeriod(state.weights),
+    pressure: inPeriod(state.pressures),
+    water: inPeriod(state.water),
+    steps: inPeriod(state.steps),
+  };
+  const visible = view === "day" ? SECTIONS : SECTIONS.filter((s) => s.id === view);
+  const days = [
+    ...new Set(visible.flatMap((s) => lists[s.id].map((x) => x.date))),
+  ]
+    .sort()
+    .reverse();
 
   async function remove(title: string, message: string, apply: () => void) {
     if (
@@ -77,24 +138,271 @@ export default function Records({
       apply();
   }
 
+  /** Itens de um tipo num dia. */
+  function section(id: Exclude<View, "day">, date: string) {
+    if (id === "food") {
+      const items = lists.food.filter((f) => f.date === date);
+      if (!items.length) return null;
+      const total = items.reduce((t, f) => t + (foodCalories(f) ?? 0), 0);
+      return {
+        summary: kcal(total),
+        rows: items.map((f) => {
+          const c = foodCalories(f);
+          return (
+            <Row
+              key={f.id}
+              highlight={highlight === f.id}
+              title={f.name}
+              value={c === null ? "pendente" : kcal(c)}
+              detail={[
+                `${num(f.grams)} ${foodUnit(f)}`,
+                f.source === "ai"
+                  ? "estimativa da IA"
+                  : f.source === "label"
+                    ? "informado"
+                    : "calorias a preencher",
+              ].join(" · ")}
+              warn={c === null}
+              onEdit={() => onFood(f)}
+              onDelete={() =>
+                remove(
+                  "Excluir alimento?",
+                  `"${f.name}" sai do diário de ${shortDate(date)}.`,
+                  () =>
+                    setState((s) => ({
+                      ...s,
+                      foods: (s.foods ?? []).filter((x) => x.id !== f.id),
+                      completedDays: reopenDay(s, date),
+                    })),
+                )
+              }
+            />
+          );
+        }),
+      };
+    }
+    if (id === "exercise") {
+      const items = lists.exercise.filter((e) => e.date === date);
+      if (!items.length) return null;
+      const minutes = items.reduce((t, e) => t + e.minutes, 0);
+      return {
+        summary: durationLabel(minutes),
+        rows: items.map((ex) => (
+          <Row
+            key={ex.id}
+            highlight={highlight === ex.id}
+            title={ex.type}
+            value={ex.minutes ? durationLabel(ex.minutes) : ""}
+            detail={[
+              ex.intensity,
+              ex.distanceKm && `${num(ex.distanceKm)} km`,
+              ex.elevationM && `${num(ex.elevationM)} m de elevação`,
+              ex.activeCalories !== undefined &&
+                `${num(ex.activeCalories)} kcal ativas`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            photos={ex.photos}
+            onEdit={() => onEdit("exercise", ex.id)}
+            onDelete={() =>
+              remove(
+                "Excluir exercício?",
+                "O exercício e as fotos dele serão apagados da sua conta.",
+                () => {
+                  void removePhotos(ex.photos);
+                  setState((s) => ({
+                    ...s,
+                    exercises: s.exercises.filter((x) => x.id !== ex.id),
+                    completedDays: reopenDay(s, ex.date),
+                  }));
+                },
+              )
+            }
+          />
+        )),
+      };
+    }
+    if (id === "weight") {
+      const items = lists.weight.filter((w) => w.date === date);
+      if (!items.length) return null;
+      return {
+        summary: `${num(items[0].value)} kg`,
+        rows: items.map((w) => (
+          <Row
+            key={w.id}
+            highlight={highlight === w.id}
+            title={`${num(w.value)} kg`}
+            value=""
+            detail={
+              w.bodyFat !== undefined
+                ? `${num(w.bodyFat)}% de gordura${w.bodyFatSource === "ai" ? " (estimativa da IA)" : ""}`
+                : ""
+            }
+            photos={w.photos}
+            onEdit={() => onEdit("weight", w.id)}
+            onDelete={() =>
+              remove(
+                "Excluir peso?",
+                "O registro e as fotos dele serão apagados da sua conta.",
+                () => {
+                  void removePhotos(w.photos);
+                  setState((s) => ({
+                    ...s,
+                    weights: s.weights.filter((x) => x.id !== w.id),
+                  }));
+                },
+              )
+            }
+          />
+        )),
+      };
+    }
+    if (id === "pressure") {
+      const items = lists.pressure.filter((p) => p.date === date);
+      if (!items.length) return null;
+      return {
+        summary: `${items.length} medição${items.length === 1 ? "" : "ões"}`,
+        rows: items.map((p) => {
+          const level = pressureLevel(p.systolic, p.diastolic);
+          return (
+            <Row
+              key={p.id}
+              highlight={highlight === p.id}
+              title={`${p.systolic}/${p.diastolic} mmHg`}
+              value=""
+              badge={
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${level.tone}`}
+                >
+                  {level.label}
+                </span>
+              }
+              detail={p.pulse ? `${p.pulse} bpm` : ""}
+              photos={p.photos}
+              onEdit={() => onEdit("pressure", p.id)}
+              onDelete={() =>
+                remove(
+                  "Excluir medição?",
+                  "A medição e as fotos dela serão apagadas da sua conta.",
+                  () => {
+                    void removePhotos(p.photos);
+                    setState((s) => ({
+                      ...s,
+                      pressures: s.pressures.filter((x) => x.id !== p.id),
+                    }));
+                  },
+                )
+              }
+            />
+          );
+        }),
+      };
+    }
+    if (id === "water") {
+      const items = lists.water.filter((w) => w.date === date);
+      if (!items.length) return null;
+      return {
+        summary: `${num(items.reduce((t, w) => t + w.ml, 0))} ml`,
+        rows: [
+          <li key="water" className="flex flex-wrap gap-1.5 py-2">
+            {items.map((w) => (
+              <WaterChip
+                key={w.id}
+                ml={w.ml}
+                highlight={highlight === w.id}
+                onEdit={() => onEdit("water", w.id)}
+                onDelete={() =>
+                  remove(
+                    "Excluir registro de água?",
+                    `${num(w.ml)} ml de ${shortDate(date)} saem do histórico.`,
+                    () =>
+                      setState((s) => ({
+                        ...s,
+                        water: (s.water ?? []).filter((x) => x.id !== w.id),
+                      })),
+                  )
+                }
+              />
+            ))}
+          </li>,
+        ],
+      };
+    }
+    const item = lists.steps.find((x) => x.date === date);
+    if (!item) return null;
+    const e = stepEnergy(item.count, weightAtDate(state, date), state.profile);
+    return {
+      summary: `${item.count.toLocaleString("pt-BR")} passos`,
+      rows: [
+        <Row
+          key={item.id}
+          title={`${item.count.toLocaleString("pt-BR")} passos`}
+          value={e.calories === null ? "" : `~${kcal(e.calories)}`}
+          detail={`${num(e.distanceKm)} km · ${item.source === "manual" ? "informado" : "contado pelo celular"}`}
+          onDelete={() =>
+            remove(
+              "Excluir passos do dia?",
+              `Os passos de ${shortDate(date)} saem do histórico.`,
+              () =>
+                setState((s) => ({
+                  ...s,
+                  steps: setSteps(s.steps, date, 0),
+                })),
+            )
+          }
+        />,
+      ],
+    };
+  }
+
   return (
     <>
       <PageTitle
         title="Registros"
-        text="Peso, exercícios, pressão arterial, alimentação e água."
+        text="Seu histórico, separado por dia. Toque num registro para editar."
       />
-      <div className="mb-5 flex flex-wrap items-end gap-3">
+      <div className="mb-5 grid grid-cols-3 gap-2 sm:grid-cols-5">
+        <Tile
+          icon={<RiRestaurant2Line />}
+          label="+ Alimento"
+          onClick={() => onFood()}
+        />
+        <Tile
+          icon={<RiRunLine />}
+          label="+ Exercício"
+          onClick={() => onEdit("exercise")}
+        />
+        <Tile
+          icon={<RiScales3Line />}
+          label="+ Peso"
+          onClick={() => onEdit("weight")}
+        />
+        <Tile
+          icon={<RiHeartPulseLine />}
+          label="+ Pressão"
+          onClick={() => onEdit("pressure")}
+        />
+        <Tile
+          icon={<RiDropLine />}
+          label="+ Água"
+          onClick={() => onEdit("water")}
+        />
+      </div>
+      <div className="mb-4 flex flex-wrap items-end gap-3">
         <Choice
-          label="Período do relatório e dos registros"
+          label="Período"
           value={period}
-          onChange={setPeriod}
+          onChange={(p) => {
+            setPeriod(p);
+            setShown(PAGE);
+          }}
           options={[
             { id: "1", label: "Hoje" },
             { id: "7", label: "7 dias" },
             { id: "30", label: "30 dias" },
             { id: "90", label: "90 dias" },
             { id: "all", label: "Tudo" },
-            { id: "custom", label: "Personalizado" },
+            { id: "custom", label: "Escolher" },
           ]}
         />
         {period === "custom" && (
@@ -118,226 +426,83 @@ export default function Records({
       <div className="mb-5">
         <ReportCard state={state} from={from} to={to} onError={onError} />
       </div>
-      <div className="mb-5 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-        {(
-          [
-            ["Peso", () => onEdit("weight")],
-            ["Exercício", () => onEdit("exercise")],
-            ["Pressão", () => onEdit("pressure")],
-            ["Alimento", () => onFood()],
-            ["Água", () => onEdit("water")],
-          ] as const
-        ).map(([label, open], i) => (
-          <button
-            key={label}
-            className={i ? "btn-secondary" : "btn-primary"}
-            onClick={open}
-          >
-            <RiAddLine className="size-5" /> {label}
-          </button>
-        ))}
+      <div className="mb-4">
+        <Choice
+          variant="chips"
+          label="Mostrar"
+          value={view}
+          onChange={(v) => {
+            onView(v);
+            setShown(PAGE);
+          }}
+          options={[
+            { id: "day", label: "Tudo por dia" },
+            ...SECTIONS.map((s) => ({
+              id: s.id,
+              label: `${s.label} (${s.id === "water" ? new Set(lists.water.map((w) => w.date)).size : lists[s.id].length})`,
+            })),
+          ]}
+        />
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <List title="Peso" empty={!inPeriod(state.weights).length}>
-          {byDate(inPeriod(state.weights))
-            .reverse()
-            .map((w) => (
-              <Row
-                key={w.id}
-                title={`${num(w.value)} kg`}
-                detail={[
-                  dayLabel(w.date),
-                  w.bodyFat !== undefined &&
-                    `${num(w.bodyFat)}% de gordura${w.bodyFatSource === "ai" ? " (estimativa da IA)" : ""}`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                photos={w.photos}
-                onEdit={() => onEdit("weight", w.id)}
-                onDelete={() =>
-                  remove(
-                    "Excluir registro?",
-                    "O registro e as fotos dele serão apagados da sua conta.",
-                    () => {
-                      void removePhotos(w.photos);
-                      setState((s) => ({
-                        ...s,
-                        weights: s.weights.filter((x) => x.id !== w.id),
-                      }));
-                    },
-                  )
-                }
-              />
-            ))}
-        </List>
-        <List title="Exercícios" empty={!inPeriod(state.exercises).length}>
-          {byDate(inPeriod(state.exercises))
-            .reverse()
-            .map((ex) => (
-              <Row
-                key={ex.id}
-                title={ex.type}
-                detail={[
-                  dayLabel(ex.date),
-                  durationLabel(ex.minutes),
-                  ex.intensity,
-                  ex.distanceKm && `${num(ex.distanceKm)} km`,
-                  ex.elevationM && `${num(ex.elevationM)} m de elevação`,
-                  ex.activeCalories !== undefined &&
-                    `${num(ex.activeCalories)} kcal ativas`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-                photos={ex.photos}
-                onEdit={() => onEdit("exercise", ex.id)}
-                onDelete={() =>
-                  remove(
-                    "Excluir registro?",
-                    "O registro e as fotos dele serão apagados da sua conta.",
-                    () => {
-                      void removePhotos(ex.photos);
-                      setState((s) => ({
-                        ...s,
-                        exercises: s.exercises.filter((x) => x.id !== ex.id),
-                        completedDays: reopenDay(s, ex.date),
-                      }));
-                    },
-                  )
-                }
-              />
-            ))}
-        </List>
-        <List
-          title="Pressão arterial"
-          empty={!inPeriod(state.pressures).length}
-        >
-          {byDate(inPeriod(state.pressures))
-            .reverse()
-            .map((p) => (
-              <Row
-                key={p.id}
-                title={`${p.systolic}/${p.diastolic} mmHg`}
-                detail={`${dayLabel(p.date)}${p.pulse ? ` · ${p.pulse} bpm` : ""}`}
-                photos={p.photos}
-                onEdit={() => onEdit("pressure", p.id)}
-                onDelete={() =>
-                  remove(
-                    "Excluir registro?",
-                    "O registro e as fotos dele serão apagados da sua conta.",
-                    () => {
-                      void removePhotos(p.photos);
-                      setState((s) => ({
-                        ...s,
-                        pressures: s.pressures.filter((x) => x.id !== p.id),
-                      }));
-                    },
-                  )
-                }
-              />
-            ))}
-        </List>
-        <List title="Alimentação" empty={!foods.length}>
-          {daysOf(foods).map((date) => {
-            const items = foods.filter((f) => f.date === date);
+      {!days.length ? (
+        <Panel>
+          <p className="py-8 text-center text-sm text-ink-500">
+            Nenhum registro{" "}
+            {view === "day"
+              ? ""
+              : `de ${SECTIONS.find((s) => s.id === view)!.label.toLowerCase()} `}
+            nesse período. Use os botões acima para registrar.
+          </p>
+        </Panel>
+      ) : (
+        <div className="grid gap-3">
+          {days.slice(0, shown).map((date) => {
+            const parts = visible.flatMap((s) => {
+              const r = section(s.id, date);
+              return r ? [{ ...s, ...r }] : [];
+            });
             return (
-              <Day
-                key={date}
-                total={kcal(
-                  items.reduce((t, f) => t + (foodCalories(f) ?? 0), 0),
-                )}
-                detail={`${dayLabel(date)} · ${items.length} alimento${items.length === 1 ? "" : "s"}`}
-              >
-                <ul className="mt-2">
-                  {items.map((f) => {
-                    const c = foodCalories(f);
-                    return (
-                      <li
-                        key={f.id}
-                        className="flex items-center justify-between gap-2"
-                      >
-                        <span className="min-w-0 text-[13px] text-ink-700">
-                          <span className="block truncate">{f.name}</span>
-                          <span className="text-ink-500 tabular-nums">
-                            {num(f.grams)} {foodUnit(f)} ·{" "}
-                            {c === null ? "calorias pendentes" : kcal(c)}
+              <Panel key={date} fold={`day-${date}`} foldPersist={false}>
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="font-semibold">{dayTitle(date)}</h2>
+                    <p className="mt-0.5 text-[13px] text-ink-500">
+                      {parts.map((p) => p.summary).join(" · ")}
+                    </p>
+                  </div>
+                  <FoldToggle title={dayTitle(date)} />
+                </div>
+                <div className="mt-3 grid gap-4">
+                  {parts.map((p) => (
+                    <div key={p.id}>
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-ink-700">
+                          <span className="grid size-7 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-4">
+                            {p.icon}
                           </span>
-                        </span>
-                        <Actions
-                          name={f.name}
-                          onEdit={() => onFood(f)}
-                          onDelete={() =>
-                            remove(
-                              "Excluir alimento?",
-                              `"${f.name}" sai do diário de ${dateLabel(date)}.`,
-                              () =>
-                                setState((s) => ({
-                                  ...s,
-                                  foods: (s.foods ?? []).filter(
-                                    (x) => x.id !== f.id,
-                                  ),
-                                  completedDays: reopenDay(s, date),
-                                })),
-                            )
-                          }
-                        />
-                      </li>
-                    );
-                  })}
-                </ul>
-              </Day>
-            );
-          })}
-        </List>
-        <List title="Água" empty={!water.length}>
-          {daysOf(water).map((date) => {
-            const items = water.filter((w) => w.date === date);
-            return (
-              <Day
-                key={date}
-                total={`${num(items.reduce((t, w) => t + w.ml, 0))} ml`}
-                detail={`${dayLabel(date)} · ${items.length} registro${items.length === 1 ? "" : "s"} · toque em um valor para editar`}
-              >
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {items.map((w) => (
-                    <span
-                      key={w.id}
-                      className="inline-flex items-center gap-0.5 rounded-full bg-surface py-0.5 pr-0.5 pl-1 text-[13px] text-ink-700 tabular-nums"
-                    >
-                      <button
-                        className="inline-flex min-h-7 items-center gap-1 rounded-full px-1.5 hover:bg-white hover:text-brand-700"
-                        aria-label={`Editar ${w.ml} ml de ${dateLabel(date)}`}
-                        onClick={() => onEdit("water", w.id)}
-                      >
-                        {num(w.ml)} ml
-                        <RiPencilLine className="size-3.5 text-ink-400" />
-                      </button>
-                      <button
-                        className="grid size-7 place-items-center rounded-full text-ink-400 hover:bg-white hover:text-brand-600"
-                        aria-label={`Excluir ${w.ml} ml de ${dateLabel(date)}`}
-                        onClick={() =>
-                          remove(
-                            "Excluir registro de água?",
-                            `${num(w.ml)} ml de ${dateLabel(date)} saem do histórico.`,
-                            () =>
-                              setState((s) => ({
-                                ...s,
-                                water: (s.water ?? []).filter(
-                                  (x) => x.id !== w.id,
-                                ),
-                              })),
-                          )
-                        }
-                      >
-                        <RiCloseLine className="size-4" />
-                      </button>
-                    </span>
+                          {p.label}
+                          <span className="ml-auto font-normal text-ink-500 tabular-nums">
+                            {p.summary}
+                          </span>
+                        </h3>
+                      <ul className="mt-1 divide-y divide-line border-l-2 border-brand-100 pl-3">
+                        {p.rows}
+                      </ul>
+                    </div>
                   ))}
                 </div>
-              </Day>
+              </Panel>
             );
           })}
-        </List>
-      </div>
+          {days.length > shown && (
+            <button
+              className="btn-secondary mx-auto"
+              onClick={() => setShown((n) => n + PAGE)}
+            >
+              Mostrar mais dias ({days.length - shown})
+            </button>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -373,101 +538,116 @@ function DateField({
   );
 }
 
-/** Painel de uma lista, com o aviso de período vazio. */
-function List({
-  title,
-  empty,
-  children,
-}: {
-  title: string;
-  empty: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Panel>
-      <h2 className="text-base font-semibold">{title}</h2>
-      {empty ? (
-        <p className="py-8 text-sm text-ink-500">
-          Nenhum registro nesse período.
-        </p>
-      ) : (
-        <ul className="mt-2 divide-y divide-line">{children}</ul>
-      )}
-    </Panel>
-  );
-}
-
-/** Um dia agrupado (alimentação, água): total, detalhe e os itens. */
-function Day({
-  total,
-  detail,
-  children,
-}: {
-  total: string;
-  detail: string;
-  children: ReactNode;
-}) {
-  return (
-    <li className="py-3">
-      <strong className="block font-semibold tabular-nums">{total}</strong>
-      <small className="mt-0.5 block text-[13px] text-ink-500">{detail}</small>
-      {children}
-    </li>
-  );
-}
-
-/** Um registro (peso, exercício, pressão) com fotos e ações. */
+/** Um registro: nome, valor à direita, detalhe, fotos e ações. */
 function Row({
   title,
+  value,
   detail,
+  badge,
+  warn,
   photos,
+  highlight,
   onEdit,
   onDelete,
 }: {
   title: string;
+  value: string;
   detail: string;
+  badge?: ReactNode;
+  warn?: boolean;
   photos?: string[];
-  onEdit: () => void;
+  highlight?: boolean;
+  onEdit?: () => void;
   onDelete: () => void;
 }) {
+  const ref = useFlash<HTMLLIElement>(highlight);
   return (
-    <li className="flex items-start justify-between gap-2 py-3">
-      <div className="min-w-0">
-        <strong className="block font-semibold tabular-nums">{title}</strong>
-        <small className="mt-0.5 block text-[13px] text-ink-500">
-          {detail}
-        </small>
-        <PhotoStrip paths={photos} />
-      </div>
-      <Actions name="registro" onEdit={onEdit} onDelete={onDelete} />
+    <li ref={ref} className="-ml-1 flex flex-wrap items-start gap-x-2 rounded-lg py-2.5 pl-1">
+      <button
+        className="min-w-0 flex-1 text-left disabled:cursor-default"
+        disabled={!onEdit}
+        onClick={onEdit}
+      >
+        <span className="flex items-baseline justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2">
+            <strong className="truncate text-sm font-medium">{title}</strong>
+            {badge}
+          </span>
+          {value && (
+            <span
+              className={`shrink-0 text-sm tabular-nums ${warn ? "text-brand-700" : "text-ink-700"}`}
+            >
+              {value}
+            </span>
+          )}
+        </span>
+        {detail && (
+          <small className="mt-0.5 block text-[13px] text-ink-500">
+            {detail}
+          </small>
+        )}
+      </button>
+      <span className="-my-1 -mr-2 flex shrink-0">
+        {onEdit && (
+          <button
+            className="icon-btn hover:text-brand-600"
+            aria-label={`Editar ${title}`}
+            onClick={onEdit}
+          >
+            <RiPencilLine className="size-[18px]" />
+          </button>
+        )}
+        <button
+          className="icon-btn hover:text-brand-600"
+          aria-label={`Excluir ${title}`}
+          onClick={onDelete}
+        >
+          <RiDeleteBin6Line className="size-[18px]" />
+        </button>
+      </span>
+      {photos?.length ? <RowPhotos photos={photos} /> : null}
     </li>
   );
 }
+function RowPhotos({ photos }: { photos: string[] }) {
+  return (
+    <span className="basis-full">
+      <PhotoStrip paths={photos} />
+    </span>
+  );
+}
 
-function Actions({
-  name,
+function WaterChip({
+  ml,
+  highlight,
   onEdit,
   onDelete,
 }: {
-  name: string;
+  ml: number;
+  highlight?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const ref = useFlash<HTMLSpanElement>(highlight);
   return (
-    <span className="-mr-2 flex shrink-0">
+    <span
+      ref={ref}
+      className="inline-flex items-center gap-0.5 rounded-full bg-surface py-0.5 pr-0.5 pl-1 text-[13px] text-ink-700 tabular-nums"
+    >
       <button
-        className="icon-btn hover:text-brand-600"
-        aria-label={`Editar ${name}`}
+        className="inline-flex min-h-8 items-center gap-1 rounded-full px-2 hover:bg-white hover:text-brand-700"
+        aria-label={`Editar ${num(ml)} ml`}
         onClick={onEdit}
       >
-        <RiPencilLine className="size-[18px]" />
+        {num(ml)} ml
+        <RiPencilLine className="size-3.5 text-ink-400" />
       </button>
       <button
-        className="icon-btn hover:text-brand-600"
-        aria-label={`Excluir ${name}`}
+        className="grid size-8 place-items-center rounded-full text-ink-400 hover:bg-white hover:text-brand-600"
+        aria-label={`Excluir ${num(ml)} ml`}
         onClick={onDelete}
       >
-        <RiDeleteBin6Line className="size-[18px]" />
+        <RiCloseLine className="size-4" />
       </button>
     </span>
   );

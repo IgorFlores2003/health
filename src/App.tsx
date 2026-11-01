@@ -70,7 +70,6 @@ import {
   useState,
   useRef,
   type FormEvent,
-  type ReactNode,
 } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -166,6 +165,7 @@ import {
   Panel,
   QuickAction,
   Stat,
+  Tile,
 } from "./ui";
 import Onboarding from "./Onboarding";
 import PressureFields from "./PressureFields";
@@ -235,6 +235,14 @@ const tabs: {
     active: RiCalendarCheckFill,
   },
   {
+    id: "records",
+    main: true,
+    label: "Registros",
+    short: "Registros",
+    icon: RiFileList3Line,
+    active: RiFileList3Fill,
+  },
+  {
     id: "kitchen",
     main: true,
     label: "Cozinha",
@@ -242,14 +250,6 @@ const tabs: {
     icon: RiRestaurant2Line,
     active: RiRestaurant2Fill,
     hint: "O que preparar com o que tem em casa",
-  },
-  {
-    id: "records",
-    main: true,
-    label: "Registros",
-    short: "Registros",
-    icon: RiFileList3Line,
-    active: RiFileList3Fill,
   },
   {
     id: "community",
@@ -414,6 +414,32 @@ export default function App({ account }: { account: User }) {
   const [answer, setAnswer] = useState("");
   const [question, setQuestion] = useState("");
   const [diaryDate, setDiaryDate] = useState(today);
+  // Registro recém-salvo: a tela onde ele aparece abre e o destaca.
+  const [highlight, setHighlight] = useState<string | null>(null);
+  const [recordsView, setRecordsView] = useState("day");
+  useEffect(() => {
+    if (!highlight) return;
+    const t = setTimeout(() => setHighlight(null), 4000);
+    return () => clearTimeout(t);
+  }, [highlight]);
+  /**
+   * Depois de salvar: pelo Início (atalhos), vai para a tela que mostra o
+   * registro em vez de voltar para o Início. Em qualquer tela, destaca.
+   */
+  const showSaved = (kind: string, id: string, date: string) => {
+    setHighlight(id);
+    if (tab !== "overview") return "";
+    if (kind === "weight") {
+      setRecordsView("weight");
+      setTab("records");
+      return " Ele está aqui em Registros.";
+    }
+    setDiaryDate(date);
+    setTab("nutrition");
+    if (kind === "food")
+      setNotice("Alimento salvo. Ele está aqui no Diário.");
+    return " Ele está aqui no Diário.";
+  };
   const sync = useCloudSync(account.id, state, setState);
   const stepCounter = useStepCounter(account.id, setState);
   // Metas batidas: avisa só na hora em que a meta é alcançada.
@@ -1010,12 +1036,13 @@ export default function App({ account }: { account: User }) {
     );
     void removePhotos(saved.filter((p) => !kept.includes(p)));
     setModal("");
+    const where = showSaved(modal, id, date);
     setNotice(
-      editItem
+      (editItem
         ? "Registro atualizado."
         : photos.length
           ? "Registro e fotos salvos."
-          : "Registro salvo.",
+          : "Registro salvo.") + where,
     );
   }
   function saveProfile(e: FormEvent<HTMLFormElement>) {
@@ -1342,6 +1369,9 @@ export default function App({ account }: { account: User }) {
                   <p className="mt-1 text-ink-500">Resumo de hoje</p>
                 </div>
               </div>
+              <div className="mb-4">
+                <MascotCard state={state} date={today()} />
+              </div>
               <DayStatus
                 state={state}
                 setState={setState}
@@ -1424,9 +1454,6 @@ export default function App({ account }: { account: User }) {
                 />
               </div>
               <div className="mb-4">
-                <MascotCard state={state} date={today()} />
-              </div>
-              <div className="mb-4">
                 <Panel className="p-2">
                   <QuickAction
                     icon={<RiChat3Line />}
@@ -1474,7 +1501,7 @@ export default function App({ account }: { account: User }) {
                 />
               </div>
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]">
-                <Panel>
+                <Panel fold="chart-weight">
                   <CardHeader title="Peso">
                     <select
                       aria-label="Período do gráfico"
@@ -1558,7 +1585,7 @@ export default function App({ account }: { account: User }) {
                     />
                   )}
                 </Panel>
-                <Panel>
+                <Panel fold="goal-progress">
                   <CardHeader title="Progresso da meta" />
                   <div className="flex items-baseline gap-1">
                     <strong className="text-4xl font-semibold tabular-nums">
@@ -1601,7 +1628,7 @@ export default function App({ account }: { account: User }) {
                     <RiArrowRightLine className="size-4" />
                   </button>
                 </Panel>
-                <Panel className="lg:col-span-2">
+                <Panel fold="chart-exercise" className="lg:col-span-2">
                   <CardHeader
                     title="Exercício"
                     text="Minutos por dia, últimos 7 dias"
@@ -1651,21 +1678,21 @@ export default function App({ account }: { account: User }) {
                 </Panel>
               </div>
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <Panel>
+                <Panel fold="chart-calories">
                   <CardHeader
                     title="Calorias"
                     text="Consumido e disponível, últimos 14 dias"
                   />
                   <CalorieChart state={state} days={14} />
                 </Panel>
-                <Panel>
+                <Panel fold="chart-water">
                   <CardHeader title="Água" text="Últimos 7 dias" />
                   <WaterChart state={state} days={7} />
                 </Panel>
-                <Panel className="lg:col-span-2">
+                <Panel fold="chart-pressure" className="lg:col-span-2">
                   <CardHeader
                     title="Pressão arterial"
-                    text="Linhas tracejadas em 140 e 90 mmHg, referência de pressão alta"
+                    text="Uma barra por medição, da mínima à máxima"
                   >
                     <select
                       aria-label="Período do gráfico de pressão"
@@ -1749,6 +1776,8 @@ export default function App({ account }: { account: User }) {
               onProfile={openProfile}
               onWeight={() => openRecord("weight")}
               steps={stepCounter}
+              highlight={highlight}
+              onSaved={setHighlight}
               onAnalyze={() => {
                 setQuestion(
                   "Com base nos alimentos e exercícios registrados neste dia, estou em déficit calórico? Explique o saldo e as limitações dos dados.",
@@ -1771,6 +1800,9 @@ export default function App({ account }: { account: User }) {
           )}
           {tab === "records" && (
             <Records
+              view={recordsView}
+              onView={setRecordsView}
+              highlight={highlight}
               state={state}
               setState={setState}
               onEdit={openRecord}
@@ -1898,7 +1930,7 @@ export default function App({ account }: { account: User }) {
               />
               <div className="max-w-2xl">
                 <Medals state={state} onShare={shareToFriends} />
-                <Panel>
+                <Panel fold="profile-about">
                   <CardHeader title="Sobre você" />
                   <div className="mb-5">
                     <span className="label">Foto de perfil</span>
@@ -2058,7 +2090,7 @@ export default function App({ account }: { account: User }) {
                 </p>
               </div>
               <div className="grid gap-4 lg:grid-cols-2">
-                <Panel>
+                <Panel fold="profile-goal">
                   <CardHeader title="Objetivo" />
                   <form
                     className="space-y-4"
@@ -2131,7 +2163,7 @@ export default function App({ account }: { account: User }) {
                     prescreve dietas.
                   </p>
                 </Panel>
-                <Panel>
+                <Panel fold="profile-eta">
                   <CardHeader title="Prazo estimado" />
                   <div className="flex items-baseline gap-2">
                     <strong className="text-5xl font-semibold tracking-tight tabular-nums">
@@ -2406,6 +2438,7 @@ export default function App({ account }: { account: User }) {
           date={tab === "nutrition" ? diaryDate : today()}
           food={foodSheet.food}
           onClose={() => setFoodSheet(null)}
+          onSaved={(ids, date) => showSaved("food", ids[0], date)}
         />
       )}
       {birthday && (
@@ -2551,29 +2584,6 @@ function WaterAmount({ initial }: { initial: number }) {
   const [ml, setMl] = useState<number | null>(initial);
   return (
     <LitersInput name="ml" label="Quantidade" value={ml} onChange={setMl} />
-  );
-}
-
-/** Atalho grande do Início (ícone em cima, nome embaixo). */
-function Tile({
-  icon,
-  label,
-  onClick,
-}: {
-  icon: ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-2 py-3 text-center text-[13px] leading-tight font-medium text-ink-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
-      onClick={onClick}
-    >
-      <span className="grid size-9 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
-        {icon}
-      </span>
-      {label}
-    </button>
   );
 }
 

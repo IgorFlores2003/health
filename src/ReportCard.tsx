@@ -3,6 +3,7 @@ import { RiFilePdf2Line, RiShareLine } from "react-icons/ri";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { today, type State } from "./domain";
 import { analyzePeriod } from "./report";
+import { FoldToggle, Panel } from "./ui";
 
 /** Primeira data com algum registro (período "Tudo"). */
 export function firstDate(state: State) {
@@ -92,7 +93,7 @@ export default function ReportCard({
   }
 
   return (
-    <section className="card min-w-0">
+    <Panel fold="report">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
           <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600">
@@ -130,6 +131,7 @@ export default function ReportCard({
             <RiShareLine className="size-5" />
             <span className="hidden sm:inline">Compartilhar</span>
           </button>
+          <FoldToggle title="relatório" />
         </div>
       </div>
       <dl className="mt-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -150,6 +152,6 @@ export default function ReportCard({
         que foi registrado e não substitui nutricionista, médico ou profissional
         de educação física.
       </p>
-    </section>
+    </Panel>
   );
 }

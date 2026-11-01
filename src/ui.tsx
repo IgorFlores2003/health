@@ -1,6 +1,15 @@
-import type { ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   RiAddLine,
+  RiArrowDownSLine,
+  RiArrowUpSLine,
   RiArrowRightSLine,
   RiCheckboxBlankCircleLine,
   RiCheckboxCircleFill,
@@ -28,20 +37,133 @@ export function Field({
     </label>
   );
 }
+/**
+ * Cards minimizáveis: a escolha fica neste aparelho (localStorage) e vale
+ * para todas as telas que usam o mesmo id.
+ */
+const FOLD_KEY = "ritmo-folded";
+const foldListeners = new Set<() => void>();
+function readFolded(): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(FOLD_KEY) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+export function useFold(id?: string, persist = true) {
+  const [local, setLocal] = useState(false);
+  const [saved, setSaved] = useState(() =>
+    id && persist ? readFolded().includes(id) : false,
+  );
+  useEffect(() => {
+    if (!id || !persist) return;
+    const sync = () => setSaved(readFolded().includes(id));
+    foldListeners.add(sync);
+    return () => {
+      foldListeners.delete(sync);
+    };
+  }, [id, persist]);
+  const folded = persist ? saved : local;
+  const toggle = () => {
+    if (!id) return;
+    if (!persist) return setLocal((f) => !f);
+    const list = readFolded().filter((x) => x !== id);
+    try {
+      localStorage.setItem(
+        FOLD_KEY,
+        JSON.stringify(folded ? list : [...list, id]),
+      );
+    } catch {
+      /* sem armazenamento: vale só agora */
+    }
+    setSaved(!folded);
+    foldListeners.forEach((f) => f());
+  };
+  return [folded, toggle] as const;
+}
+const FoldContext = createContext<{
+  folded: boolean;
+  toggle: () => void;
+} | null>(null);
+
+/**
+ * Card do app. Com `fold`, ganha o botão de minimizar (FoldToggle, já
+ * incluído no CardHeader): minimizado, só o primeiro filho (o cabeçalho)
+ * continua visível.
+ */
 export function Panel({
   children,
   className = "",
   id,
+  fold,
+  foldPersist = true,
+  highlight,
 }: {
   children: ReactNode;
   className?: string;
   id?: string;
+  /** Id para lembrar se está minimizado. */
+  fold?: string;
+  /** false: minimizar vale só enquanto a tela está aberta. */
+  foldPersist?: boolean;
+  /** Acabou de ser registrado: rola até ele e destaca. */
+  highlight?: boolean;
 }) {
+  const [folded, toggle] = useFold(fold, foldPersist);
+  const ref = useFlash<HTMLElement>(highlight);
   return (
-    <section id={id} className={"card min-w-0 " + className}>
-      {children}
-    </section>
+    <FoldContext.Provider value={fold ? { folded, toggle } : null}>
+      <section
+        ref={ref}
+        id={id}
+        data-folded={fold && folded ? "true" : undefined}
+        className={"card min-w-0 " + className}
+      >
+        {children}
+      </section>
+    </FoldContext.Provider>
   );
+}
+/** Botão de minimizar/expandir do card (só aparece em Panel com fold). */
+export function FoldToggle({ title }: { title: string }) {
+  const ctx = useContext(FoldContext);
+  if (!ctx) return null;
+  const Icon = ctx.folded ? RiArrowDownSLine : RiArrowUpSLine;
+  return (
+    <button
+      type="button"
+      className="icon-btn -my-1.5 -mr-2 ml-auto shrink-0"
+      aria-expanded={!ctx.folded}
+      aria-label={`${ctx.folded ? "Expandir" : "Minimizar"} ${title}`}
+      title={ctx.folded ? "Expandir" : "Minimizar"}
+      onClick={ctx.toggle}
+    >
+      <Icon className="size-6" />
+    </button>
+  );
+}
+/**
+ * Registro recém-salvo: rola até ele e pisca a borda por uns segundos,
+ * para a pessoa ver onde ele foi parar.
+ */
+export function useFlash<T extends HTMLElement>(on: boolean | undefined) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!on || !el) return;
+    const t = setTimeout(() => {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("flash");
+    }, 80);
+    const off = setTimeout(() => el.classList.remove("flash"), 3200);
+    return () => {
+      clearTimeout(t);
+      clearTimeout(off);
+      el.classList.remove("flash");
+    };
+  }, [on]);
+  return ref;
 }
 export function CardHeader({
   title,
@@ -58,7 +180,10 @@ export function CardHeader({
         <h2 className="text-base font-semibold">{title}</h2>
         {text && <p className="mt-0.5 text-sm text-ink-500">{text}</p>}
       </div>
-      {children}
+      <span className="flex shrink-0 items-start gap-1">
+        {children}
+        <FoldToggle title={title} />
+      </span>
     </div>
   );
 }
@@ -182,3 +307,26 @@ export const ago = (iso: string) => {
     month: "short",
   });
 };
+
+/** Atalho grande (ícone em cima, nome embaixo), todos do mesmo tamanho. */
+export function Tile({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-2 py-3 text-center text-[13px] leading-tight font-medium text-ink-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+      onClick={onClick}
+    >
+      <span className="grid size-9 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
+        {icon}
+      </span>
+      {label}
+    </button>
+  );
+}

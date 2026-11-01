@@ -13,7 +13,7 @@ import {
   XP,
 } from "./gamification";
 import Sheet from "./Sheet";
-import { CheckItem } from "./ui";
+import { CheckItem, FoldToggle, Panel } from "./ui";
 
 /** Card do Início: mascote, nível e missões do dia (medalhas ficam no Perfil). */
 export default function MascotCard({
@@ -31,7 +31,7 @@ export default function MascotCard({
   const next = nextEvolution(level.level);
   const todayXp = dayXp(state, date);
   return (
-    <section className="card">
+    <Panel fold="pet">
       <div className="flex items-center gap-4">
         <PetArt
           stage={pet}
@@ -68,6 +68,9 @@ export default function MascotCard({
             </p>
           )}
         </div>
+        <span className="self-start">
+          <FoldToggle title="bichinho e missões" />
+        </span>
       </div>
       <div className="mt-5 flex items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">Missões de hoje</h3>
@@ -135,6 +138,6 @@ export default function MascotCard({
           </p>
         </Sheet>
       )}
-    </section>
+    </Panel>
   );
 }

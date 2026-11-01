@@ -276,6 +276,12 @@ input[type="number"]::-webkit-outer-spin-button {
 :root[data-theme="dark"] .text-emerald-800 {
   color: #6ee7b7;
 }
+:root[data-theme="dark"] .bg-amber-50 {
+  background-color: #2a2010;
+}
+:root[data-theme="dark"] .text-amber-800 {
+  color: #fcd34d;
+}
 /* Gráficos (Recharts). */
 :root[data-theme="dark"] .recharts-default-tooltip {
   background-color: var(--color-surface) !important;
@@ -283,4 +289,25 @@ input[type="number"]::-webkit-outer-spin-button {
 }
 :root[data-theme="dark"] .recharts-tooltip-label {
   color: var(--color-ink-900);
+}
+
+/* Card minimizado (ui.tsx Panel com fold): só o cabeçalho fica. */
+[data-folded="true"] > :not(:first-child) {
+  display: none !important;
+}
+[data-folded="true"] > :first-child {
+  margin-bottom: 0 !important;
+}
+/* Registro recém-salvo (useFlash): borda piscando na cor do app. */
+.flash {
+  animation: flash 1.4s ease-in-out 2;
+}
+@keyframes flash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 3px var(--color-brand-400);
+  }
 }

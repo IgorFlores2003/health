@@ -72,6 +72,7 @@ export default function FoodSheet({
   date: initialDate,
   food: initial,
   onClose,
+  onSaved,
 }: {
   state: State;
   setState: Dispatch<SetStateAction<State>>;
@@ -80,6 +81,8 @@ export default function FoodSheet({
   /** Alimento em edição. */
   food?: Food;
   onClose: () => void;
+  /** Depois de salvar: ids dos alimentos e a data (para mostrar onde ficaram). */
+  onSaved?: (ids: string[], date: string) => void;
 }) {
   const food = initial;
   const estimateId = useRef(0);
@@ -206,6 +209,7 @@ export default function FoodSheet({
     }
     setState(next);
     onClose();
+    onSaved?.([item.id], date);
   }
   return (
     <Sheet
@@ -218,13 +222,15 @@ export default function FoodSheet({
             disabled={busy || !supabase}
             onAdd={(items, note) => {
               const typed = several !== null;
+              const ids = items.map(() => crypto.randomUUID());
               onClose();
+              onSaved?.(ids, date);
               setState((s) => ({
                 ...s,
                 foods: [
                   ...(s.foods ?? []),
-                  ...items.map((x) => ({
-                    id: crypto.randomUUID(),
+                  ...items.map((x, i) => ({
+                    id: ids[i],
                     date,
                     name: x.name,
                     grams: x.grams,
