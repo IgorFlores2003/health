@@ -24,6 +24,12 @@ Referências: Compêndio de Atividades Físicas 2024:
 
 São aproximações populacionais, não medições individuais. As faixas por velocidade simplificam atividades específicas do compêndio; inclinação, terreno, pausas, carga, técnica e condicionamento podem mudar o resultado.
 
+## Passos
+
+Um registro por dia em `state.steps` (`{ id: "steps:AAAA-MM-DD", date, count, source }`). No app Android, `StepCounterPlugin.java` lê o `TYPE_STEP_COUNTER` (total desde que o celular ligou); `src/steps.ts` guarda a última leitura no aparelho e soma a diferença ao dia de hoje ao abrir o app, a cada minuto com ele aberto e ao voltar para ele. Se o celular reiniciar, o contador zera e o valor lido inteiro conta como novo. Passos dados com o app fechado entram no dia em que o app é aberto de novo (abrir o app antes de dormir fecha o dia com precisão). Na web, os passos são informados à mão.
+
+Estimativa (`stepEnergy`): passada = altura × 0,415 (coeficiente masculino) ou × 0,413 (feminino); distância = passos × passada; duração = distância ÷ 4,8 km/h; calorias ativas = (3,8 MET − 1) × peso × horas, a mesma faixa da caminhada a 4,8 km/h. As calorias dos passos **não entram no saldo nem na meta do dia**: o nível de atividade do perfil já inclui o movimento do dia a dia, e caminhadas registradas como exercício seriam contadas duas vezes.
+
 ## Saldo
 
 Base diária = Mifflin–St Jeor × 1,2 (rotina leve). Gasto habitual = basal × nível de atividade do perfil, que já inclui os treinos habituais. Gasto do dia = o maior entre o gasto habitual e base diária + calorias ativas dos exercícios registrados, para um treino nunca ser contado duas vezes. Saldo = consumo − gasto do dia.

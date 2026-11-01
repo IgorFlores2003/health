@@ -14,8 +14,22 @@ export type Weight = {
   id: string;
   date: string;
   value: number;
-  /** Caminhos no bucket de Storage (foto da balança). */
+  /** Gordura corporal em %: informada (bioimpedância) ou estimada pela IA. */
+  bodyFat?: number;
+  /** De onde veio a gordura corporal. */
+  bodyFatSource?: "ai" | "manual";
+  /** Caminhos no bucket de Storage (foto da balança ou do corpo). */
   photos?: string[];
+};
+/**
+ * Passos de um dia (um registro por data, id `steps:AAAA-MM-DD`): contados
+ * pelo sensor do celular ou informados à mão.
+ */
+export type Steps = {
+  id: string;
+  date: string;
+  count: number;
+  source: "sensor" | "manual";
 };
 export type Exercise = {
   id: string;
@@ -85,6 +99,7 @@ export const defaultHydration: Hydration = {
 export type State = {
   foods?: Food[];
   water?: Water[];
+  steps?: Steps[];
   hydration?: Hydration;
   completedDays?: string[];
   social?: SocialAction[];
@@ -330,6 +345,14 @@ export function validState(v: unknown): v is State {
     (s.water === undefined ||
       (Array.isArray(s.water) &&
         s.water.every((x) => base(x) && n(x.ml, 1, 5000)))) &&
+    (s.steps === undefined ||
+      (Array.isArray(s.steps) &&
+        s.steps.every(
+          (x) =>
+            base(x) &&
+            n(x.count, 0, 200000) &&
+            (x.source === "sensor" || x.source === "manual"),
+        ))) &&
     (s.hydration === undefined ||
       (!!s.hydration &&
         n(s.hydration.cupMl, 50, 2000) &&
@@ -377,6 +400,10 @@ export function validState(v: unknown): v is State {
       (x) =>
         base(x) &&
         n(x.value, 20, 400) &&
+        (x.bodyFat === undefined || n(x.bodyFat, 2, 70)) &&
+        (x.bodyFatSource === undefined ||
+          x.bodyFatSource === "ai" ||
+          x.bodyFatSource === "manual") &&
         (x.photos === undefined ||
           (Array.isArray(x.photos) &&
             x.photos.length <= MAX_EXERCISE_PHOTOS &&

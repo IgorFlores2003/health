@@ -108,12 +108,16 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
         </li>
         <li>
           Dados de saúde (dados pessoais sensíveis): peso, pressão arterial e
-          pulso, alimentos e calorias, água, exercícios, metas e as fotos que
-          você anexar aos registros.
+          pulso, gordura corporal, passos, alimentos e calorias, água,
+          exercícios, metas e as fotos que você anexar aos registros (inclusive
+          fotos do corpo, se você escolher anexar). Os passos são lidos do
+          sensor do celular só se você ativar a contagem.
         </li>
         <li>
-          Áudios e fotos enviados para a IA: usados só para ler os valores e
-          descartados em seguida; não ficam guardados pelo Ritmo.
+          Áudios e fotos enviados para a IA (incluindo a foto do corpo para
+          estimar a gordura corporal): usados só para ler ou estimar os
+          valores e descartados em seguida; não ficam guardados pelo serviço
+          de IA. A lista de ingredientes da Cozinha fica só no aparelho.
         </li>
         <li>
           Preferências do aparelho (tela aberta, lembretes de água, tema) ficam
@@ -151,8 +155,10 @@ function Privacy({ open }: { open: (d: LegalDoc) => void }) {
         </li>
         <li>
           Google (Gemini API): recebe apenas o conteúdo necessário a cada pedido
-          de IA (a foto, o áudio, a descrição do alimento ou a pergunta com o
-          resumo numérico do dia). Nome e e-mail não são enviados.
+          de IA (a foto, o áudio, a descrição do alimento, a lista de
+          ingredientes da Cozinha ou a pergunta com o resumo numérico do dia;
+          para a estimativa de gordura, também altura, idade, peso e
+          coeficiente da fórmula). Nome e e-mail não são enviados.
         </li>
         <li>
           Seus amigos (pessoas que você adicionou e aceitaram): veem seu nome,

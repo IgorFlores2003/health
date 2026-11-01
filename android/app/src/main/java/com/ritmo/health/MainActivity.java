@@ -8,6 +8,7 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(AppIconPlugin.class);
         registerPlugin(FileOpenerPlugin.class);
+        registerPlugin(StepCounterPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

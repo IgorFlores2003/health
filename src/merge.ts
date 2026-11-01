@@ -7,6 +7,7 @@ const LISTS = [
   "pressures",
   "foods",
   "water",
+  "steps",
   "social",
 ] as const;
 const same = (a: unknown, b: unknown) =>
@@ -69,6 +70,7 @@ export function mergeStates(base: State, local: State, remote: State): State {
     pressures: [],
     foods: [],
     water: [],
+    steps: [],
     social: [],
   };
   for (const k of LISTS)

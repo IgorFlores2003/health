@@ -8,7 +8,10 @@ import {
 } from "react";
 import {
   RiAddLine,
+  RiArrowRightLine,
   RiChat3Line,
+  RiCheckboxBlankCircleLine,
+  RiCheckboxCircleFill,
   RiDeleteBin6Line,
   RiFootprintLine,
   RiHeartPulseLine,
@@ -18,6 +21,8 @@ import {
 import { confirmDialog } from "./confirm";
 import FoodSheet from "./FoodSheet";
 import { WaterCard } from "./Water";
+import StepsCard from "./StepsCard";
+import type { StepCounterState } from "./steps";
 import { dailyEnergy, foodCalories, reopenDay } from "./energy";
 import {
   durationLabel,
@@ -43,6 +48,7 @@ export default function DailyDiary({
   onAnalyze,
   onProfile,
   onWeight,
+  steps,
 }: {
   state: State;
   setState: Dispatch<SetStateAction<State>>;
@@ -53,6 +59,7 @@ export default function DailyDiary({
   onAnalyze: () => void;
   onProfile: () => void;
   onWeight: () => void;
+  steps: StepCounterState;
 }) {
   const day = dailyEnergy(state, date);
   const pressures = state.pressures.filter((p) => p.date === date);
@@ -86,7 +93,28 @@ export default function DailyDiary({
           />
         </label>
       </div>
-      <div className="mb-4 grid gap-4 lg:grid-cols-2">
+      <DayStatus
+        state={state}
+        setState={setState}
+        date={date}
+        onProfile={onProfile}
+        onWeight={onWeight}
+        onFood={open}
+        onExercise={onExercise}
+        onAnalyze={onAnalyze}
+      />
+      <div className="mb-4 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+        <button className="btn-primary" onClick={() => open()}>
+          <RiAddLine size={18} /> Alimento
+        </button>
+        <button className="btn-secondary" onClick={() => onExercise()}>
+          <RiAddLine size={18} /> Exercício
+        </button>
+        <button className="btn-secondary" onClick={() => onPressure()}>
+          <RiAddLine size={18} /> Pressão
+        </button>
+      </div>
+      <div className="mb-4 grid gap-4 lg:grid-cols-3">
         <CalorieBudget
           state={state}
           date={date}
@@ -94,34 +122,13 @@ export default function DailyDiary({
           onWeight={onWeight}
         />
         <WaterCard state={state} setState={setState} date={date} />
+        <StepsCard
+          state={state}
+          setState={setState}
+          date={date}
+          counter={steps}
+        />
       </div>
-      <section className="card mb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2 text-sm text-ink-500">
-          <h2 className="text-base font-semibold text-ink-900">
-            {balanceLabels[day.status]}
-          </h2>
-          <p>
-            {day.complete
-              ? `Diferença estimada: ${kcal(Math.abs(day.balance!))}. Valores aproximados; "próximo do equilíbrio" é uma diferença de até 100 kcal.`
-              : "Ainda não dá para dizer se houve déficit. Registre todas as refeições, bebidas e exercícios e marque o dia como completo."}
-          </p>
-          {!state.profileReviewed && (
-            <button className="btn-ghost -ml-2" onClick={onProfile}>
-              Revise e salve seu perfil para calcular o gasto
-            </button>
-          )}
-          {!day.weight && <p>Falta um registro de peso nessa data ou antes.</p>}
-          {day.aiFoods > 0 && (
-            <p>
-              {day.aiFoods} alimento(s) usam estimativa da IA. Preparo, marca e
-              ingredientes podem mudar as calorias.
-            </p>
-          )}
-        </div>
-        <button className="btn-primary shrink-0" onClick={onAnalyze}>
-          <RiChat3Line size={18} /> Analisar meu dia
-        </button>
-      </section>
       <div className="mb-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">
         <DiaryCard
           title="Alimentação"
@@ -264,30 +271,6 @@ export default function DailyDiary({
         </div>
       </div>
       <section className="card space-y-3 text-sm text-ink-500">
-        <label className="flex cursor-pointer items-start gap-3 text-[15px] font-medium text-ink-900">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-5 shrink-0 accent-brand-600"
-            checked={day.completed}
-            disabled={!day.foodCount}
-            onChange={(e) =>
-              setState((s) => ({
-                ...s,
-                completedDays: e.target.checked
-                  ? [...new Set([...(s.completedDays ?? []), date])]
-                  : reopenDay(s, date),
-              }))
-            }
-          />
-          <span>
-            Registrei todos os alimentos, bebidas e exercícios do dia.
-          </span>
-        </label>
-        <p>
-          Qualquer alteração em alimentos ou exercícios reabre o dia. Sem esse
-          fechamento, a IA trata o saldo como parcial, e não como déficit
-          confirmado.
-        </p>
         <details className="group">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium text-brand-700">
             Como calculamos e quais são os limites
@@ -411,5 +394,184 @@ function DiaryRow({
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Topo do Diário (e aviso no Início): o que falta para o dia ter um saldo
+ * confiável, com um botão para resolver cada pendência, e o fechamento do
+ * dia.
+ */
+export function DayStatus({
+  state,
+  setState,
+  date,
+  onProfile,
+  onWeight,
+  onFood,
+  onExercise,
+  onAnalyze,
+  onOpenDiary,
+}: {
+  state: State;
+  setState: Dispatch<SetStateAction<State>>;
+  date: string;
+  onProfile: () => void;
+  onWeight: () => void;
+  onFood: (food?: Food) => void;
+  onExercise: (id?: string) => void;
+  onAnalyze?: () => void;
+  /** No Início: versão curta, com atalho para o Diário. */
+  onOpenDiary?: () => void;
+}) {
+  const day = dailyEnergy(state, date);
+  const pendingFood = day.foods.find((f) => foodCalories(f) === null);
+  const pendingExercise = day.exercises.find((e) => e.calories === null);
+  const items: {
+    done: boolean;
+    text: string;
+    action?: { label: string; run: () => void };
+  }[] = [
+    {
+      done: !!state.profileReviewed,
+      text: "Perfil revisado",
+      action: { label: "Revisar", run: onProfile },
+    },
+    {
+      done: !!day.weight,
+      text: "Peso registrado nesse dia ou antes",
+      action: { label: "Registrar peso", run: onWeight },
+    },
+    {
+      done: day.foodCount > 0,
+      text: "Refeições e bebidas registradas",
+      action: { label: "Adicionar alimento", run: () => onFood() },
+    },
+    {
+      done: day.foodMissing === 0,
+      text: day.foodMissing
+        ? `${day.foodMissing} alimento(s) sem calorias`
+        : "Calorias de todos os alimentos",
+      action: pendingFood && {
+        label: "Completar",
+        run: () => onFood(pendingFood),
+      },
+    },
+    {
+      done: day.exerciseMissing === 0,
+      text: day.exerciseMissing
+        ? `${day.exerciseMissing} exercício(s) sem calorias`
+        : "Calorias dos exercícios",
+      action: pendingExercise && {
+        label: "Completar",
+        run: () => onExercise(pendingExercise.id),
+      },
+    },
+  ];
+  const missing = items.filter((i) => !i.done);
+  const closeBox = (
+    <label
+      className={`flex items-start gap-3 rounded-lg border p-3 text-[15px] font-medium ${day.completed ? "border-brand-200 bg-brand-50 text-brand-800" : "border-line text-ink-900"} ${day.foodCount ? "cursor-pointer" : "opacity-60"}`}
+    >
+      <input
+        type="checkbox"
+        className="mt-0.5 size-5 shrink-0 accent-brand-600"
+        checked={day.completed}
+        disabled={!day.foodCount}
+        onChange={(e) =>
+          setState((s) => ({
+            ...s,
+            completedDays: e.target.checked
+              ? [...new Set([...(s.completedDays ?? []), date])]
+              : reopenDay(s, date),
+          }))
+        }
+      />
+      <span>
+        Registrei todos os alimentos, bebidas e exercícios do dia.
+        <small className="mt-0.5 block text-[13px] font-normal text-ink-500">
+          {day.foodCount
+            ? "Sem isso, o saldo é parcial. Mudar um alimento ou exercício reabre o dia."
+            : "Registre ao menos um alimento para fechar o dia."}
+        </small>
+      </span>
+    </label>
+  );
+  if (onOpenDiary) {
+    // Início: só aparece enquanto falta algo.
+    if (day.complete) return null;
+    return (
+      <section className="card mb-4 flex flex-col gap-3 border-brand-200 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="font-semibold">Diário de hoje: {balanceLabels[day.status].toLowerCase()}</h2>
+          <p className="mt-0.5 text-sm text-ink-500">
+            {missing.length
+              ? `Falta: ${missing.map((m) => m.text.toLowerCase()).join(", ")}.`
+              : "Tudo registrado? Marque o dia como completo para ver o saldo."}
+          </p>
+        </div>
+        <button className="btn-secondary shrink-0" onClick={onOpenDiary}>
+          Abrir diário <RiArrowRightLine className="size-4" />
+        </button>
+      </section>
+    );
+  }
+  return (
+    <section className="card mb-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold">{balanceLabels[day.status]}</h2>
+          <p className="mt-0.5 text-sm text-ink-500">
+            {day.complete
+              ? `Diferença estimada: ${kcal(Math.abs(day.balance!))}. Valores aproximados; "próximo do equilíbrio" é uma diferença de até 100 kcal.`
+              : missing.length
+                ? "Para saber se houve déficit, resolva o que falta:"
+                : "Tudo certo nos registros. Falta só marcar o dia como completo."}
+          </p>
+        </div>
+        {onAnalyze && (
+          <button className="btn-secondary shrink-0" onClick={onAnalyze}>
+            <RiChat3Line size={18} /> Analisar meu dia
+          </button>
+        )}
+      </div>
+      {!day.complete && (
+        <ul className="mt-3 grid gap-1 sm:grid-cols-2">
+          {items.map((i) => (
+            <li
+              key={i.text}
+              className="flex min-h-11 items-center justify-between gap-2 rounded-lg px-2 text-sm hover:bg-surface"
+            >
+              <span className="flex items-center gap-2">
+                {i.done ? (
+                  <RiCheckboxCircleFill className="size-5 shrink-0 text-brand-600" />
+                ) : (
+                  <RiCheckboxBlankCircleLine className="size-5 shrink-0 text-ink-400" />
+                )}
+                <span className={i.done ? "text-ink-500" : "font-medium text-ink-900"}>
+                  {i.text}
+                </span>
+                <span className="sr-only">{i.done ? "(feito)" : "(pendente)"}</span>
+              </span>
+              {!i.done && i.action && (
+                <button
+                  className="btn-ghost min-h-9 shrink-0 px-2 text-sm"
+                  onClick={i.action.run}
+                >
+                  {i.action.label}
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3">{closeBox}</div>
+      {day.aiFoods > 0 && (
+        <p className="mt-2 text-[13px] text-ink-500">
+          {day.aiFoods} alimento(s) usam estimativa da IA. Preparo, marca e
+          ingredientes podem mudar as calorias.
+        </p>
+      )}
+    </section>
   );
 }

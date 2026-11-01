@@ -1,38 +1,53 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  RiCameraLine,
   RiCloseLine,
   RiCropLine,
   RiImageAddLine,
   RiSparkling2Line,
 } from "react-icons/ri";
+import CameraCapture from "./CameraCapture";
 import PhotoEditor from "./PhotoEditor";
 import { confirmDialog } from "./confirm";
-import { usePhotoUrls } from "./photos";
+import { openImages } from "./ImageViewer";
+import { downloadPhoto, usePhotoUrls } from "./photos";
+
+/** Uma ação de IA sobre a foto escolhida (ex.: ler o peso, estimar gordura). */
+export type PhotoReader = {
+  label: string;
+  run: (file: File, form: HTMLFormElement | null) => Promise<string>;
+};
 
 /**
  * Campo de fotos do formulário. As fotos novas vão em name="photos" e, ao
- * editar, as salvas que continuam vão em name="keptPhotos". Com onRead,
- * oferece ler a primeira foto com a IA para preencher os campos.
+ * editar, as salvas que continuam vão em name="keptPhotos". Com onRead (ou
+ * readers), oferece ler a foto escolhida com a IA para preencher os campos.
  */
 export default function PhotoField({
   label,
   hint,
   max,
   onRead,
+  readers,
   saved = [],
 }: {
   label: string;
   hint: string;
   max: number;
   onRead?: (file: File, form: HTMLFormElement | null) => Promise<string>;
+  /** Várias ações de IA; com mais de uma foto, vale a selecionada. */
+  readers?: PhotoReader[];
   /** Caminhos das fotos já salvas no registro em edição. */
   saved?: string[];
 }) {
   const field = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [kept, setKept] = useState(saved);
-  const [reading, setReading] = useState(false);
+  const [reading, setReading] = useState("");
   const [editing, setEditing] = useState<number | null>(null);
+  const [camera, setCamera] = useState(false);
+  // Foto usada pela IA: chave da miniatura (caminho salvo ou índice novo).
+  const [selected, setSelected] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; error?: boolean }>();
   const savedUrls = usePhotoUrls(kept);
   const previews = useMemo(
@@ -48,38 +63,28 @@ export default function PhotoField({
     field.current.files = dt.files;
   }, [files]);
   const free = max - kept.length - files.length;
+  const actions: PhotoReader[] =
+    readers ?? (onRead ? [{ label: "Preencher com a IA", run: onRead }] : []);
 
-  function add(list: FileList | null) {
-    const chosen = [...(list || [])];
-    if (chosen.length > free)
+  function add(list: File[]) {
+    if (list.length > free)
       setMessage({
         text: `Máximo de ${max} fotos por registro. Entraram as primeiras ${Math.max(free, 0)}.`,
         error: true,
       });
     else setMessage(undefined);
-    setFiles((f) => [...f, ...chosen.slice(0, Math.max(free, 0))]);
-  }
-  async function read() {
-    const file = files[0];
-    if (!file || !onRead) return;
-    setReading(true);
-    setMessage(undefined);
-    try {
-      setMessage({ text: await onRead(file, field.current!.form) });
-    } catch (e) {
-      setMessage({
-        text: e instanceof Error ? e.message : "Não foi possível ler a imagem.",
-        error: true,
-      });
-    } finally {
-      setReading(false);
-    }
+    const added = list.slice(0, Math.max(free, 0));
+    // A foto que acabou de entrar é a que a IA vai ler.
+    if (added.length) setSelected(`new-${files.length}`);
+    setFiles((f) => [...f, ...added]);
   }
 
   const thumbs = [
     ...kept.map((p) => ({
       key: p,
       src: savedUrls[p],
+      file: async () =>
+        new File([await downloadPhoto(p)], "foto.jpg", { type: "image/jpeg" }),
       remove: async () => {
         if (
           await confirmDialog({
@@ -88,20 +93,44 @@ export default function PhotoField({
             confirmLabel: "Remover",
             danger: true,
           })
-        )
+        ) {
           setKept((k) => k.filter((x) => x !== p));
+          if (selected === p) setSelected(null);
+        }
       },
     })),
     ...files.map((f, i) => ({
-      key: `${f.name}-${f.lastModified}-${i}`,
+      key: `new-${i}`,
       src: previews[i],
+      file: async () => f,
       edit: () => setEditing(i),
       remove: () => {
         setFiles((list) => list.filter((_, j) => j !== i));
+        setSelected(null);
         setMessage(undefined);
       },
     })),
   ];
+  const current =
+    thumbs.find((t) => t.key === selected) ?? thumbs.at(-1) ?? null;
+
+  async function read(action: PhotoReader) {
+    if (!current) return;
+    setReading(action.label);
+    setMessage(undefined);
+    try {
+      setMessage({
+        text: await action.run(await current.file(), field.current!.form),
+      });
+    } catch (e) {
+      setMessage({
+        text: e instanceof Error ? e.message : "Não foi possível ler a imagem.",
+        error: true,
+      });
+    } finally {
+      setReading("");
+    }
+  }
 
   return (
     <div>
@@ -118,14 +147,23 @@ export default function PhotoField({
       )}
       {thumbs.length > 0 && (
         <ul className="mb-3 grid grid-cols-4 gap-2 sm:grid-cols-5">
-          {thumbs.map((t) => (
+          {thumbs.map((t, i) => (
             <li key={t.key} className="relative aspect-square">
               {t.src ? (
-                <img
-                  src={t.src}
-                  alt=""
-                  className="size-full rounded-lg border border-line object-cover"
-                />
+                <button
+                  type="button"
+                  className={`block size-full overflow-hidden rounded-lg border ${actions.length && thumbs.length > 1 && current?.key === t.key ? "border-brand-600 ring-2 ring-brand-600" : "border-line"}`}
+                  aria-label="Abrir foto"
+                  onClick={() => {
+                    setSelected(t.key);
+                    openImages(
+                      thumbs.map((x) => x.src ?? ""),
+                      i,
+                    );
+                  }}
+                >
+                  <img src={t.src} alt="" className="size-full object-cover" />
+                </button>
               ) : (
                 <span className="block size-full animate-pulse rounded-lg bg-surface" />
               )}
@@ -154,32 +192,43 @@ export default function PhotoField({
       )}
       <div className="flex flex-wrap gap-2">
         {free > 0 && (
-          <label className="btn-secondary relative overflow-hidden">
-            <RiImageAddLine size={18} />
-            {thumbs.length ? "Adicionar mais" : "Escolher fotos"}
-            <input
-              className="absolute inset-0 cursor-pointer opacity-0"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              onChange={(e) => {
-                add(e.target.files);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => setCamera(true)}
+            >
+              <RiCameraLine size={18} /> Câmera
+            </button>
+            <label className="btn-secondary relative overflow-hidden">
+              <RiImageAddLine size={18} />
+              Galeria
+              <input
+                className="absolute inset-0 cursor-pointer opacity-0"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={(e) => {
+                  add([...(e.target.files || [])]);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </>
         )}
-        {onRead && files.length > 0 && (
-          <button
-            type="button"
-            className="btn-secondary text-brand-700"
-            disabled={reading}
-            onClick={read}
-          >
-            <RiSparkling2Line size={18} />
-            {reading ? "Lendo imagem…" : "Preencher com a IA"}
-          </button>
-        )}
+        {current &&
+          actions.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              className="btn-secondary text-brand-700"
+              disabled={!!reading}
+              onClick={() => void read(a)}
+            >
+              <RiSparkling2Line size={18} />
+              {reading === a.label ? "Lendo imagem…" : a.label}
+            </button>
+          ))}
       </div>
       {message && (
         <p
@@ -191,8 +240,23 @@ export default function PhotoField({
       )}
       <p className="hint">
         {hint}
-        {files.length > 0 && " Toque no ícone de recorte para enquadrar."}
+        {thumbs.length > 0 && " Toque numa foto para ver em tela cheia."}
+        {actions.length > 0 &&
+          thumbs.length > 1 &&
+          " A IA usa a foto destacada."}
+        {files.length > 0 && " O ícone de recorte enquadra a foto."}
       </p>
+      {camera && (
+        <CameraCapture
+          title={label.replace(/ · opcional$/, "")}
+          facing="environment"
+          onClose={() => setCamera(false)}
+          onCapture={(file) => {
+            setCamera(false);
+            add([file]);
+          }}
+        />
+      )}
       {editing !== null && files[editing] && (
         <PhotoEditor
           source={files[editing]}

@@ -12,15 +12,18 @@ import Sheet from "./Sheet";
  */
 export default function CameraCapture({
   title = "Tirar foto",
+  facing: initialFacing = "user",
   onCapture,
   onClose,
 }: {
   title?: string;
+  /** Câmera ao abrir: frontal (selfie) ou traseira (prato, balança, visor). */
+  facing?: "user" | "environment";
   onCapture: (file: File) => void;
   onClose: () => void;
 }) {
   const video = useRef<HTMLVideoElement>(null);
-  const [facing, setFacing] = useState<"user" | "environment">("user");
+  const [facing, setFacing] = useState<"user" | "environment">(initialFacing);
   const [cameras, setCameras] = useState(0);
   const [error, setError] = useState("");
   const [shot, setShot] = useState<{ url: string; blob: Blob } | null>(null);

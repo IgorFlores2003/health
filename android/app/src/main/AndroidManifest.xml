@@ -199,4 +199,7 @@
     <!-- Foto de perfil pela câmera (frontal ou traseira). -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Contagem de passos pelo sensor do celular (Android 10+ pede permissão). -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
+    <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
 </manifest>

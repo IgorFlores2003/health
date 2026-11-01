@@ -8,6 +8,7 @@ import {
 } from "react";
 import { RiChat3Line, RiCheckLine } from "react-icons/ri";
 import MealPhoto from "./MealPhoto";
+import type { MealReading } from "./readImage";
 import Sheet from "./Sheet";
 import { reopenDay } from "./energy";
 import {
@@ -83,6 +84,8 @@ export default function FoodSheet({
   const food = initial;
   const estimateId = useRef(0);
   const [reviewing, setReviewing] = useState(false);
+  // "Ovo com café": a IA separa os itens e a pessoa revisa cada um.
+  const [several, setSeveral] = useState<MealReading | null>(null);
   const editing = food?.id ?? null;
   const [date, setDate] = useState(food?.date ?? initialDate);
   const [name, setName] = useState(food?.name ?? "");
@@ -112,6 +115,16 @@ export default function FoodSheet({
             body: { action: "estimate-food", name: name.trim() },
           });
       if (id !== estimateId.current) return;
+      if (!error && Array.isArray(data?.items) && data.items.length > 1) {
+        if (editing) {
+          setError(
+            "Isso parece ter mais de um alimento ou bebida. Ao editar, descreva só um; para vários, registre um alimento novo.",
+          );
+          return;
+        }
+        setSeveral({ items: data.items, note: data.note ?? "" });
+        return;
+      }
       if (!error && !cached && typeof data?.kcalPer100g === "number")
         saveEstimate(name, data);
       if (!error && data?.kcalPer100g === null) {
@@ -204,6 +217,7 @@ export default function FoodSheet({
           <MealPhoto
             disabled={busy || !supabase}
             onAdd={(items, note) => {
+              const typed = several !== null;
               onClose();
               setState((s) => ({
                 ...s,
@@ -217,10 +231,11 @@ export default function FoodSheet({
                     kcalPer100g: x.kcalPer100g,
                     unit: x.liquid ? ("ml" as const) : ("g" as const),
                     source: "ai" as const,
-                    note: ("Estimado pela foto do prato. " + note).slice(
-                      0,
-                      500,
-                    ),
+                    note: (
+                      (typed
+                        ? "Estimado pela descrição. "
+                        : "Estimado pela foto do prato. ") + note
+                    ).slice(0, 500),
                   })),
                 ],
                 completedDays: reopenDay(s, date),
@@ -228,6 +243,7 @@ export default function FoodSheet({
             }}
 
             onReviewing={setReviewing}
+            preset={several}
           />
           {!reviewing && (
             <p className="my-5 flex items-center gap-3 text-xs font-medium tracking-wide text-ink-400 uppercase before:h-px before:flex-1 before:bg-line after:h-px after:flex-1 after:bg-line">
@@ -333,8 +349,10 @@ export default function FoodSheet({
               <p className="hint">
                 Não pesou? Escreva a quantidade (ex.: "3 ovos cozidos", "1 copo
                 de suco de laranja") e a IA estima a quantidade média, se é
-                sólido ou líquido, e as calorias. A IA recebe só a descrição.
-                Prefira o rótulo e a balança quando houver.
+                sólido ou líquido, e as calorias. Pode juntar sólido e líquido
+                (ex.: "2 ovos mexidos com 1 xícara de café com leite"): a IA
+                separa cada item para você conferir. A IA recebe só a
+                descrição. Prefira o rótulo e a balança quando houver.
               </p>
             </div>
             {note && (

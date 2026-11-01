@@ -4,6 +4,7 @@ import {
   GOAL_ADJUST,
   intakeTarget,
   type State,
+  type Profile,
   type Exercise,
   type Food,
 } from "./domain.ts";
@@ -112,6 +113,39 @@ export function exerciseEnergy(ex: Exercise, weight: number) {
     met,
   };
 }
+/**
+ * Passos → distância e calorias ativas estimadas. Passada = altura × 0,415
+ * (coeficiente masculino) ou × 0,413 (feminino); ritmo de caminhada
+ * moderado de 4,8 km/h, com a mesma tabela MET da caminhada (sem o repouso).
+ * Não entra no saldo do dia: o nível de atividade do perfil já inclui o
+ * movimento do dia a dia e caminhadas registradas seriam contadas duas vezes.
+ */
+export const STEP_PACE_KMH = 4.8;
+export function stepEnergy(count: number, weight: number, p: Profile) {
+  const strideM = (p.height * (p.formulaSex === "male" ? 0.415 : 0.413)) / 100;
+  const distanceKm = (count * strideM) / 1000;
+  const minutes = (distanceKm / STEP_PACE_KMH) * 60;
+  const calories =
+    count > 0 && weight
+      ? exerciseEnergy(
+          {
+            id: "steps",
+            date: "",
+            type: "Caminhada",
+            minutes,
+            intensity: "Moderada",
+            distanceKm,
+          },
+          weight,
+        ).calories
+      : count > 0
+        ? null
+        : 0;
+  return { distanceKm, minutes, calories };
+}
+/** Passos registrados na data (0 se não houver). */
+export const stepsOn = (state: State, date: string) =>
+  (state.steps ?? []).find((s) => s.date === date)?.count ?? 0;
 export function dailyEnergy(state: State, date: string) {
   const foods = (state.foods ?? []).filter((f) => f.date === date);
   const exercises = state.exercises.filter((e) => e.date === date);

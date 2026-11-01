@@ -92,3 +92,15 @@ test("profile merges field by field: a name change does not drop a new photo", (
   );
   assert.equal(removed.profile.photo, undefined);
 });
+
+test("steps counted on the phone survive a sync with another device", () => {
+  const steps = [
+    { id: "steps:2026-11-01", date: "2026-11-01", count: 4200, source: "sensor" },
+  ];
+  const base = { ...initial };
+  const phone = { ...initial, steps };
+  const laptop = { ...initial, water: [{ id: "a", date: "2026-11-01", ml: 250 }] };
+  const m = mergeStates(base, phone, laptop);
+  assert.deepEqual(m.steps, steps);
+  assert.equal(m.water.length, 1);
+});

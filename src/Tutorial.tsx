@@ -8,12 +8,17 @@ export const STEPS: { tab: string; title: string; text: string }[] = [
   {
     tab: "overview",
     title: "Início",
-    text: "Aqui ficam as calorias de hoje, a água, as missões do dia e o seu bichinho, que evolui conforme você cumpre as metas.",
+    text: "Aqui fica o que falta registrar hoje, atalhos para registrar tudo, as calorias, a água, os passos e o seu bichinho, que evolui conforme você cumpre as metas.",
   },
   {
     tab: "nutrition",
     title: "Diário",
-    text: "Registre o que comeu (foto do prato, áudio ou texto), seus exercícios e a pressão. No fim do dia, marque que registrou tudo.",
+    text: "No topo aparece o que falta no dia, com um botão para resolver cada item. Registre o que comeu (foto do prato, áudio ou texto), seus exercícios e a pressão, e no fim do dia marque que registrou tudo.",
+  },
+  {
+    tab: "kitchen",
+    title: "Cozinha",
+    text: "Não sabe o que fazer? Diga o que tem em casa e a IA sugere um café, almoço ou jantar saudável para a hora. Dá até para registrar no diário com um toque.",
   },
   {
     tab: "records",

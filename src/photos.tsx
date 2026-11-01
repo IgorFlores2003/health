@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { openImages } from "./ImageViewer";
 import { supabase } from "./supabase";
 
 const BUCKET = "assets";
@@ -228,20 +229,26 @@ export function PhotoStrip({ paths }: { paths?: string[] }) {
     <span className="mt-2 flex flex-wrap gap-1.5">
       {paths.map((p) =>
         map[p] ? (
-          <a
+          <button
             key={p}
-            href={map[p]}
-            target="_blank"
-            rel="noreferrer"
+            type="button"
+            aria-label="Abrir foto"
             className="block rounded-lg"
+            onClick={() => {
+              const ready = paths.filter((x) => map[x]);
+              openImages(
+                ready.map((x) => map[x]),
+                ready.indexOf(p),
+              );
+            }}
           >
             <img
               src={map[p]}
-              alt="Foto do exercício"
+              alt=""
               loading="lazy"
               className="size-14 rounded-lg bg-surface object-cover"
             />
-          </a>
+          </button>
         ) : (
           <span key={p} className="block size-14 rounded-lg bg-surface" />
         ),

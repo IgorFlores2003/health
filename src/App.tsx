@@ -1,4 +1,7 @@
-import DailyDiary, { balanceLabels } from "./DailyDiary";
+import DailyDiary, { balanceLabels, DayStatus } from "./DailyDiary";
+import Kitchen from "./Kitchen";
+import StepsCard from "./StepsCard";
+import { useStepCounter } from "./steps";
 import CalorieBudget from "./CalorieBudget";
 import ExerciseFields from "./ExerciseFields";
 import {
@@ -67,6 +70,7 @@ import {
   useState,
   useRef,
   type FormEvent,
+  type ReactNode,
 } from "react";
 import type { IconType } from "react-icons";
 import {
@@ -99,6 +103,10 @@ import {
   RiLineChartLine,
   RiFocus3Line,
   RiPulseLine,
+  RiDropLine,
+  RiRestaurant2Fill,
+  RiRestaurant2Line,
+  RiRestaurantLine,
   RiSideBarFill,
   RiSideBarLine,
   RiCalendarCheckFill,
@@ -207,6 +215,8 @@ const tabs: {
   active: IconType;
   /** No celular, aparece direto no menu de baixo; as outras ficam em "Mais". */
   main?: boolean;
+  /** Explicação curta no menu "Mais". */
+  hint?: string;
 }[] = [
   {
     id: "overview",
@@ -223,6 +233,15 @@ const tabs: {
     short: "Diário",
     icon: RiCalendarCheckLine,
     active: RiCalendarCheckFill,
+  },
+  {
+    id: "kitchen",
+    main: true,
+    label: "Cozinha",
+    short: "Cozinha",
+    icon: RiRestaurant2Line,
+    active: RiRestaurant2Fill,
+    hint: "O que preparar com o que tem em casa",
   },
   {
     id: "records",
@@ -246,6 +265,7 @@ const tabs: {
     short: "IA",
     icon: RiChat3Line,
     active: RiChat3Fill,
+    hint: "Pergunte à IA sobre o seu dia",
   },
   {
     id: "profile",
@@ -253,6 +273,7 @@ const tabs: {
     short: "Perfil",
     icon: RiUser3Line,
     active: RiUser3Fill,
+    hint: "Seus dados, meta de peso e medalhas",
   },
   {
     id: "notifications",
@@ -267,6 +288,7 @@ const tabs: {
     short: "Ajustes",
     icon: RiSettings3Line,
     active: RiSettings3Fill,
+    hint: "Tema, cor, lembretes de água, conta e ajuda",
   },
 ];
 const note = "text-[13px] leading-relaxed text-ink-500";
@@ -393,6 +415,7 @@ export default function App({ account }: { account: User }) {
   const [question, setQuestion] = useState("");
   const [diaryDate, setDiaryDate] = useState(today);
   const sync = useCloudSync(account.id, state, setState);
+  const stepCounter = useStepCounter(account.id, setState);
   // Metas batidas: avisa só na hora em que a meta é alcançada.
   const [celebration, setCelebration] = useState<CelebrationKind | null>(null);
   const goals = (() => {
@@ -849,11 +872,25 @@ export default function App({ account }: { account: User }) {
       };
     } else if (modal === "weight") {
       const value = Number(f.get("value"));
+      const fat = f.get("bodyFat");
+      const fatSource = f.get("bodyFatSource");
       next = {
         ...state,
         weights: [
           ...state.weights.filter((x) => x.date !== date && x.id !== id),
-          { id, date, value, ...(kept.length ? { photos: kept } : {}) },
+          {
+            id,
+            date,
+            value,
+            ...(fat
+              ? {
+                  bodyFat: Number(fat),
+                  bodyFatSource:
+                    fatSource === "ai" ? ("ai" as const) : ("manual" as const),
+                }
+              : {}),
+            ...(kept.length ? { photos: kept } : {}),
+          },
         ],
       };
     } else if (modal === "pressure") {
@@ -1217,17 +1254,24 @@ export default function App({ account }: { account: User }) {
             {tabs
               // Notificações já ficam no sino do topo.
               .filter((t) => !t.main && t.id !== "notifications")
-              .map(({ id, label, icon: Icon }) => (
+              .map(({ id, label, hint, icon: Icon }) => (
                 <li key={id}>
                   <button
-                    className={`flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-[15px] font-medium ${tab === id ? "bg-brand-50 text-brand-700" : "hover:bg-surface"}`}
+                    className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-[15px] font-medium ${tab === id ? "bg-brand-50 text-brand-700" : "hover:bg-surface"}`}
                     onClick={() => {
                       setTab(id);
                       setMoreOpen(false);
                     }}
                   >
-                    <Icon className="size-5 text-ink-500" />
-                    <span className="flex-1">{label}</span>
+                    <Icon className="size-5 shrink-0 text-ink-500" />
+                    <span className="flex-1">
+                      {label}
+                      {hint && (
+                        <small className="block text-[13px] font-normal text-ink-500">
+                          {hint}
+                        </small>
+                      )}
+                    </span>
                   </button>
                 </li>
               ))}
@@ -1297,41 +1341,58 @@ export default function App({ account }: { account: User }) {
                   </h1>
                   <p className="mt-1 text-ink-500">Resumo de hoje</p>
                 </div>
-                <button
-                  className="btn-primary w-full sm:w-auto"
-                  onClick={() => openRecord("weight")}
-                >
-                  <RiAddLine className="size-5" /> Registrar peso
-                </button>
               </div>
-              <div className="mb-4">
-                <MascotCard state={state} date={today()} />
-              </div>
-              <div className="mb-4">
-                <Panel className="p-2">
-                  <h2 className="px-3 pt-3 pb-1 text-base font-semibold">
-                    Atalhos
-                  </h2>
-                  <div className="grid sm:grid-cols-3">
-                    <QuickAction
-                      icon={<RiHeartPulseLine />}
-                      title="Registrar pressão"
-                      onClick={() => openRecord("pressure")}
-                    />
-                    <QuickAction
-                      icon={<RiFootprintLine />}
-                      title="Adicionar exercício"
-                      onClick={() => openRecord("exercise")}
-                    />
-                    <QuickAction
-                      icon={<RiChat3Line />}
-                      title="Perguntar ao assistente"
-                      onClick={() => setTab("insights")}
-                    />
-                  </div>
-                </Panel>
-              </div>
-              <div className="mb-4 grid gap-4 lg:grid-cols-2">
+              <DayStatus
+                state={state}
+                setState={setState}
+                date={today()}
+                onProfile={openProfile}
+                onWeight={() => openRecord("weight")}
+                onFood={(food) => setFoodSheet({ food })}
+                onExercise={(id) => openRecord("exercise", id)}
+                onOpenDiary={() => {
+                  setDiaryDate(today());
+                  setTab("nutrition");
+                }}
+              />
+              <section className="mb-4" aria-labelledby="quick-title">
+                <h2 id="quick-title" className="sr-only">
+                  Registrar
+                </h2>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                  <Tile
+                    icon={<RiRestaurantLine />}
+                    label="Alimento"
+                    onClick={() => setFoodSheet({})}
+                  />
+                  <Tile
+                    icon={<RiFootprintLine />}
+                    label="Exercício"
+                    onClick={() => openRecord("exercise")}
+                  />
+                  <Tile
+                    icon={<RiScales3Line />}
+                    label="Peso"
+                    onClick={() => openRecord("weight")}
+                  />
+                  <Tile
+                    icon={<RiDropLine />}
+                    label="Água"
+                    onClick={() => openRecord("water")}
+                  />
+                  <Tile
+                    icon={<RiHeartPulseLine />}
+                    label="Pressão"
+                    onClick={() => openRecord("pressure")}
+                  />
+                  <Tile
+                    icon={<RiRestaurant2Line />}
+                    label="O que cozinhar"
+                    onClick={() => setTab("kitchen")}
+                  />
+                </div>
+              </section>
+              <div className="mb-4 grid gap-4 lg:grid-cols-3">
                 <CalorieBudget
                   compact
                   state={state}
@@ -1355,6 +1416,24 @@ export default function App({ account }: { account: User }) {
                   </div>
                 </CalorieBudget>
                 <WaterCard state={state} setState={setState} date={today()} />
+                <StepsCard
+                  state={state}
+                  setState={setState}
+                  date={today()}
+                  counter={stepCounter}
+                />
+              </div>
+              <div className="mb-4">
+                <MascotCard state={state} date={today()} />
+              </div>
+              <div className="mb-4">
+                <Panel className="p-2">
+                  <QuickAction
+                    icon={<RiChat3Line />}
+                    title="Perguntar ao assistente"
+                    onClick={() => setTab("insights")}
+                  />
+                </Panel>
               </div>
               <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
                 <Stat
@@ -1669,11 +1748,24 @@ export default function App({ account }: { account: User }) {
               onPressure={(id) => openRecord("pressure", id)}
               onProfile={openProfile}
               onWeight={() => openRecord("weight")}
+              steps={stepCounter}
               onAnalyze={() => {
                 setQuestion(
                   "Com base nos alimentos e exercícios registrados neste dia, estou em déficit calórico? Explique o saldo e as limitações dos dados.",
                 );
                 setTab("insights");
+              }}
+            />
+          )}
+          {tab === "kitchen" && (
+            <Kitchen
+              userId={account.id}
+              state={state}
+              setState={setState}
+              onNotice={setNotice}
+              onDiary={() => {
+                setDiaryDate(today());
+                setTab("nutrition");
               }}
             />
           )}
@@ -2416,6 +2508,11 @@ export default function App({ account }: { account: User }) {
                   initial={
                     editItem && "value" in editItem ? editItem : undefined
                   }
+                  body={{
+                    height: state.profile.height,
+                    age: profileAge(state.profile),
+                    formulaSex: state.profile.formulaSex,
+                  }}
                 />
               ) : modal === "exercise" ? (
                 <ExerciseFields
@@ -2454,6 +2551,29 @@ function WaterAmount({ initial }: { initial: number }) {
   const [ml, setMl] = useState<number | null>(initial);
   return (
     <LitersInput name="ml" label="Quantidade" value={ml} onChange={setMl} />
+  );
+}
+
+/** Atalho grande do Início (ícone em cima, nome embaixo). */
+function Tile({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="flex min-h-20 flex-col items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-2 py-3 text-center text-[13px] leading-tight font-medium text-ink-700 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-700"
+      onClick={onClick}
+    >
+      <span className="grid size-9 place-items-center rounded-lg bg-brand-50 text-brand-600 [&_svg]:size-5">
+        {icon}
+      </span>
+      {label}
+    </button>
   );
 }
 

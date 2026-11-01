@@ -12,6 +12,19 @@ export type ExerciseReading = {
   note: string;
 };
 export type ScaleReading = { weight: number | null; note: string };
+export type BodyReading = {
+  bodyFat: number | null;
+  low: number | null;
+  high: number | null;
+  note: string;
+};
+/** Números do perfil que ajudam a IA a estimar a gordura (sem nome). */
+export type BodyContext = {
+  height: number;
+  weight: number | null;
+  age: number;
+  formulaSex: "female" | "male";
+};
 export type MealReading = {
   /** liquid: quantidade em ml e kcal por 100 ml. */
   items: {
@@ -44,8 +57,14 @@ export async function readImage(
   file: File,
 ): Promise<ScaleReading>;
 export async function readImage(
-  kind: "exercise" | "pressure" | "meal" | "scale",
+  kind: "body",
   file: File,
+  profile: BodyContext,
+): Promise<BodyReading>;
+export async function readImage(
+  kind: "exercise" | "pressure" | "meal" | "scale" | "body",
+  file: File,
+  profile?: BodyContext,
 ) {
   if (!supabase) throw Error("Conecte-se para ler a imagem com a IA.");
   if (!navigator.onLine) throw Error(AI_OFFLINE);
@@ -55,6 +74,7 @@ export async function readImage(
       kind,
       today: today(),
       image: await photoBase64(file),
+      ...(profile ? { profile } : {}),
     },
   });
   if (error || !data || typeof data.note !== "string")

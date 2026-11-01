@@ -34,6 +34,7 @@ import {
   uploadPhoto,
 } from "./photos";
 import CameraCapture from "./CameraCapture";
+import { openImages } from "./ImageViewer";
 import GifPicker from "./GifPicker";
 import { STICKERS } from "./stickers";
 import { enqueue, flushOutbox, isTmp, tmpId, type Op } from "./outbox";
@@ -1042,6 +1043,7 @@ function Composer({
   const [photo, setPhoto] = useState<File | null>(null);
   const [preview, setPreview] = useState("");
   const [editing, setEditing] = useState<Blob | null>(null);
+  const [camera, setCamera] = useState(false);
   const [busy, setBusy] = useState(false);
   // Veio de "Compartilhar" numa medalha: desce até o post, já escrito.
   useEffect(() => {
@@ -1096,7 +1098,12 @@ function Composer({
           />
           {preview && (
             <div className="relative mt-3 inline-block">
-              <img src={preview} alt="" className="max-h-48 rounded-lg" />
+              <img
+                src={preview}
+                alt=""
+                className="max-h-48 cursor-zoom-in rounded-lg"
+                onClick={() => openImages([preview])}
+              />
               <button
                 type="button"
                 className="btn-secondary absolute top-2 right-2 min-h-8 px-2 text-xs"
@@ -1107,19 +1114,28 @@ function Composer({
             </div>
           )}
           <div className="mt-3 flex items-center justify-between gap-2">
-            <label className="btn-ghost relative">
-              <RiImageAddLine className="size-5" /> Foto
-              <input
-                className="absolute inset-0 cursor-pointer opacity-0"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  e.target.value = "";
-                  if (f) setEditing(f);
-                }}
-              />
-            </label>
+            <span className="flex">
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setCamera(true)}
+              >
+                <RiCameraLine className="size-5" /> Câmera
+              </button>
+              <label className="btn-ghost relative">
+                <RiImageAddLine className="size-5" /> Galeria
+                <input
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (f) setEditing(f);
+                  }}
+                />
+              </label>
+            </span>
             <button
               className="btn-primary"
               disabled={busy || (!text.trim() && !photo)}
@@ -1128,6 +1144,17 @@ function Composer({
             </button>
           </div>
         </form>
+        {camera && (
+          <CameraCapture
+            title="Foto do post"
+            facing="environment"
+            onClose={() => setCamera(false)}
+            onCapture={(file) => {
+              setCamera(false);
+              setEditing(file);
+            }}
+          />
+        )}
         {editing && (
           <PhotoEditor
             source={editing}
@@ -1404,7 +1431,12 @@ function PostCard({
               )}
               {preview && (
                 <div className="relative inline-block">
-                  <img src={preview} alt="" className="max-h-32 rounded-lg" />
+                  <img
+                    src={preview}
+                    alt=""
+                    className="max-h-32 cursor-zoom-in rounded-lg"
+                    onClick={() => openImages([preview])}
+                  />
                   <button
                     type="button"
                     className="icon-btn absolute top-1 right-1 size-8 bg-white/90"

@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import AuthGate from "./AuthGate";
 import { ConfirmHost } from "./confirm";
+import { ImageViewerHost } from "./ImageViewer";
 import { applyAccent, applyColorMode, colorMode } from "./theme";
 import "./styles.css";
 import { listenInvites } from "./invite";
@@ -37,5 +38,6 @@ createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <AuthGate />
     <ConfirmHost />
+    <ImageViewerHost />
   </React.StrictMode>,
 );

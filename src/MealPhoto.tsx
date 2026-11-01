@@ -1,6 +1,12 @@
 import NumberField from "./NumberField";
 import { useEffect, useState } from "react";
-import { RiCameraLine, RiCheckLine, RiSparkling2Line } from "react-icons/ri";
+import {
+  RiCameraLine,
+  RiCheckLine,
+  RiImageAddLine,
+} from "react-icons/ri";
+import CameraCapture from "./CameraCapture";
+import { openImages } from "./ImageViewer";
 import { readImage, type MealReading } from "./readImage";
 import { readAudio } from "./voice";
 import { kcal, looksLiquid } from "./domain";
@@ -16,13 +22,17 @@ export default function MealPhoto({
   disabled,
   onAdd,
   onReviewing,
+  preset,
 }: {
   disabled?: boolean;
   onAdd: (items: MealReading["items"], note: string) => void;
   /** Avisa quando a revisão dos itens está aberta (o formulário manual some). */
   onReviewing?: (open: boolean) => void;
+  /** Itens já estimados (ex.: "ovo com café" escrito à mão) para revisar. */
+  preset?: MealReading | null;
 }) {
   const [busy, setBusy] = useState(false);
+  const [camera, setCamera] = useState(false);
   const [preview, setPreview] = useState("");
   useEffect(
     () => () => {
@@ -64,6 +74,19 @@ export default function MealPhoto({
     }
   }
   useEffect(() => onReviewing?.(items !== null), [items, onReviewing]);
+  useEffect(() => {
+    if (!preset?.items.length) return;
+    setPreview("");
+    setError("");
+    setItems(
+      preset.items.map((x) => ({
+        ...x,
+        liquid: x.liquid ?? looksLiquid(x.name),
+        on: true,
+      })),
+    );
+    setNote(preset.note);
+  }, [preset]);
   const set = (i: number, patch: Partial<Item>) =>
     setItems((list) => list!.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   const chosen = (items ?? []).filter(
@@ -100,12 +123,22 @@ export default function MealPhoto({
                 : "A IA tenta identificar o que tem no prato e estima as porções. Você confirma antes de salvar."}
             </p>
           </div>
-          <label
-            className={`btn-primary relative shrink-0 overflow-hidden ${disabled || busy ? "pointer-events-none opacity-50" : ""}`}
+        </div>
+      )}
+      {!items && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={disabled || busy}
+            onClick={() => setCamera(true)}
           >
-            <RiSparkling2Line size={18} />
-            <span className="hidden sm:inline">Tirar ou escolher</span>
-            <span className="sm:hidden">Foto</span>
+            <RiCameraLine size={18} /> Tirar foto
+          </button>
+          <label
+            className={`btn-secondary relative overflow-hidden ${disabled || busy ? "pointer-events-none opacity-50" : ""}`}
+          >
+            <RiImageAddLine size={18} /> Galeria
             <input
               className="absolute inset-0 cursor-pointer opacity-0"
               type="file"
@@ -119,6 +152,17 @@ export default function MealPhoto({
             />
           </label>
         </div>
+      )}
+      {camera && (
+        <CameraCapture
+          title="Foto do prato"
+          facing="environment"
+          onClose={() => setCamera(false)}
+          onCapture={(file) => {
+            setCamera(false);
+            void read(file);
+          }}
+        />
       )}
       {!items && (
         <div className="mt-3">
@@ -146,19 +190,26 @@ export default function MealPhoto({
             <>
               <div className="flex items-center gap-3">
                 {preview && (
-                  <img
-                    src={preview}
-                    alt="Foto do prato"
-                    className="size-14 shrink-0 rounded-lg object-cover"
-                  />
+                  <button
+                    type="button"
+                    aria-label="Abrir foto do prato"
+                    className="shrink-0"
+                    onClick={() => openImages([preview])}
+                  >
+                    <img
+                      src={preview}
+                      alt=""
+                      className="size-14 rounded-lg object-cover"
+                    />
+                  </button>
                 )}
                 <p className="text-sm font-semibold">
                   {preview ? "O que a IA viu no prato" : "O que a IA entendeu"}
                 </p>
               </div>
               <p className="mt-0.5 text-[13px] text-ink-500">
-                Desmarque o que não comeu e ajuste nomes e gramas antes de
-                adicionar.
+                Desmarque o que não comeu e ajuste nomes e quantidades antes de
+                adicionar. Toque em g/ml para trocar entre sólido e líquido.
               </p>
               <ul className="mt-3 divide-y divide-line">
                 {items!.map((x, i) => (
@@ -170,7 +221,7 @@ export default function MealPhoto({
                       aria-label={`Incluir ${x.name}`}
                       onChange={(e) => set(i, { on: e.target.checked })}
                     />
-                    <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_7rem]">
+                    <div className="grid min-w-0 flex-1 gap-2 sm:grid-cols-[1fr_auto]">
                       <input
                         className="input min-h-10"
                         value={x.name}
@@ -178,6 +229,16 @@ export default function MealPhoto({
                         aria-label="Alimento"
                         onChange={(e) => set(i, { name: e.target.value })}
                       />
+                      <span className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        className="min-h-10 w-12 shrink-0 rounded-lg border border-line text-sm font-medium text-ink-700 hover:border-brand-200 hover:bg-brand-50"
+                        aria-label={`${x.name}: ${x.liquid ? "líquido (ml)" : "sólido (g)"}. Trocar`}
+                        title={x.liquid ? "Líquido: trocar para sólido" : "Sólido: trocar para líquido"}
+                        onClick={() => set(i, { liquid: !x.liquid })}
+                      >
+                        {x.liquid ? "ml" : "g"}
+                      </button>
                       <NumberField
                         className="w-28"
                         unit={x.liquid ? "ml" : "g"}
@@ -188,6 +249,7 @@ export default function MealPhoto({
                         onChange={(v) => set(i, { grams: v ?? 0 })}
                         placeholder="0"
                       />
+                      </span>
                     </div>
                     <span className="w-20 shrink-0 text-right text-sm tabular-nums">
                       {kcal((x.grams * x.kcalPer100g) / 100)}

@@ -145,7 +145,13 @@ export default function Records({
               <Row
                 key={w.id}
                 title={`${num(w.value)} kg`}
-                detail={dayLabel(w.date)}
+                detail={[
+                  dayLabel(w.date),
+                  w.bodyFat !== undefined &&
+                    `${num(w.bodyFat)}% de gordura${w.bodyFatSource === "ai" ? " (estimativa da IA)" : ""}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 photos={w.photos}
                 onEdit={() => onEdit("weight", w.id)}
                 onDelete={() =>

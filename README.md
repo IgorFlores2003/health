@@ -15,7 +15,11 @@ npm run android:sync && npm run android:open
 ## Funcionalidades
 
 - Conta com e-mail confirmado, aceite dos Termos e consentimento LGPD no cadastro.
-- Peso, pressão, exercícios (hh:mm:ss), alimentação (g ou ml) e água, com fotos e preenchimento por foto ou áudio com IA.
+- Peso (com % de gordura informada ou estimada pela IA a partir de uma foto do corpo), pressão, exercícios (hh:mm:ss), alimentação (g ou ml) e água, com fotos (câmera na hora ou galeria, abertas em tela cheia no app) e preenchimento por foto ou áudio com IA.
+- Alimentos descritos juntos ("ovo com café") são separados pela IA em itens sólidos (g) e líquidos (ml) para revisar.
+- Passos contados pelo sensor do celular (Android, plugin `StepCounterPlugin.java`) ou informados à mão, com distância e calorias estimadas.
+- Cozinha: a pessoa diz o que tem em casa e a IA sugere o que preparar para a refeição do horário, de jeito saudável, com registro no diário em um toque.
+- Diário com as pendências do dia no topo (o que falta para o saldo) e atalhos de registro no Início.
 - Meta de calorias sempre automática (emagrecer, ganhar ou manter, nunca abaixo do mínimo seguro) e meta de água de 35 ml/kg com lembretes no Android.
 - Gráficos de peso, exercício, calorias, água e pressão; relatório em PDF por período.
 - Assistente com respostas na hora para perguntas comuns e Gemini para o resto.
